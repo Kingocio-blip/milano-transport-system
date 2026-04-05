@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../store/authStore';
-import { Plus, Search, Edit2, Trash2, MapPin, Calendar, Users, Euro, CheckCircle, FileText, TrendingUp } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, MapPin, Calendar, Euro, CheckCircle, FileText, TrendingUp } from 'lucide-react';
 
 const estadoColors = { 
   pendiente: '#f59e0b', 
@@ -16,7 +16,6 @@ export default function Servicios() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [showDetail, setShowDetail] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({ 
     cliente_id: '', 

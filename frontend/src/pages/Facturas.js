@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../store/authStore';
-import { Plus, Search, Edit2, Trash2, Euro, Calendar, CheckCircle, CreditCard, FileText, Download } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Euro, Calendar, CheckCircle, FileText } from 'lucide-react';
 
 const estadoColors = { 
   pendiente: '#f59e0b', 
