@@ -21,6 +21,7 @@ app = FastAPI(title="Milano Transport System API")
 origins = [
     "http://localhost:3000",
     "https://milano-transport.netlify.app",
+    "https://milanobus.netlify.app",
     "https://*.netlify.app"
 ]
 
@@ -30,6 +31,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # Configuración JWT
