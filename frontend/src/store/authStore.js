@@ -3,6 +3,28 @@ import { persist } from 'zustand/middleware';
 
 const API_URL = process.env.REACT_APP_API_URL || 'https://milano-transport-system.onrender.com';
 
+// API helper con token automático
+export const api = {
+  async fetch(endpoint, options = {}) {
+    const token = localStorage.getItem('token');
+    
+    const defaultHeaders = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+    
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers: {
+        ...defaultHeaders,
+        ...options.headers,
+      },
+    });
+    
+    return response;
+  }
+};
+
 export const useAuthStore = create(
   persist(
     (set, get) => ({
