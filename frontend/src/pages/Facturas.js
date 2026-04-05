@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../store/authStore';
-import { Plus, Search, Edit2, Trash2, FileText, Euro, Calendar } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Euro, Calendar } from 'lucide-react';
 
 const estadoColors = { pendiente: '#f59e0b', pagada: '#10b981', vencida: '#ef4444', anulada: '#6b7280' };
 
