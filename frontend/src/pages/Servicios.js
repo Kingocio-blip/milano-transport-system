@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit2, Trash2, X } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 
@@ -22,13 +22,7 @@ export default function Servicios() {
     conductor_id: ''
   });
 
-  useEffect(() => {
-    cargarServicios();
-    cargarClientes();
-    cargarConductores();
-  }, []);
-
-  const cargarServicios = async () => {
+  const cargarServicios = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}/servicios/`, {
         headers: {
@@ -42,9 +36,9 @@ export default function Servicios() {
     } catch (error) {
       console.error('Error cargando servicios:', error);
     }
-  };
+  }, [token]);
 
-  const cargarClientes = async () => {
+  const cargarClientes = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}/clientes/`, {
         headers: {
@@ -58,9 +52,9 @@ export default function Servicios() {
     } catch (error) {
       console.error('Error cargando clientes:', error);
     }
-  };
+  }, [token]);
 
-  const cargarConductores = async () => {
+  const cargarConductores = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}/conductores/`, {
         headers: {
@@ -74,7 +68,13 @@ export default function Servicios() {
     } catch (error) {
       console.error('Error cargando conductores:', error);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    cargarServicios();
+    cargarClientes();
+    cargarConductores();
+  }, [cargarServicios, cargarClientes, cargarConductores]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

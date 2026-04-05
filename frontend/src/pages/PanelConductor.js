@@ -1,19 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { CheckCircle, Clock, MapPin, User, Phone, Calendar } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 
 const API_URL = process.env.REACT_APP_API_URL || 'https://milano-transport-system.onrender.com';
 
 export default function PanelConductor() {
-  const { token, conductorId } = useAuthStore();
+  const { token } = useAuthStore();
   const [servicios, setServicios] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    cargarMisServicios();
-  }, []);
-
-  const cargarMisServicios = async () => {
+  const cargarMisServicios = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`${API_URL}/servicios/mis-servicios`, {
@@ -33,7 +29,11 @@ export default function PanelConductor() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    cargarMisServicios();
+  }, [cargarMisServicios]);
 
   const marcarCompletado = async (servicioId) => {
     try {
@@ -98,7 +98,6 @@ export default function PanelConductor() {
         <p className="text-gray-600">Bienvenido a tu panel de conductor</p>
       </div>
 
-      {/* Resumen */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <div className="flex items-center gap-3">
@@ -137,7 +136,6 @@ export default function PanelConductor() {
         </div>
       </div>
 
-      {/* Servicios Pendientes */}
       <div className="mb-8">
         <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
           <Clock size={20} className="text-yellow-600" />
@@ -223,7 +221,6 @@ export default function PanelConductor() {
         )}
       </div>
 
-      {/* Servicios Completados */}
       {serviciosCompletados.length > 0 && (
         <div>
           <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
