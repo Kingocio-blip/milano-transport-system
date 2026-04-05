@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Bus, Lock, Mail, AlertCircle } from 'lucide-react';
+import { Bus, Lock, User, AlertCircle } from 'lucide-react';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const { login, isLoading, error } = useAuthStore();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    await login(email, password);
+    await login(username, password);
   };
 
   return (
@@ -33,15 +33,15 @@ export default function Login() {
         <form className="login-form" onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="form-label">
-              <Mail size={18} />
-              <span>Email</span>
+              <User size={18} />
+              <span>Usuario</span>
             </label>
             <input
-              type="email"
+              type="text"
               className="form-input"
-              placeholder="admin@milano.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              placeholder="admin"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               required
             />
           </div>
@@ -67,7 +67,7 @@ export default function Login() {
         </form>
 
         <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '13px', color: 'var(--gray-500)' }}>
-          Credenciales demo: admin@milano.com / admin123
+          Credenciales demo: admin / admin
         </p>
       </div>
     </div>
