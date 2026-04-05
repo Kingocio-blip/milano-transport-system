@@ -19,6 +19,7 @@ api.interceptors.request.use((config) => {
 export const useAuthStore = create((set, get) => ({
   user: null,
   token: localStorage.getItem('token'),
+  rol: localStorage.getItem('rol'),
   isLoading: false,
   error: null,
 
@@ -27,9 +28,22 @@ export const useAuthStore = create((set, get) => ({
     try {
       const response = await api.post('/auth/login', { email, password });
       const { access_token } = response.data;
+      
+      // Obtener datos del usuario incluyendo rol
+      const userResponse = await api.get('/auth/me', {
+        headers: { Authorization: `Bearer ${access_token}` }
+      });
+      const userData = userResponse.data;
+      
       localStorage.setItem('token', access_token);
-      set({ token: access_token });
-      await get().fetchUser();
+      localStorage.setItem('rol', userData.rol);
+      
+      set({ 
+        token: access_token, 
+        user: userData,
+        rol: userData.rol
+      });
+      
       set({ isLoading: false });
       return true;
     } catch (error) {
@@ -41,7 +55,8 @@ export const useAuthStore = create((set, get) => ({
   fetchUser: async () => {
     try {
       const response = await api.get('/auth/me');
-      set({ user: response.data });
+      set({ user: response.data, rol: response.data.rol });
+      localStorage.setItem('rol', response.data.rol);
     } catch (error) {
       get().logout();
     }
@@ -49,15 +64,17 @@ export const useAuthStore = create((set, get) => ({
 
   checkAuth: async () => {
     const token = localStorage.getItem('token');
+    const rol = localStorage.getItem('rol');
     if (token) {
-      set({ token });
+      set({ token, rol });
       await get().fetchUser();
     }
   },
 
   logout: () => {
     localStorage.removeItem('token');
-    set({ user: null, token: null, error: null });
+    localStorage.removeItem('rol');
+    set({ user: null, token: null, rol: null, error: null });
   },
 }));
 

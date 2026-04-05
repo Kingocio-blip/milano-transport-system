@@ -9,19 +9,47 @@ import Vehiculos from './pages/Vehiculos';
 import Conductores from './pages/Conductores';
 import Servicios from './pages/Servicios';
 import Facturas from './pages/Facturas';
+import PanelConductor from './pages/PanelConductor';
 
 function App() {
-  const { token, checkAuth } = useAuthStore();
+  const { token, rol, checkAuth } = useAuthStore();
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
 
+  // Si no hay token, mostrar login
+  if (!token) {
+    return (
+      <Router>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="*" element={<Navigate to="/login" />} />
+        </Routes>
+      </Router>
+    );
+  }
+
+  // Si es conductor, mostrar solo su panel
+  if (rol === 'conductor') {
+    return (
+      <Router>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Navigate to="/mis-servicios" />} />
+            <Route path="mis-servicios" element={<PanelConductor />} />
+            <Route path="*" element={<Navigate to="/mis-servicios" />} />
+          </Route>
+        </Routes>
+      </Router>
+    );
+  }
+
+  // Si es admin, mostrar todo
   return (
     <Router>
       <Routes>
-        <Route path="/login" element={!token ? <Login /> : <Navigate to="/dashboard" />} />
-        <Route path="/" element={token ? <Layout /> : <Navigate to="/login" />}>
+        <Route path="/" element={<Layout />}>
           <Route index element={<Navigate to="/dashboard" />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="clientes" element={<Clientes />} />
