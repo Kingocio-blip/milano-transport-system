@@ -1,81 +1,79 @@
 import { create } from 'zustand';
-import axios from 'axios';
+import { persist } from 'zustand/middleware';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_URL = process.env.REACT_APP_API_URL || 'https://milano-transport-system.onrender.com';
 
-const api = axios.create({
-  baseURL: API_URL,
-  headers: { 'Content-Type': 'application/json' },
-});
+export const useAuthStore = create(
+  persist(
+    (set, get) => ({
+      token: null,
+      rol: null,
+      conductorId: null,
+      loading: false,
+      error: null,
 
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+      login: async (username, password) => {
+        set({ loading: true, error: null });
+        try {
+          const formData = new URLSearchParams();
+          formData.append('username', username);
+          formData.append('password', password);
 
-export const useAuthStore = create((set, get) => ({
-  user: null,
-  token: localStorage.getItem('token'),
-  rol: localStorage.getItem('rol'),
-  isLoading: false,
-  error: null,
+          const response = await fetch(`${API_URL}/token`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: formData,
+          });
 
-  login: async (email, password) => {
-    set({ isLoading: true, error: null });
-    try {
-      const response = await api.post('/auth/login', { email, password });
-      const { access_token } = response.data;
-      
-      // Obtener datos del usuario incluyendo rol
-      const userResponse = await api.get('/auth/me', {
-        headers: { Authorization: `Bearer ${access_token}` }
-      });
-      const userData = userResponse.data;
-      
-      localStorage.setItem('token', access_token);
-      localStorage.setItem('rol', userData.rol);
-      
-      set({ 
-        token: access_token, 
-        user: userData,
-        rol: userData.rol
-      });
-      
-      set({ isLoading: false });
-      return true;
-    } catch (error) {
-      set({ isLoading: false, error: error.response?.data?.detail || 'Error al iniciar sesion' });
-      return false;
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.detail || 'Error de autenticación');
+          }
+
+          const { access_token, rol, conductor_id } = data;
+          
+          localStorage.setItem('token', access_token);
+          localStorage.setItem('rol', rol);
+          if (conductor_id) {
+            localStorage.setItem('conductorId', conductor_id.toString());
+          }
+
+          set({ 
+            token: access_token, 
+            rol, 
+            conductorId: conductor_id,
+            loading: false,
+            error: null 
+          });
+
+          return { success: true, rol };
+        } catch (error) {
+          set({ loading: false, error: error.message });
+          return { success: false, error: error.message };
+        }
+      },
+
+      logout: () => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('rol');
+        localStorage.removeItem('conductorId');
+        set({ token: null, rol: null, conductorId: null, error: null });
+      },
+
+      checkAuth: () => {
+        const token = localStorage.getItem('token');
+        const rol = localStorage.getItem('rol');
+        const conductorId = localStorage.getItem('conductorId');
+        if (token && rol) {
+          set({ token, rol, conductorId: conductorId ? parseInt(conductorId) : null });
+        }
+      },
+    }),
+    {
+      name: 'auth-storage',
     }
-  },
-
-  fetchUser: async () => {
-    try {
-      const response = await api.get('/auth/me');
-      set({ user: response.data, rol: response.data.rol });
-      localStorage.setItem('rol', response.data.rol);
-    } catch (error) {
-      get().logout();
-    }
-  },
-
-  checkAuth: async () => {
-    const token = localStorage.getItem('token');
-    const rol = localStorage.getItem('rol');
-    if (token) {
-      set({ token, rol });
-      await get().fetchUser();
-    }
-  },
-
-  logout: () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('rol');
-    set({ user: null, token: null, rol: null, error: null });
-  },
-}));
-
-export { api };
+  )
+);
