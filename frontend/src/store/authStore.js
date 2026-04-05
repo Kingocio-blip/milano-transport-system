@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 
 const API_URL = process.env.REACT_APP_API_URL || 'https://milano-transport-system.onrender.com';
 
-// API helper con token automático
+// API helper con métodos HTTP
 export const api = {
   async fetch(endpoint, options = {}) {
     const token = localStorage.getItem('token');
@@ -21,7 +21,40 @@ export const api = {
       },
     });
     
-    return response;
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(error);
+    }
+    
+    // Si la respuesta es 204 No Content, no intentar parsear JSON
+    if (response.status === 204) {
+      return null;
+    }
+    
+    return response.json();
+  },
+  
+  // Métodos HTTP convenientes
+  get(endpoint) {
+    return this.fetch(endpoint, { method: 'GET' });
+  },
+  
+  post(endpoint, data) {
+    return this.fetch(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+  
+  put(endpoint, data) {
+    return this.fetch(endpoint, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
+  
+  delete(endpoint) {
+    return this.fetch(endpoint, { method: 'DELETE' });
   }
 };
 
