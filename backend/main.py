@@ -8,9 +8,9 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 import os
 
-from app import models
-from app import schemas
-from app.database import SessionLocal, engine, get_db
+import models
+import schemas
+from database import SessionLocal, engine, get_db
 
 # Crear tablas
 models.Base.metadata.create_all(bind=engine)

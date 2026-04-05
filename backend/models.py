@@ -61,7 +61,7 @@ class Servicio(Base):
     fecha = Column(Date)
     hora = Column(Time)
     precio = Column(Float)
-    estado = Column(String, default="pendiente")  # pendiente, en_curso, completado, cancelado
+    estado = Column(String, default="pendiente")
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
     
     cliente = relationship("Cliente", back_populates="servicios")
