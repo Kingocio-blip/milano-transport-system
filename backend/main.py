@@ -7,9 +7,10 @@ from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from typing import Optional, List
 import os
-import models
-import schemas
-from database import SessionLocal, engine, get_db
+
+from app import models
+from app import schemas
+from app.database import SessionLocal, engine, get_db
 
 # Crear tablas
 models.Base.metadata.create_all(bind=engine)
@@ -337,16 +338,7 @@ def delete_vehiculo(vehiculo_id: int, db: Session = Depends(get_db), current_use
     db.commit()
     return {"message": "Vehiculo eliminado correctamente"}
 
-# Health check
-@app.get("/")
-def read_root():
-    return {"message": "Milano Transport System API", "status": "running"}
-
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
-
-# Endpoint especial para crear primer usuario admin (solo funciona si no hay usuarios)
+# Setup endpoint - Crear primer admin
 @app.post("/setup")
 def setup_admin(db: Session = Depends(get_db)):
     # Verificar si ya existe algún usuario
@@ -366,3 +358,12 @@ def setup_admin(db: Session = Depends(get_db)):
     db.commit()
     
     return {"message": "Usuario admin creado", "username": "admin", "password": "admin"}
+
+# Health check
+@app.get("/")
+def read_root():
+    return {"message": "Milano Transport System API", "status": "running"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
