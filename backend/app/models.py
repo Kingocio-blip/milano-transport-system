@@ -40,7 +40,7 @@ class Vehiculo(Base):
     matricula = Column(String(20), unique=True, nullable=False)
     marca = Column(String(100), nullable=False)
     modelo = Column(String(100), nullable=False)
-    tipo = Column(String(50), nullable=False)
+    tipo = Column(String(50), nullable=False)  # minibus, furgon, bus, limousine
     capacidad = Column(Integer, nullable=False)
     ano = Column(Integer)
     color = Column(String(50))
@@ -51,7 +51,7 @@ class Vehiculo(Base):
     poliza_seguro = Column(String(100))
     kilometraje = Column(Integer, default=0)
     consumo_medio = Column(Float)
-    estado = Column(String(50), default="disponible")
+    estado = Column(String(50), default="disponible")  # disponible, en_servicio, mantenimiento, no_disponible
     observaciones = Column(Text)
     fecha_registro = Column(DateTime, default=datetime.utcnow)
 
@@ -72,7 +72,7 @@ class Conductor(Base):
     codigo_postal = Column(String(20))
     contacto_emergencia = Column(String(255))
     telefono_emergencia = Column(String(50))
-    estado = Column(String(50), default="disponible")
+    estado = Column(String(50), default="disponible")  # disponible, en_servicio, descanso, no_disponible
     foto_url = Column(String(500))
     observaciones = Column(Text)
     fecha_registro = Column(DateTime, default=datetime.utcnow)
@@ -84,6 +84,8 @@ class Servicio(Base):
     cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=False)
     conductor_id = Column(Integer, ForeignKey("conductores.id"))
     vehiculo_id = Column(Integer, ForeignKey("vehiculos.id"))
+    
+    # Datos del servicio
     origen = Column(String(255), nullable=False)
     origen_direccion = Column(Text)
     destino = Column(String(255), nullable=False)
@@ -91,34 +93,72 @@ class Servicio(Base):
     fecha_salida = Column(DateTime, nullable=False)
     fecha_llegada_estimada = Column(DateTime)
     fecha_llegada_real = Column(DateTime)
-    tipo = Column(String(50), nullable=False)
+    
+    # Tipo y detalles
+    tipo = Column(String(50), nullable=False)  # traslado, excursion, evento, empresarial, aeropuerto
     pasajeros = Column(Integer, nullable=False)
-    equipaje = Column(String(50))
-    precio_estimado = Column(Float)
-    precio_final = Column(Float)
+    equipaje = Column(String(50))  # ligero, medio, pesado
+    descripcion = Column(Text)  # Descripción detallada del servicio
+    
+    # Precios y costes (para rentabilidad)
+    precio_estimado = Column(Float, default=0)
+    precio_final = Column(Float, default=0)
     moneda = Column(String(10), default="EUR")
-    estado = Column(String(50), default="pendiente")
+    
+    # Gastos directos (para calcular rentabilidad)
+    gasto_conductor = Column(Float, default=0)  # Sueldo/dietas del conductor
+    gasto_auxiliar = Column(Float, default=0)   # Sueldo/dietas de auxiliar si aplica
+    gasto_gasoil = Column(Float, default=0)     # Coste de combustible
+    gasto_peajes = Column(Float, default=0)     # Peajes
+    gasto_otros = Column(Float, default=0)      # Otros gastos (alojamiento, etc.)
+    
+    # Estado y facturación
+    estado = Column(String(50), default="pendiente")  # pendiente, en_curso, completado, cancelado, facturado
+    facturado = Column(Boolean, default=False)
+    factura_id = Column(Integer, ForeignKey("facturas.id"), nullable=True)
+    
+    # Observaciones
     observaciones = Column(Text)
     instrucciones = Column(Text)
+    
+    # Metadatos
     creado_por = Column(Integer, ForeignKey("usuarios.id"))
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    fecha_actualizacion = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class Factura(Base):
     __tablename__ = "facturas"
     id = Column(Integer, primary_key=True, index=True)
     numero = Column(String(50), unique=True, nullable=False)
     cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=False)
-    servicio_id = Column(Integer, ForeignKey("servicios.id"))
+    servicio_id = Column(Integer, ForeignKey("servicios.id"), nullable=True)
+    
+    # Fechas
     fecha_emision = Column(Date, nullable=False)
     fecha_vencimiento = Column(Date, nullable=False)
-    subtotal = Column(Float, default=0)
-    descuento = Column(Float, default=0)
-    impuesto_porcentaje = Column(Float, default=21)
-    impuestos = Column(Float, default=0)
-    total = Column(Float, default=0)
-    estado = Column(String(50), default="pendiente")
-    metodo_pago = Column(String(50))
-    fecha_pago = Column(Date)
-    notas = Column(Text)
-    terminos = Column(Text)
+    fecha_pago = Column(Date, nullable=True)
+    
+    # Importes
+    subtotal = Column(Float, default=0)  # Base imponible
+    descuento = Column(Float, default=0)  # Descuento en €
+    impuesto_porcentaje = Column(Float, default=10)  # 10% para transporte, 21% para otros
+    impuestos = Column(Float, default=0)  # Calculado automático
+    total = Column(Float, default=0)  # Total a pagar
+    
+    # Estado y pago
+    estado = Column(String(50), default="pendiente")  # pendiente, pagada, vencida, anulada
+    metodo_pago = Column(String(50))  # transferencia, tarjeta, efectivo, bizum
+    forma_pago = Column(String(100))  # "Transferencia bancaria - 30 días", etc.
+    
+    # Datos bancarios para el pago
+    iban = Column(String(50))  # IBAN de la empresa
+    qr_pago = Column(String(500))  # URL o datos para QR de pago
+    
+    # Notas y términos
+    notas = Column(Text)  # Notas internas
+    notas_cliente = Column(Text)  # Notas que aparecen en la factura
+    terminos = Column(Text)  # Condiciones de pago, etc.
+    
+    # Metadatos
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    fecha_actualizacion = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
