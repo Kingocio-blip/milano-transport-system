@@ -345,3 +345,24 @@ def read_root():
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+# Endpoint especial para crear primer usuario admin (solo funciona si no hay usuarios)
+@app.post("/setup")
+def setup_admin(db: Session = Depends(get_db)):
+    # Verificar si ya existe algún usuario
+    existing_users = db.query(models.User).first()
+    if existing_users:
+        raise HTTPException(status_code=400, detail="Setup ya completado")
+    
+    # Crear usuario admin por defecto
+    hashed_password = get_password_hash("admin")
+    db_user = models.User(
+        username="admin",
+        hashed_password=hashed_password,
+        rol=models.UserRole.admin,
+        conductor_id=None
+    )
+    db.add(db_user)
+    db.commit()
+    
+    return {"message": "Usuario admin creado", "username": "admin", "password": "admin"}
