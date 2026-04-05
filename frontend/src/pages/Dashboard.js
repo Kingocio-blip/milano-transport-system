@@ -7,8 +7,8 @@ const statCards = [
   { key: 'total_vehiculos', label: 'Vehiculos', icon: Bus, color: '#10b981' },
   { key: 'total_conductores', label: 'Conductores', icon: UserCheck, color: '#f59e0b' },
   { key: 'servicios_pendientes', label: 'Servicios Pendientes', icon: ClipboardList, color: '#8b5cf6' },
-  { key: 'facturas_pendientes', label: 'Facturas Pendientes', icon: FileText, color: '#ef4444' },
-  { key: 'ingresos_mes', label: 'Ingresos del Mes', icon: Euro, color: '#06b6d4', isCurrency: true },
+  { key: 'servicios_completados', label: 'Servicios Completados', icon: FileText, color: '#ef4444' },
+  { key: 'ingresos_mes', label: 'Ingresos Totales', icon: Euro, color: '#06b6d4', isCurrency: true },
 ];
 
 export default function Dashboard() {
@@ -21,8 +21,29 @@ export default function Dashboard() {
 
   const fetchStats = async () => {
     try {
-      const response = await api.get('/dashboard/stats');
-      setStats(response.data);
+      // Llamar a los endpoints existentes
+      const [clientes, vehiculos, conductores, servicios] = await Promise.all([
+        api.get('/clientes/'),
+        api.get('/vehiculos/'),
+        api.get('/conductores/'),
+        api.get('/servicios/')
+      ]);
+
+      // Calcular estadísticas
+      const serviciosPendientes = servicios.filter(s => s.estado === 'pendiente').length;
+      const serviciosCompletados = servicios.filter(s => s.estado === 'completado').length;
+      const ingresosTotales = servicios
+        .filter(s => s.estado === 'completado')
+        .reduce((sum, s) => sum + (s.precio || 0), 0);
+
+      setStats({
+        total_clientes: clientes.length,
+        total_vehiculos: vehiculos.length,
+        total_conductores: conductores.length,
+        servicios_pendientes: serviciosPendientes,
+        servicios_completados: serviciosCompletados,
+        ingresos_mes: ingresosTotales.toFixed(2)
+      });
     } catch (error) {
       console.error('Error:', error);
     } finally {
