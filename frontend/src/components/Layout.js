@@ -1,85 +1,109 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import React from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { LayoutDashboard, Users, Bus, UserCheck, ClipboardList, FileText, LogOut, Menu } from 'lucide-react';
+import { 
+  LayoutDashboard, 
+  Users, 
+  UserCircle, 
+  Bus, 
+  Calendar, 
+  FileText, 
+  LogOut,
+  Menu,
+  X
+} from 'lucide-react';
+import './Layout.css';
 
-const menuItemsAdmin = [
-  { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { path: '/clientes', icon: Users, label: 'Clientes' },
-  { path: '/vehiculos', icon: Bus, label: 'Vehiculos' },
-  { path: '/conductores', icon: UserCheck, label: 'Conductores' },
-  { path: '/servicios', icon: ClipboardList, label: 'Servicios' },
-  { path: '/facturas', icon: FileText, label: 'Facturas' },
-];
-
-const menuItemsConductor = [
-  { path: '/mis-servicios', icon: ClipboardList, label: 'Mis Servicios' },
-];
-
-export default function Layout() {
-  const { user, rol, logout } = useAuthStore();
+const Layout = ({ children }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { logout, user } = useAuthStore();
+  const [sidebarOpen, setSidebarOpen] = React.useState(false);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  const menuItems = rol === 'conductor' ? menuItemsConductor : menuItemsAdmin;
+  const menuItems = [
+    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/clientes', label: 'Clientes', icon: Users },
+    { path: '/conductores', label: 'Conductores', icon: UserCircle },
+    { path: '/vehiculos', label: 'Vehículos', icon: Bus },
+    { path: '/servicios', label: 'Servicios', icon: Calendar },
+    { path: '/facturas', label: 'Facturas', icon: FileText },
+  ];
 
   return (
     <div className="layout">
-      <aside className="sidebar">
+      {/* Sidebar */}
+      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
-          <div className="sidebar-logo">
-            <Bus size={28} />
-            <span className="sidebar-title">MILANO</span>
-          </div>
-          {rol === 'conductor' && (
-            <p style={{fontSize: '12px', color: '#6b7280', marginTop: '5px'}}>
-              Panel de Conductor
-            </p>
-          )}
+          <h2>MILANO</h2>
+          <button 
+            className="close-sidebar"
+            onClick={() => setSidebarOpen(false)}
+          >
+            <X size={24} />
+          </button>
         </div>
+        
         <nav className="sidebar-nav">
-          {menuItems.map((item) => (
-            <NavLink 
-              key={item.path} 
-              to={item.path} 
-              className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-            >
-              <item.icon size={20} />
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = location.pathname === item.path;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`nav-item ${isActive ? 'active' : ''}`}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <Icon size={20} />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
+        
         <div className="sidebar-footer">
-          <button className="sidebar-logout" onClick={handleLogout}>
+          <div className="user-info">
+            <span>{user?.username || 'Usuario'}</span>
+            <small>{user?.role || 'Admin'}</small>
+          </div>
+          <button onClick={handleLogout} className="logout-btn">
             <LogOut size={20} />
-            <span>Cerrar Sesion</span>
+            <span>Salir</span>
           </button>
         </div>
       </aside>
 
+      {/* Overlay para móvil */}
+      {sidebarOpen && (
+        <div 
+          className="sidebar-overlay"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Main Content */}
       <main className="main-content">
-        <header className="header">
-          <button className="menu-toggle">
+        <header className="top-header">
+          <button 
+            className="menu-toggle"
+            onClick={() => setSidebarOpen(true)}
+          >
             <Menu size={24} />
           </button>
-          <div className="header-right">
-            <div className="user-menu">
-              <div className="user-avatar">{user?.nombre?.[0] || 'U'}</div>
-              <span className="user-name">{user?.nombre || 'Usuario'}</span>
-              <span style={{fontSize: '12px', color: '#6b7280', marginLeft: '8px'}}>
-                ({rol === 'conductor' ? 'Conductor' : 'Administrador'})
-              </span>
-            </div>
-          </div>
+          <h1>{menuItems.find(item => item.path === location.pathname)?.label || 'Dashboard'}</h1>
         </header>
-
-        <div className="page-content">
-          <Outlet />
+        
+        <div className="content">
+          {children}
         </div>
       </main>
     </div>
   );
-}
+};
+
+export default Layout;
