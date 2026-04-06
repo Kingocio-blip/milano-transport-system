@@ -1,96 +1,160 @@
-from sqlalchemy import Column, Integer, String, Float, Date, DateTime, Text, ForeignKey, Boolean
-from sqlalchemy.orm import relationship
-from database import Base
-from datetime import datetime
+from pydantic import BaseModel, EmailStr
+from typing import Optional, List
+from datetime import date, datetime
 
-class User(Base):
-    __tablename__ = "users"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    email = Column(String, unique=True, index=True, nullable=True)
-    hashed_password = Column(String)
-    role = Column(String, default="conductor")  # admin, conductor
-    is_active = Column(Boolean, default=True)
-    conductor_id = Column(Integer, ForeignKey("conductores.id"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+# ==================== AUTH ====================
 
-class Cliente(Base):
-    __tablename__ = "clientes"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    nombre = Column(String, nullable=False)
-    apellidos = Column(String, nullable=False)
-    dni = Column(String, unique=True, index=True)
-    telefono = Column(String, nullable=True)
-    email = Column(String, nullable=True)
-    direccion = Column(String, nullable=True)
-    ciudad = Column(String, nullable=True)
-    codigo_postal = Column(String, nullable=True)
-    notas = Column(Text, nullable=True)
-    fecha_registro = Column(DateTime, default=datetime.utcnow)
+class LoginRequest(BaseModel):
+    username: str
+    password: str
 
-class Conductor(Base):
-    __tablename__ = "conductores"
+class Token(BaseModel):
+    access_token: str
+    token_type: str
     
-    id = Column(Integer, primary_key=True, index=True)
-    nombre = Column(String, nullable=False)
-    apellidos = Column(String, nullable=False)
-    dni = Column(String, unique=True, index=True)
-    telefono = Column(String, nullable=True)
-    email = Column(String, nullable=True)
-    licencia_conducir = Column(String, nullable=True)
-    fecha_vencimiento_licencia = Column(Date, nullable=True)
-    estado = Column(String, default="activo")  # activo, inactivo, vacaciones, baja
-    fecha_contratacion = Column(DateTime, default=datetime.utcnow)
+    class Config:
+        from_attributes = True
 
-class Vehiculo(Base):
-    __tablename__ = "vehiculos"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    matricula = Column(String, unique=True, index=True)
-    marca = Column(String, nullable=False)
-    modelo = Column(String, nullable=False)
-    tipo = Column(String, default="autobus")
-    capacidad_pasajeros = Column(Integer, default=50)
-    anno_fabricacion = Column(Integer, nullable=True)
-    estado = Column(String, default="disponible")  # disponible, en_uso, mantenimiento, fuera_servicio
+class TokenWithUser(Token):
+    user: dict
 
-class Servicio(Base):
-    __tablename__ = "servicios"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=False)
-    conductor_id = Column(Integer, ForeignKey("conductores.id"), nullable=True)
-    vehiculo_id = Column(Integer, ForeignKey("vehiculos.id"), nullable=True)
-    tipo_servicio = Column(String, default="transfer")
-    origen = Column(String, nullable=False)
-    destino = Column(String, nullable=False)
-    fecha_inicio = Column(Date, nullable=False)
-    hora_inicio = Column(String, nullable=False)
-    fecha_fin = Column(Date, nullable=True)
-    hora_fin = Column(String, nullable=True)
-    numero_pasajeros = Column(Integer, default=1)
-    precio = Column(Float, default=0)
-    gastos_combustible = Column(Float, default=0)
-    gastos_peaje = Column(Float, default=0)
-    gastos_otros = Column(Float, default=0)
-    notas = Column(Text, nullable=True)
-    estado = Column(String, default="pendiente")  # pendiente, en_curso, completado, cancelado
-    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+# ==================== USER ====================
 
-class Factura(Base):
-    __tablename__ = "facturas"
+class UserBase(BaseModel):
+    username: str
+    email: Optional[str] = None
+    role: str = "conductor"
+    is_active: bool = True
+
+class UserCreate(UserBase):
+    password: str
+
+class UserResponse(UserBase):
+    id: int
+    conductor_id: Optional[int] = None
     
-    id = Column(Integer, primary_key=True, index=True)
-    cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=False)
-    servicio_id = Column(Integer, ForeignKey("servicios.id"), nullable=True)
-    fecha_emision = Column(Date, nullable=False)
-    fecha_vencimiento = Column(Date, nullable=False)
-    concepto = Column(String, nullable=True)
-    importe_base = Column(Float, default=0)
-    tipo_iva = Column(Integer, default=21)
-    importe_iva = Column(Float, default=0)
-    importe_total = Column(Float, default=0)
-    estado = Column(String, default="pendiente")  # pendiente, pagada, vencida, anulada
-    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    class Config:
+        from_attributes = True
+
+# ==================== CLIENTE ====================
+
+class ClienteBase(BaseModel):
+    nombre: str
+    apellidos: str
+    dni: str
+    telefono: Optional[str] = None
+    email: Optional[str] = None
+    direccion: Optional[str] = None
+    ciudad: Optional[str] = None
+    codigo_postal: Optional[str] = None
+    notas: Optional[str] = None
+
+class ClienteCreate(ClienteBase):
+    pass
+
+class ClienteResponse(ClienteBase):
+    id: int
+    fecha_registro: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+# ==================== CONDUCTOR ====================
+
+class ConductorBase(BaseModel):
+    nombre: str
+    apellidos: str
+    dni: str
+    telefono: Optional[str] = None
+    email: Optional[str] = None
+    licencia_conducir: Optional[str] = None
+    fecha_vencimiento_licencia: Optional[date] = None
+    estado: str = "activo"
+
+class ConductorCreate(ConductorBase):
+    pass
+
+class ConductorResponse(ConductorBase):
+    id: int
+    fecha_contratacion: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+class ConductorWithCredentials(ConductorResponse):
+    credentials: Optional[dict] = None
+
+# ==================== VEHICULO ====================
+
+class VehiculoBase(BaseModel):
+    matricula: str
+    marca: str
+    modelo: str
+    tipo: str = "autobus"
+    capacidad_pasajeros: int = 50
+    anno_fabricacion: Optional[int] = None
+    estado: str = "disponible"
+
+class VehiculoCreate(VehiculoBase):
+    pass
+
+class VehiculoResponse(VehiculoBase):
+    id: int
+    
+    class Config:
+        from_attributes = True
+
+# ==================== SERVICIO ====================
+
+class ServicioBase(BaseModel):
+    cliente_id: int
+    conductor_id: Optional[int] = None
+    vehiculo_id: Optional[int] = None
+    tipo_servicio: str = "transfer"
+    origen: str
+    destino: str
+    fecha_inicio: date
+    hora_inicio: str
+    fecha_fin: Optional[date] = None
+    hora_fin: Optional[str] = None
+    numero_pasajeros: int = 1
+    precio: float = 0
+    gastos_combustible: Optional[float] = 0
+    gastos_peaje: Optional[float] = 0
+    gastos_otros: Optional[float] = 0
+    notas: Optional[str] = None
+    estado: str = "pendiente"
+
+class ServicioCreate(ServicioBase):
+    pass
+
+class ServicioResponse(ServicioBase):
+    id: int
+    fecha_creacion: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+# ==================== FACTURA ====================
+
+class FacturaBase(BaseModel):
+    cliente_id: int
+    servicio_id: Optional[int] = None
+    fecha_emision: date
+    fecha_vencimiento: date
+    concepto: Optional[str] = None
+    importe_base: float
+    tipo_iva: int = 21
+    estado: str = "pendiente"
+
+class FacturaCreate(FacturaBase):
+    pass
+
+class FacturaResponse(FacturaBase):
+    id: int
+    importe_iva: float
+    importe_total: float
+    fecha_creacion: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
