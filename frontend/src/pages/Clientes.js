@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../store/authStore';
-import { Plus, Search, Edit2, Trash2, Mail, Phone, MapPin, User, Building2 } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Mail, Phone, User, Building2 } from 'lucide-react';
 
 export default function Clientes() {
   const [clientes, setClientes] = useState([]);
