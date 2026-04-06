@@ -7,6 +7,8 @@ from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from typing import Optional, List
 import os
+import secrets
+import string
 
 import models
 import schemas
@@ -131,13 +133,48 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db), current
 def get_conductores(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return db.query(models.Conductor).all()
 
-@app.post("/conductores/", response_model=schemas.Conductor)
+@app.post("/conductores/")
 def create_conductor(conductor: schemas.ConductorCreate, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
+    # 1. Crear conductor
     db_conductor = models.Conductor(**conductor.dict())
     db.add(db_conductor)
     db.commit()
     db.refresh(db_conductor)
-    return db_conductor
+    
+    # 2. Generar contraseña aleatoria de 8 caracteres
+    password = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(8))
+    
+    # 3. Crear nombre de usuario basado en el ID
+    username = f"conductor{db_conductor.id}"
+    
+    # 4. Crear el usuario en la base de datos
+    hashed_password = get_password_hash(password)
+    db_user = models.User(
+        username=username,
+        hashed_password=hashed_password,
+        rol=models.UserRole.conductor,
+        conductor_id=db_conductor.id
+    )
+    db.add(db_user)
+    db.commit()
+    
+    # 5. Imprimir credenciales en los logs (para que las veas en Render)
+    print(f"========================================")
+    print(f"NUEVO CONDUCTOR CREADO:")
+    print(f"ID: {db_conductor.id}")
+    print(f"Nombre: {db_conductor.nombre} {db_conductor.apellidos}")
+    print(f"Usuario: {username}")
+    print(f"Contraseña: {password}")
+    print(f"========================================")
+    
+    # 6. Devolver conductor + credenciales
+    return {
+        "conductor": db_conductor,
+        "credenciales": {
+            "username": username,
+            "password": password
+        }
+    }
 
 @app.get("/conductores/{conductor_id}", response_model=schemas.Conductor)
 def get_conductor(conductor_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
