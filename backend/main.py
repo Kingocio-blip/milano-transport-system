@@ -17,9 +17,10 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Milano Transport System API")
 
-# Configuración CORS
+# Configuración CORS - Permitir orígenes específicos
 origins = [
     "http://localhost:3000",
+    "http://localhost:5173",
     "https://milano-transport.netlify.app",
     "https://milanobus.netlify.app",
     "https://*.netlify.app"
