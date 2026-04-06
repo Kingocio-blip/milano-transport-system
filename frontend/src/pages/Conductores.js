@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { Plus, Search, Edit2, Trash2, Phone, Mail, CreditCard, Key, Copy, Check } from 'lucide-react';
 import './Conductores.css';
@@ -29,11 +29,7 @@ const Conductores = () => {
     estado: 'activo'
   });
 
-  useEffect(() => {
-    cargarConductores();
-  }, []);
-
-  const cargarConductores = async () => {
+  const cargarConductores = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`${API_URL}/conductores/`, {
@@ -52,7 +48,11 @@ const Conductores = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    cargarConductores();
+  }, [cargarConductores]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -323,110 +323,4 @@ const Conductores = () => {
               <input
                 type="text"
                 value={formData.licencia_conducir}
-                onChange={(e) => setFormData({...formData, licencia_conducir: e.target.value})}
-              />
-            </div>
-            <div className="form-group">
-              <label>Vencimiento Licencia</label>
-              <input
-                type="date"
-                value={formData.fecha_vencimiento_licencia}
-                onChange={(e) => setFormData({...formData, fecha_vencimiento_licencia: e.target.value})}
-              />
-            </div>
-            <div className="form-group">
-              <label>Estado</label>
-              <select
-                value={formData.estado}
-                onChange={(e) => setFormData({...formData, estado: e.target.value})}
-              >
-                <option value="activo">Activo</option>
-                <option value="inactivo">Inactivo</option>
-                <option value="vacaciones">Vacaciones</option>
-                <option value="baja">Baja</option>
-              </select>
-            </div>
-          </div>
-          <div className="form-actions">
-            <button type="submit" className="btn-primary">
-              {editingConductor ? 'Actualizar' : 'Crear'} Conductor
-            </button>
-          </div>
-        </form>
-      )}
-
-      <div className="search-box">
-        <Search size={20} />
-        <input
-          type="text"
-          placeholder="Buscar por nombre, DNI o email..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-      </div>
-
-      <div className="conductores-grid">
-        {filteredConductores.map((conductor) => (
-          <div key={conductor.id} className={`conductor-card ${conductor.estado}`}>
-            <div className="conductor-header">
-              <h3>{conductor.nombre} {conductor.apellidos}</h3>
-              <span className={`estado-badge ${conductor.estado}`}>
-                {conductor.estado}
-              </span>
-            </div>
-            
-            <div className="conductor-info">
-              <div className="info-row">
-                <CreditCard size={16} />
-                <span>{conductor.dni}</span>
-              </div>
-              {conductor.telefono && (
-                <div className="info-row">
-                  <Phone size={16} />
-                  <span>{conductor.telefono}</span>
-                </div>
-              )}
-              {conductor.email && (
-                <div className="info-row">
-                  <Mail size={16} />
-                  <span>{conductor.email}</span>
-                </div>
-              )}
-              {conductor.licencia_conducir && (
-                <div className="info-row">
-                  <Key size={16} />
-                  <span>Lic: {conductor.licencia_conducir}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="conductor-actions">
-              <button 
-                className="btn-icon btn-edit"
-                onClick={() => handleEdit(conductor)}
-                title="Editar"
-              >
-                <Edit2 size={18} />
-              </button>
-              <button 
-                className="btn-icon btn-delete"
-                onClick={() => handleDelete(conductor.id)}
-                title="Eliminar"
-              >
-                <Trash2 size={18} />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {filteredConductores.length === 0 && (
-        <div className="empty-state">
-          <p>No se encontraron conductores</p>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default Conductores;
+                onChange={(e)
