@@ -3,7 +3,7 @@ import { create } from 'zustand';
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 export const useAuthStore = create((set, get) => ({
-  user: null,
+  user: JSON.parse(localStorage.getItem('user')) || null,
   token: localStorage.getItem('token'),
   isAuthenticated: !!localStorage.getItem('token'),
   
@@ -24,7 +24,11 @@ export const useAuthStore = create((set, get) => ({
       
       const data = await response.json();
       
+      // Guardar en localStorage
       localStorage.setItem('token', data.access_token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      
+      // Actualizar estado
       set({ 
         user: data.user, 
         token: data.access_token, 
@@ -40,6 +44,7 @@ export const useAuthStore = create((set, get) => ({
   
   logout: () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
     set({ user: null, token: null, isAuthenticated: false });
   },
 }));
@@ -62,6 +67,7 @@ export const api = {
     
     if (response.status === 401) {
       localStorage.removeItem('token');
+      localStorage.removeItem('user');
       window.location.href = '/login';
       throw new Error('Sesión expirada');
     }
