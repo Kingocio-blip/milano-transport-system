@@ -9,7 +9,7 @@ export const useAuthStore = create((set, get) => ({
   
   login: async (username, password) => {
     try {
-      const response = await fetch(`${API_URL}/auth/login`, {  // <-- CORREGIDO: era /token
+      const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,24 +1,37 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { Bus, Lock, User, AlertCircle } from 'lucide-react';
+import { Bus, User, Lock, AlertCircle } from 'lucide-react';
+import './Login.css';
 
-export default function Login() {
+const Login = () => {
+  const navigate = useNavigate();
+  const { login } = useAuthStore();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const { login, loading, error } = useAuthStore();
-  const navigate = useNavigate();
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const result = await login(username, password);
-    if (result.success) {
+    setError('');
+    setLoading(true);
+
+    try {
+      const data = await login(username, password);
+      
       // Redirigir según el rol
-      if (result.rol === 'conductor') {
-        navigate('/mis-servicios');
+      if (data.user.role === 'admin') {
+        navigate('/dashboard');
+      } else if (data.user.role === 'conductor') {
+        navigate('/conductor/mis-servicios');
       } else {
         navigate('/dashboard');
       }
+    } catch (err) {
+      setError(err.message || 'Usuario o contraseña incorrectos');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -26,60 +39,66 @@ export default function Login() {
     <div className="login-container">
       <div className="login-box">
         <div className="login-header">
-          <div className="login-logo">
-            <Bus size={40} />
+          <div className="logo">
+            <Bus size={48} />
           </div>
-          <h1 className="login-title">MILANO</h1>
-          <p className="login-subtitle">Sistema de Gestion de Transporte</p>
+          <h1>MILANO Transport</h1>
+          <p>Sistema de Gestión de Flota</p>
         </div>
 
         {error && (
-          <div className="login-error">
-            <AlertCircle size={18} />
+          <div className="error-banner">
+            <AlertCircle size={20} />
             <span>{error}</span>
           </div>
         )}
 
-        <form className="login-form" onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="login-form">
           <div className="form-group">
-            <label className="form-label">
+            <label>
               <User size={18} />
-              <span>Usuario</span>
+              Usuario
             </label>
             <input
               type="text"
-              className="form-input"
-              placeholder="admin"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              placeholder="Ingresa tu usuario"
               required
+              disabled={loading}
             />
           </div>
 
           <div className="form-group">
-            <label className="form-label">
+            <label>
               <Lock size={18} />
-              <span>Contrasena</span>
+              Contraseña
             </label>
             <input
               type="password"
-              className="form-input"
-              placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              placeholder="Ingresa tu contraseña"
               required
+              disabled={loading}
             />
           </div>
 
-          <button type="submit" className="login-button" disabled={loading}>
-            {loading ? 'Iniciando...' : 'Iniciar Sesion'}
+          <button 
+            type="submit" 
+            className="btn-login"
+            disabled={loading}
+          >
+            {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
           </button>
         </form>
 
-        <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '13px', color: 'var(--gray-500)' }}>
-          Credenciales demo: admin / admin
-        </p>
+        <div className="login-footer">
+          <p>v2.0.0 - Sistema de Gestión</p>
+        </div>
       </div>
     </div>
   );
-}
+};
+
+export default Login;
