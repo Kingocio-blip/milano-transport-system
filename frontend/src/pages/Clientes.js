@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../store/authStore';
-import { Plus, Search, Edit2, Trash2, Mail, Phone, MapPin, User } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Mail, Phone, MapPin, User, Building2 } from 'lucide-react';
 
 export default function Clientes() {
   const [clientes, setClientes] = useState([]);
@@ -14,7 +14,8 @@ export default function Clientes() {
     email: '', 
     telefono: '', 
     direccion: '', 
-    dni: ''
+    dni: '',
+    tipo_cliente: 'particular'
   });
 
   useEffect(() => { fetchClientes(); }, []);
@@ -46,7 +47,8 @@ export default function Clientes() {
         email: '', 
         telefono: '', 
         direccion: '', 
-        dni: ''
+        dni: '',
+        tipo_cliente: 'particular'
       });
       fetchClientes();
     } catch (error) { 
@@ -71,7 +73,8 @@ export default function Clientes() {
       email: cliente.email || '',
       telefono: cliente.telefono || '',
       direccion: cliente.direccion || '',
-      dni: cliente.dni || ''
+      dni: cliente.dni || '',
+      tipo_cliente: cliente.tipo_cliente || 'particular'
     }); 
     setEditingId(cliente.id); 
     setShowForm(true); 
@@ -114,6 +117,21 @@ export default function Clientes() {
               onChange={(e) => setFormData({...formData, apellidos: e.target.value})} 
               required 
             />
+            <select 
+              className="form-select" 
+              value={formData.tipo_cliente} 
+              onChange={(e) => setFormData({...formData, tipo_cliente: e.target.value})}
+            >
+              <option value="particular">Particular</option>
+              <option value="empresa">Empresa</option>
+              <option value="autonomo">Autonomo</option>
+            </select>
+            <input 
+              className="form-input" 
+              placeholder="DNI/CIF" 
+              value={formData.dni} 
+              onChange={(e) => setFormData({...formData, dni: e.target.value})} 
+            />
             <input 
               className="form-input" 
               placeholder="Email" 
@@ -126,12 +144,6 @@ export default function Clientes() {
               placeholder="Telefono" 
               value={formData.telefono} 
               onChange={(e) => setFormData({...formData, telefono: e.target.value})} 
-            />
-            <input 
-              className="form-input" 
-              placeholder="DNI" 
-              value={formData.dni} 
-              onChange={(e) => setFormData({...formData, dni: e.target.value})} 
             />
             <input 
               className="form-input" 
@@ -164,8 +176,8 @@ export default function Clientes() {
           <thead>
             <tr>
               <th>Cliente</th>
+              <th>Tipo</th>
               <th>Contacto</th>
-              <th>Direccion</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -175,7 +187,7 @@ export default function Clientes() {
                 <td>
                   <div className="client-info">
                     <div className="client-avatar">
-                      <User size={20} />
+                      {cliente.tipo_cliente === 'empresa' ? <Building2 size={20} /> : <User size={20} />}
                     </div>
                     <div>
                       <p className="client-name">{cliente.nombre} {cliente.apellidos}</p>
@@ -184,14 +196,15 @@ export default function Clientes() {
                   </div>
                 </td>
                 <td>
+                  <span className={`badge badge-${cliente.tipo_cliente}`}>
+                    {cliente.tipo_cliente === 'particular' ? 'Particular' : 
+                     cliente.tipo_cliente === 'empresa' ? 'Empresa' : 'Autonomo'}
+                  </span>
+                </td>
+                <td>
                   <div className="contact-info">
                     {cliente.email && <p><Mail size={14} /> {cliente.email}</p>}
                     {cliente.telefono && <p><Phone size={14} /> {cliente.telefono}</p>}
-                  </div>
-                </td>
-                <td>
-                  <div className="location-info">
-                    {cliente.direccion && <p><MapPin size={14} /> {cliente.direccion}</p>}
                   </div>
                 </td>
                 <td>
