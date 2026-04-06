@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { Calendar, MapPin, CheckCircle, User, Bus } from 'lucide-react';
 import './PanelConductor.css';
@@ -11,11 +11,7 @@ const PanelConductor = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    cargarServicios();
-  }, []);
-
-  const cargarServicios = async () => {
+  const cargarServicios = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -39,7 +35,11 @@ const PanelConductor = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    cargarServicios();
+  }, [cargarServicios]);
 
   const completarServicio = async (servicioId) => {
     try {
