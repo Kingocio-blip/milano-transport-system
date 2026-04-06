@@ -1,134 +1,81 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://milano-transport-system.onrender.com';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
-// API helper con métodos HTTP
+export const useAuthStore = create((set, get) => ({
+  user: null,
+  token: localStorage.getItem('token'),
+  isAuthenticated: !!localStorage.getItem('token'),
+  
+  login: async (username, password) => {
+    try {
+      const response = await fetch(`${API_URL}/auth/login`, {  // <-- CORREGIDO: era /token
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Error de autenticación');
+      }
+      
+      const data = await response.json();
+      
+      localStorage.setItem('token', data.access_token);
+      set({ 
+        user: data.user, 
+        token: data.access_token, 
+        isAuthenticated: true 
+      });
+      
+      return data;
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
+  },
+  
+  logout: () => {
+    localStorage.removeItem('token');
+    set({ user: null, token: null, isAuthenticated: false });
+  },
+}));
+
+// Helper para API calls
 export const api = {
   async fetch(endpoint, options = {}) {
     const token = localStorage.getItem('token');
+    const url = `${API_URL}${endpoint}`;
     
-    const defaultHeaders = {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    };
-    
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      ...options,
+    const defaultOptions = {
       headers: {
-        ...defaultHeaders,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
         ...options.headers,
       },
-    });
+    };
     
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(error);
+    const response = await fetch(url, { ...defaultOptions, ...options });
+    
+    if (response.status === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+      throw new Error('Sesión expirada');
     }
     
-    // Si la respuesta es 204 No Content, no intentar parsear JSON
-    if (response.status === 204) {
-      return null;
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Error desconocido' }));
+      throw new Error(error.detail || `Error ${response.status}`);
     }
     
     return response.json();
   },
   
-  // Métodos HTTP convenientes
-  get(endpoint) {
-    return this.fetch(endpoint, { method: 'GET' });
-  },
-  
-  post(endpoint, data) {
-    return this.fetch(endpoint, {
-      method: 'POST',
-      body: JSON.stringify(data)
-    });
-  },
-  
-  put(endpoint, data) {
-    return this.fetch(endpoint, {
-      method: 'PUT',
-      body: JSON.stringify(data)
-    });
-  },
-  
-  delete(endpoint) {
-    return this.fetch(endpoint, { method: 'DELETE' });
-  }
+  get(endpoint) { return this.fetch(endpoint, { method: 'GET' }); },
+  post(endpoint, data) { return this.fetch(endpoint, { method: 'POST', body: JSON.stringify(data) }); },
+  put(endpoint, data) { return this.fetch(endpoint, { method: 'PUT', body: JSON.stringify(data) }); },
+  delete(endpoint) { return this.fetch(endpoint, { method: 'DELETE' }); }
 };
-
-export const useAuthStore = create(
-  persist(
-    (set, get) => ({
-      token: null,
-      rol: null,
-      conductorId: null,
-      loading: false,
-      error: null,
-
-      login: async (username, password) => {
-        set({ loading: true, error: null });
-        try {
-          const formData = new URLSearchParams();
-          formData.append('username', username);
-          formData.append('password', password);
-
-          const response = await fetch(`${API_URL}/token`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: formData,
-          });
-
-          const data = await response.json();
-
-          if (!response.ok) {
-            throw new Error(data.detail || 'Error de autenticación');
-          }
-
-          const { access_token, rol, conductor_id } = data;
-          
-          localStorage.setItem('token', access_token);
-          localStorage.setItem('rol', rol);
-          if (conductor_id) {
-            localStorage.setItem('conductorId', conductor_id.toString());
-          }
-
-          set({ 
-            token: access_token, 
-            rol, 
-            conductorId: conductor_id,
-            loading: false,
-            error: null 
-          });
-
-          return { success: true, rol };
-        } catch (error) {
-          set({ loading: false, error: error.message });
-          return { success: false, error: error.message };
-        }
-      },
-
-      logout: () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('rol');
-        localStorage.removeItem('conductorId');
-        set({ token: null, rol: null, conductorId: null, error: null });
-      },
-
-      checkAuth: () => {
-        const token = localStorage.getItem('token');
-        const rol = localStorage.getItem('rol');
-        const conductorId = localStorage.getItem('conductorId');
-        if (token && rol) {
-          set({ token, rol, conductorId: conductorId ? parseInt(conductorId) : null });
-        }
-      },
-    }),
-    {
-      name: 'auth-storage',
-    }
-  )
-);
