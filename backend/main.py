@@ -69,33 +69,47 @@ def require_admin(current_user: models.User = Depends(get_current_user)):
 # ==================== INIT ADMIN USER ====================
 
 def create_initial_admin():
-    """Crea usuario admin inicial si no existe ningún usuario"""
+    """Crea o actualiza usuario admin"""
     db = SessionLocal()
     try:
-        # Verificar si ya existe algún usuario
-        existing_user = db.query(models.User).first()
-        if existing_user:
-            print("✓ Usuarios ya existen en la base de datos")
-            return
+        # Buscar usuario admin existente
+        admin_user = db.query(models.User).filter(models.User.username == "admin").first()
         
-        # Crear usuario admin por defecto
-        admin_user = models.User(
-            username="admin",
-            email="admin@milano.com",
-            hashed_password=auth.get_password_hash("admin123"),
-            role="admin",
-            is_active=True
-        )
-        db.add(admin_user)
-        db.commit()
-        print("=" * 50)
-        print("✓ USUARIO ADMIN CREADO AUTOMÁTICAMENTE")
-        print("=" * 50)
+        if admin_user:
+            # Actualizar contraseña del admin existente
+            admin_user.hashed_password = auth.get_password_hash("admin123")
+            admin_user.is_active = True
+            db.commit()
+            print("=" * 50)
+            print("✓ CONTRASEÑA ADMIN ACTUALIZADA")
+            print("=" * 50)
+        else:
+            # Crear usuario admin nuevo
+            admin_user = models.User(
+                username="admin",
+                email="admin@milano.com",
+                hashed_password=auth.get_password_hash("admin123"),
+                role="admin",
+                is_active=True
+            )
+            db.add(admin_user)
+            db.commit()
+            print("=" * 50)
+            print("✓ USUARIO ADMIN CREADO")
+            print("=" * 50)
+        
         print("Usuario: admin")
         print("Contraseña: admin123")
         print("=" * 50)
+        
+        # Mostrar todos los usuarios para debug
+        all_users = db.query(models.User).all()
+        print(f"Total usuarios en BD: {len(all_users)}")
+        for u in all_users:
+            print(f"  - {u.username} ({u.role})")
+            
     except Exception as e:
-        print(f"Error creando admin: {e}")
+        print(f"Error con admin: {e}")
     finally:
         db.close()
 
