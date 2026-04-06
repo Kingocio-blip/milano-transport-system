@@ -1,319 +1,432 @@
-import { useEffect, useState } from 'react';
-import { api } from '../store/authStore';
-import { Plus, Search, Edit2, Trash2, Phone, Mail, CreditCard, User, Key, Copy, Check } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useAuthStore } from '../store/authStore';
+import { Plus, Search, Edit2, Trash2, Phone, Mail, CreditCard, Key, Copy, Check } from 'lucide-react';
+import './Conductores.css';
 
-export default function Conductores() {
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+
+const Conductores = () => {
+  const { token } = useAuthStore();
   const [conductores, setConductores] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [showCredentials, setShowCredentials] = useState(false);
+  const [editingConductor, setEditingConductor] = useState(null);
   const [credentials, setCredentials] = useState(null);
-  const [copied, setCopied] = useState(false);
-  const [formData, setFormData] = useState({ 
-    nombre: '', 
-    apellidos: '', 
-    email: '', 
-    telefono: '', 
-    dni: '', 
+  const [showCredentials, setShowCredentials] = useState(false);
+  const [copiedUser, setCopiedUser] = useState(false);
+  const [copiedPass, setCopiedPass] = useState(false);
+  
+  const [formData, setFormData] = useState({
+    nombre: '',
+    apellidos: '',
+    dni: '',
+    telefono: '',
+    email: '',
     licencia_conducir: '',
-    fecha_contratacion: '',
-    direccion: ''
+    fecha_vencimiento_licencia: '',
+    estado: 'activo'
   });
 
-  useEffect(() => { fetchConductores(); }, []);
+  useEffect(() => {
+    cargarConductores();
+  }, []);
 
-  const fetchConductores = async () => {
+  const cargarConductores = async () => {
     try {
-      const data = await api.get('/conductores/');
+      setLoading(true);
+      const response = await fetch(`${API_URL}/conductores/`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) throw new Error('Error al cargar conductores');
+      
+      const data = await response.json();
       setConductores(data);
-    } catch (error) { 
-      console.error('Error:', error); 
-    } finally { 
-      setLoading(false); 
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      if (editingId) {
-        await api.put(`/conductores/${editingId}`, formData);
-        setShowForm(false); 
-        setEditingId(null);
-        setFormData({ 
-          nombre: '', 
-          apellidos: '', 
-          email: '', 
-          telefono: '', 
-          dni: '', 
-          licencia_conducir: '',
-          fecha_contratacion: '',
-          direccion: ''
-        });
-        fetchConductores();
-      } else {
-        // Crear nuevo conductor - la respuesta incluye credenciales
-        const response = await api.post('/conductores/', formData);
-        
-        if (response && response.credenciales) {
-          setCredentials({
-            nombre: response.conductor?.nombre + ' ' + response.conductor?.apellidos,
-            username: response.credenciales.username,
-            password: response.credenciales.password
-          });
-          setShowCredentials(true);
-        }
-        
-        setShowForm(false);
-        setFormData({ 
-          nombre: '', 
-          apellidos: '', 
-          email: '', 
-          telefono: '', 
-          dni: '', 
-          licencia_conducir: '',
-          fecha_contratacion: '',
-          direccion: ''
-        });
-        fetchConductores();
+      const url = editingConductor 
+        ? `${API_URL}/conductores/${editingConductor.id}`
+        : `${API_URL}/conductores/`;
+      
+      const method = editingConductor ? 'PUT' : 'POST';
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(formData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Error al guardar conductor');
       }
-    } catch (error) { 
-      alert('Error al guardar: ' + error.message); 
+
+      const data = await response.json();
+      
+      if (!editingConductor && data.credentials) {
+        setCredentials(data.credentials);
+        setShowCredentials(true);
+      }
+      
+      setShowForm(false);
+      setEditingConductor(null);
+      resetForm();
+      cargarConductores();
+    } catch (err) {
+      setError(err.message);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Eliminar conductor?')) return;
-    try { 
-      await api.delete(`/conductores/${id}`); 
-      fetchConductores(); 
-    } catch (error) { 
-      alert('Error al eliminar: ' + error.message); 
+    if (!window.confirm('¿Estás seguro de eliminar este conductor?')) return;
+    
+    try {
+      const response = await fetch(`${API_URL}/conductores/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) throw new Error('Error al eliminar conductor');
+      
+      cargarConductores();
+    } catch (err) {
+      setError(err.message);
     }
   };
 
-  const handleEdit = (c) => { 
+  const handleEdit = (conductor) => {
+    setEditingConductor(conductor);
     setFormData({
-      nombre: c.nombre || '',
-      apellidos: c.apellidos || '',
-      email: c.email || '',
-      telefono: c.telefono || '',
-      dni: c.dni || '',
-      licencia_conducir: c.licencia_conducir || '',
-      fecha_contratacion: c.fecha_contratacion || '',
-      direccion: c.direccion || ''
-    }); 
-    setEditingId(c.id); 
-    setShowForm(true); 
+      nombre: conductor.nombre,
+      apellidos: conductor.apellidos,
+      dni: conductor.dni,
+      telefono: conductor.telefono || '',
+      email: conductor.email || '',
+      licencia_conducir: conductor.licencia_conducir || '',
+      fecha_vencimiento_licencia: conductor.fecha_vencimiento_licencia || '',
+      estado: conductor.estado
+    });
+    setShowForm(true);
+    setShowCredentials(false);
+    setCredentials(null);
   };
 
-  const copyToClipboard = (text) => {
+  const resetForm = () => {
+    setFormData({
+      nombre: '',
+      apellidos: '',
+      dni: '',
+      telefono: '',
+      email: '',
+      licencia_conducir: '',
+      fecha_vencimiento_licencia: '',
+      estado: 'activo'
+    });
+  };
+
+  const copyToClipboard = (text, type) => {
     navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (type === 'user') {
+      setCopiedUser(true);
+      setTimeout(() => setCopiedUser(false), 2000);
+    } else {
+      setCopiedPass(true);
+      setTimeout(() => setCopiedPass(false), 2000);
+    }
   };
 
-  const conductoresFiltrados = conductores.filter(c => 
-    `${c.nombre} ${c.apellidos}`.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredConductores = conductores.filter(c => 
+    c.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.apellidos.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.dni.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (c.email && c.email.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  if (loading) return <div className="loading-container"><div className="loading-spinner"></div></div>;
+  if (loading) return <div className="loading">Cargando conductores...</div>;
 
   return (
-    <div className="page">
+    <div className="conductores-container">
       <div className="page-header">
-        <div>
-          <h1 className="page-title">Conductores</h1>
-          <p className="page-subtitle">Gestion de personal</p>
-        </div>
-        <button className="btn btn-primary" onClick={() => { setShowForm(true); setEditingId(null); }}>
-          <Plus size={20} /> Nuevo Conductor
+        <h1>Gestión de Conductores</h1>
+        <button className="btn-primary" onClick={() => {
+          setShowForm(!showForm);
+          if (showForm) {
+            setEditingConductor(null);
+            resetForm();
+            setShowCredentials(false);
+            setCredentials(null);
+          }
+        }}>
+          <Plus size={20} />
+          {showForm ? 'Cancelar' : 'Nuevo Conductor'}
         </button>
       </div>
 
-      {/* Modal de Credenciales */}
+      {error && <div className="error-message">{error}</div>}
+
       {showCredentials && credentials && (
-        <div className="form-container" style={{ marginBottom: '24px', background: '#ecfdf5', border: '2px solid #10b981' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
-            <Key size={24} color="#10b981" />
-            <h3 style={{ margin: 0, color: '#065f46' }}>Conductor Creado - Credenciales de Acceso</h3>
-          </div>
-          
-          <p style={{ color: '#374151', marginBottom: '15px' }}>
-            El conductor <strong>{credentials.nombre}</strong> ha sido creado exitosamente. 
-            Guarda estas credenciales para enviárselas:
+        <div className="credentials-container" style={{ 
+          marginBottom: '24px', 
+          padding: '20px',
+          background: '#ecfdf5', 
+          border: '2px solid #10b981',
+          borderRadius: '8px'
+        }}>
+          <h3 style={{ color: '#065f46', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Key size={24} />
+            Credenciales de Acceso Generadas
+          </h3>
+          <p style={{ color: '#047857', marginBottom: '16px' }}>
+            Guarda estas credenciales, solo se mostrarán una vez:
           </p>
-
-          <div style={{ background: 'white', padding: '15px', borderRadius: '8px', marginBottom: '15px' }}>
-            <div style={{ marginBottom: '10px' }}>
-              <label style={{ fontSize: '12px', color: '#6b7280', textTransform: 'uppercase' }}>Usuario:</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <code style={{ 
-                  background: '#f3f4f6', 
-                  padding: '8px 12px', 
-                  borderRadius: '4px',
-                  fontSize: '16px',
-                  fontWeight: 'bold',
-                  color: '#111827',
-                  flex: 1
-                }}>
+          
+          <div style={{ display: 'grid', gap: '12px' }}>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'space-between',
+              background: 'white',
+              padding: '12px 16px',
+              borderRadius: '6px',
+              border: '1px solid #10b981'
+            }}>
+              <div>
+                <span style={{ color: '#6b7280', fontSize: '12px' }}>Usuario:</span>
+                <div style={{ fontSize: '18px', fontWeight: '600', color: '#111827', fontFamily: 'monospace' }}>
                   {credentials.username}
-                </code>
-                <button 
-                  onClick={() => copyToClipboard(credentials.username)}
-                  className="btn-icon"
-                  title="Copiar usuario"
-                >
-                  {copied ? <Check size={18} color="#10b981" /> : <Copy size={18} />}
-                </button>
+                </div>
               </div>
+              <button 
+                onClick={() => copyToClipboard(credentials.username, 'user')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 12px',
+                  background: copiedUser ? '#10b981' : '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                {copiedUser ? <Check size={16} /> : <Copy size={16} />}
+                {copiedUser ? 'Copiado' : 'Copiar'}
+              </button>
             </div>
 
-            <div>
-              <label style={{ fontSize: '12px', color: '#6b7280', textTransform: 'uppercase' }}>Contraseña:</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <code style={{ 
-                  background: '#f3f4f6', 
-                  padding: '8px 12px', 
-                  borderRadius: '4px',
-                  fontSize: '16px',
-                  fontWeight: 'bold',
-                  color: '#dc2626',
-                  flex: 1
-                }}>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'space-between',
+              background: 'white',
+              padding: '12px 16px',
+              borderRadius: '6px',
+              border: '1px solid #10b981'
+            }}>
+              <div>
+                <span style={{ color: '#6b7280', fontSize: '12px' }}>Contraseña:</span>
+                <div style={{ fontSize: '18px', fontWeight: '600', color: '#111827', fontFamily: 'monospace' }}>
                   {credentials.password}
-                </code>
-                <button 
-                  onClick={() => copyToClipboard(credentials.password)}
-                  className="btn-icon"
-                  title="Copiar contraseña"
-                >
-                  {copied ? <Check size={18} color="#10b981" /> : <Copy size={18} />}
-                </button>
+                </div>
               </div>
+              <button 
+                onClick={() => copyToClipboard(credentials.password, 'pass')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 12px',
+                  background: copiedPass ? '#10b981' : '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                {copiedPass ? <Check size={16} /> : <Copy size={16} />}
+                {copiedPass ? 'Copiado' : 'Copiar'}
+              </button>
             </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button 
-              onClick={() => copyToClipboard(`Usuario: ${credentials.username}\nContraseña: ${credentials.password}`)}
-              className="btn btn-primary"
-              style={{ flex: 1 }}
-            >
-              <Copy size={16} style={{ marginRight: '8px' }} />
-              Copiar Todo
-            </button>
-            <button 
-              onClick={() => setShowCredentials(false)}
-              className="btn btn-secondary"
-            >
-              Cerrar
-            </button>
           </div>
         </div>
       )}
 
-      {/* Formulario */}
       {showForm && (
-        <div className="form-container" style={{ marginBottom: '24px' }}>
-          <h3>{editingId ? 'Editar Conductor' : 'Nuevo Conductor'}</h3>
-          <form onSubmit={handleSubmit} className="form-grid">
-            <input 
-              className="form-input" 
-              placeholder="Nombre *" 
-              value={formData.nombre} 
-              onChange={(e) => setFormData({...formData, nombre: e.target.value})} 
-              required 
-            />
-            <input 
-              className="form-input" 
-              placeholder="Apellidos *" 
-              value={formData.apellidos} 
-              onChange={(e) => setFormData({...formData, apellidos: e.target.value})} 
-              required 
-            />
-            <input 
-              className="form-input" 
-              placeholder="Email" 
-              type="email" 
-              value={formData.email} 
-              onChange={(e) => setFormData({...formData, email: e.target.value})} 
-            />
-            <input 
-              className="form-input" 
-              placeholder="Telefono" 
-              value={formData.telefono} 
-              onChange={(e) => setFormData({...formData, telefono: e.target.value})} 
-            />
-            <input 
-              className="form-input" 
-              placeholder="DNI" 
-              value={formData.dni} 
-              onChange={(e) => setFormData({...formData, dni: e.target.value})} 
-            />
-            <input 
-              className="form-input" 
-              placeholder="Licencia de Conducir" 
-              value={formData.licencia_conducir} 
-              onChange={(e) => setFormData({...formData, licencia_conducir: e.target.value})} 
-            />
-            <input 
-              className="form-input" 
-              placeholder="Fecha Contratacion (YYYY-MM-DD)" 
-              type="date"
-              value={formData.fecha_contratacion} 
-              onChange={(e) => setFormData({...formData, fecha_contratacion: e.target.value})} 
-            />
-            <input 
-              className="form-input" 
-              placeholder="Direccion" 
-              value={formData.direccion} 
-              onChange={(e) => setFormData({...formData, direccion: e.target.value})} 
-            />
-            <div className="form-actions">
-              <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancelar</button>
-              <button type="submit" className="btn btn-primary">Guardar</button>
+        <form onSubmit={handleSubmit} className="conductor-form">
+          <div className="form-grid">
+            <div className="form-group">
+              <label>Nombre *</label>
+              <input
+                type="text"
+                value={formData.nombre}
+                onChange={(e) => setFormData({...formData, nombre: e.target.value})}
+                required
+              />
             </div>
-          </form>
-        </div>
+            <div className="form-group">
+              <label>Apellidos *</label>
+              <input
+                type="text"
+                value={formData.apellidos}
+                onChange={(e) => setFormData({...formData, apellidos: e.target.value})}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>DNI/NIE *</label>
+              <input
+                type="text"
+                value={formData.dni}
+                onChange={(e) => setFormData({...formData, dni: e.target.value})}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Teléfono</label>
+              <input
+                type="tel"
+                value={formData.telefono}
+                onChange={(e) => setFormData({...formData, telefono: e.target.value})}
+              />
+            </div>
+            <div className="form-group">
+              <label>Email</label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({...formData, email: e.target.value})}
+              />
+            </div>
+            <div className="form-group">
+              <label>Licencia de Conducir</label>
+              <input
+                type="text"
+                value={formData.licencia_conducir}
+                onChange={(e) => setFormData({...formData, licencia_conducir: e.target.value})}
+              />
+            </div>
+            <div className="form-group">
+              <label>Vencimiento Licencia</label>
+              <input
+                type="date"
+                value={formData.fecha_vencimiento_licencia}
+                onChange={(e) => setFormData({...formData, fecha_vencimiento_licencia: e.target.value})}
+              />
+            </div>
+            <div className="form-group">
+              <label>Estado</label>
+              <select
+                value={formData.estado}
+                onChange={(e) => setFormData({...formData, estado: e.target.value})}
+              >
+                <option value="activo">Activo</option>
+                <option value="inactivo">Inactivo</option>
+                <option value="vacaciones">Vacaciones</option>
+                <option value="baja">Baja</option>
+              </select>
+            </div>
+          </div>
+          <div className="form-actions">
+            <button type="submit" className="btn-primary">
+              {editingConductor ? 'Actualizar' : 'Crear'} Conductor
+            </button>
+          </div>
+        </form>
       )}
 
-      <div className="filters-bar">
-        <div className="search-box">
-          <Search size={20} />
-          <input 
-            type="text" 
-            placeholder="Buscar conductores..." 
-            value={searchTerm} 
-            onChange={(e) => setSearchTerm(e.target.value)} 
-          />
-        </div>
+      <div className="search-box">
+        <Search size={20} />
+        <input
+          type="text"
+          placeholder="Buscar por nombre, DNI o email..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
       </div>
 
-      <div className="drivers-grid">
-        {conductoresFiltrados.map((c) => (
-          <div key={c.id} className="driver-card">
-            <div className="driver-header">
-              <div className="driver-avatar">{c.nombre?.[0]}{c.apellidos?.[0]}</div>
+      <div className="conductores-grid">
+        {filteredConductores.map((conductor) => (
+          <div key={conductor.id} className={`conductor-card ${conductor.estado}`}>
+            <div className="conductor-header">
+              <h3>{conductor.nombre} {conductor.apellidos}</h3>
+              <span className={`estado-badge ${conductor.estado}`}>
+                {conductor.estado}
+              </span>
             </div>
-            <div className="driver-info">
-              <p className="driver-name">{c.nombre} {c.apellidos}</p>
-              <p className="driver-dni">{c.dni || 'Sin DNI'}</p>
+            
+            <div className="conductor-info">
+              <div className="info-row">
+                <CreditCard size={16} />
+                <span>{conductor.dni}</span>
+              </div>
+              {conductor.telefono && (
+                <div className="info-row">
+                  <Phone size={16} />
+                  <span>{conductor.telefono}</span>
+                </div>
+              )}
+              {conductor.email && (
+                <div className="info-row">
+                  <Mail size={16} />
+                  <span>{conductor.email}</span>
+                </div>
+              )}
+              {conductor.licencia_conducir && (
+                <div className="info-row">
+                  <Key size={16} />
+                  <span>Lic: {conductor.licencia_conducir}</span>
+                </div>
+              )}
             </div>
-            <div className="driver-details">
-              {c.email && <div className="detail-item"><Mail size={16} /><span>{c.email}</span></div>}
-              {c.telefono && <div className="detail-item"><Phone size={16} /><span>{c.telefono}</span></div>}
-              {c.licencia_conducir && <div className="detail-item"><CreditCard size={16} /><span>{c.licencia_conducir}</span></div>}
-            </div>
-            <div className="driver-actions">
-              <button className="btn-icon" onClick={() => handleEdit(c)}><Edit2 size={18} /></button>
-              <button className="btn-icon btn-danger" onClick={() => handleDelete(c.id)}><Trash2 size={18} /></button>
+
+            <div className="conductor-actions">
+              <button 
+                className="btn-icon btn-edit"
+                onClick={() => handleEdit(conductor)}
+                title="Editar"
+              >
+                <Edit2 size={18} />
+              </button>
+              <button 
+                className="btn-icon btn-delete"
+                onClick={() => handleDelete(conductor.id)}
+                title="Eliminar"
+              >
+                <Trash2 size={18} />
+              </button>
             </div>
           </div>
         ))}
       </div>
+
+      {filteredConductores.length === 0 && (
+        <div className="empty-state">
+          <p>No se encontraron conductores</p>
+        </div>
+      )}
     </div>
   );
-}
+};
+
+export default Conductores;
