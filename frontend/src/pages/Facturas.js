@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Plus, Search, Edit2, Trash2, FileText, Euro, Calendar, Check, X, Download } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Calendar, Download } from 'lucide-react';
 import './Facturas.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -155,11 +155,6 @@ const Facturas = () => {
   const getClienteNombre = (id) => {
     const c = clientes.find(c => c.id === id);
     return c ? `${c.nombre} ${c.apellidos}` : 'N/A';
-  };
-
-  const getServicioInfo = (id) => {
-    const s = servicios.find(s => s.id === id);
-    return s ? `${s.origen} - ${s.destino}` : 'N/A';
   };
 
   const filteredFacturas = facturas.filter(f => 

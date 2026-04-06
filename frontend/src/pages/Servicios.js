@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Plus, Search, Edit2, Trash2, Calendar, Clock, MapPin, User, Bus, Euro, FileText, Check, X } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Calendar, MapPin, User, Bus, FileText } from 'lucide-react';
 import './Servicios.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 const Servicios = () => {
-  const { token, user } = useAuthStore();
+  const { token } = useAuthStore();
   const [servicios, setServicios] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [conductores, setConductores] = useState([]);
@@ -500,8 +500,7 @@ const Servicios = () => {
 
               <div className="servicio-economia">
                 <div className="economia-item precio">
-                  <Euro size={14} />
-                  <span>{parseFloat(servicio.precio).toFixed(2)} €</span>
+                  <span>Precio: {parseFloat(servicio.precio).toFixed(2)} €</span>
                 </div>
                 <div className={`economia-item rentabilidad ${rentabilidad >= 0 ? 'positive' : 'negative'}`}>
                   <span>Beneficio: {rentabilidad.toFixed(2)} €</span>
