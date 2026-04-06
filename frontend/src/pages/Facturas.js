@@ -1,267 +1,370 @@
-import { useEffect, useState } from 'react';
-import { api } from '../store/authStore';
-import { Plus, Search, Edit2, Trash2, Euro, Calendar, CheckCircle, FileText } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useAuthStore } from '../store/authStore';
+import { Plus, Search, Edit2, Trash2, FileText, Euro, Calendar, Check, X, Download } from 'lucide-react';
+import './Facturas.css';
 
-const estadoColors = { 
-  pendiente: '#f59e0b', 
-  pagada: '#10b981', 
-  vencida: '#ef4444', 
-  anulada: '#6b7280' 
-};
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
-export default function Facturas() {
+const Facturas = () => {
+  const { token } = useAuthStore();
   const [facturas, setFacturas] = useState([]);
   const [clientes, setClientes] = useState([]);
+  const [servicios, setServicios] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState({ 
-    cliente_id: '', 
-    fecha_emision: '', 
-    fecha_vencimiento: '', 
-    subtotal: '',
-    descuento: '0',
-    impuesto_porcentaje: '10',
-    metodo_pago: 'transferencia',
-    forma_pago: 'Transferencia bancaria - 30 días',
-    iban: '',
-    notas_cliente: '',
-    terminos: ''
+  const [editingFactura, setEditingFactura] = useState(null);
+  
+  const [formData, setFormData] = useState({
+    cliente_id: '',
+    servicio_id: '',
+    fecha_emision: new Date().toISOString().split('T')[0],
+    fecha_vencimiento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    concepto: '',
+    importe_base: '',
+    tipo_iva: 21,
+    estado: 'pendiente'
   });
 
-  useEffect(() => { fetchData(); }, []);
-
-  const fetchData = async () => {
+  const cargarDatos = useCallback(async () => {
     try {
-      const [facRes, cliRes] = await Promise.all([
-        api.get('/facturas'), 
-        api.get('/clientes')
+      setLoading(true);
+      const headers = { 'Authorization': `Bearer ${token}` };
+      
+      const [facRes, cliRes, servRes] = await Promise.all([
+        fetch(`${API_URL}/facturas/`, { headers }),
+        fetch(`${API_URL}/clientes/`, { headers }),
+        fetch(`${API_URL}/servicios/`, { headers })
       ]);
-      setFacturas(facRes.data); 
-      setClientes(cliRes.data);
-    } catch (error) { 
-      console.error('Error:', error); 
+
+      if (!facRes.ok || !cliRes.ok || !servRes.ok) {
+        throw new Error('Error al cargar datos');
+      }
+
+      const [facturasData, clientesData, serviciosData] = await Promise.all([
+        facRes.json(),
+        cliRes.json(),
+        servRes.json()
+      ]);
+
+      setFacturas(facturasData);
+      setClientes(clientesData);
+      setServicios(serviciosData);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-    finally { setLoading(false); }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    cargarDatos();
+  }, [cargarDatos]);
 
   const calcularTotal = () => {
-    const subtotal = parseFloat(formData.subtotal) || 0;
-    const descuento = parseFloat(formData.descuento) || 0;
-    const impuesto = parseFloat(formData.impuesto_porcentaje) || 10;
-    const base = subtotal - descuento;
-    const impuestos = base * (impuesto / 100);
-    return {
-      base: base.toFixed(2),
-      impuestos: impuestos.toFixed(2),
-      total: (base + impuestos).toFixed(2)
-    };
+    const base = parseFloat(formData.importe_base) || 0;
+    const iva = base * (parseFloat(formData.tipo_iva) || 0) / 100;
+    return base + iva;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      if (editingId) {
-        await api.put(`/facturas/${editingId}`, formData);
-      } else {
-        await api.post('/facturas', formData);
-      }
-      setShowForm(false); 
-      setEditingId(null);
-      resetForm();
-      fetchData();
-    } catch (error) { 
-      alert('Error al guardar: ' + (error.response?.data?.detail || error.message)); 
-    }
-  };
+      const url = editingFactura 
+        ? `${API_URL}/facturas/${editingFactura.id}`
+        : `${API_URL}/facturas/`;
+      
+      const method = editingFactura ? 'PUT' : 'POST';
+      
+      const dataToSend = {
+        ...formData,
+        cliente_id: parseInt(formData.cliente_id),
+        servicio_id: formData.servicio_id ? parseInt(formData.servicio_id) : null,
+        importe_base: parseFloat(formData.importe_base),
+        tipo_iva: parseInt(formData.tipo_iva),
+        importe_iva: (parseFloat(formData.importe_base) * parseInt(formData.tipo_iva) / 100),
+        importe_total: calcularTotal()
+      };
 
-  const resetForm = () => {
-    setFormData({ 
-      cliente_id: '', fecha_emision: '', fecha_vencimiento: '', 
-      subtotal: '', descuento: '0', impuesto_porcentaje: '10',
-      metodo_pago: 'transferencia', forma_pago: 'Transferencia bancaria - 30 días',
-      iban: '', notas_cliente: '', terminos: ''
-    });
-  };
-
-  const marcarPagada = async (factura) => {
-    if (!window.confirm(`¿Marcar factura ${factura.numero} como PAGADA?`)) return;
-    try {
-      await api.put(`/facturas/${factura.id}`, { 
-        estado: 'pagada',
-        metodo_pago: 'transferencia'
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(dataToSend)
       });
-      fetchData();
-    } catch (error) {
-      alert('Error: ' + (error.response?.data?.detail || error.message));
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Error al guardar factura');
+      }
+
+      setShowForm(false);
+      setEditingFactura(null);
+      resetForm();
+      cargarDatos();
+    } catch (err) {
+      setError(err.message);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('¿Eliminar factura?')) return;
-    try { 
-      await api.delete(`/facturas/${id}`); 
-      fetchData(); 
+    if (!window.confirm('¿Eliminar esta factura?')) return;
+    try {
+      const response = await fetch(`${API_URL}/facturas/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Error al eliminar');
+      cargarDatos();
+    } catch (err) {
+      setError(err.message);
     }
-    catch (error) { alert('Error al eliminar'); }
   };
 
-  const handleEdit = (f) => { 
+  const handleEdit = (factura) => {
+    setEditingFactura(factura);
     setFormData({
-      ...f, 
-      fecha_emision: f.fecha_emision?.slice(0,10),
-      fecha_vencimiento: f.fecha_vencimiento?.slice(0,10),
-      subtotal: f.subtotal.toString(),
-      descuento: f.descuento.toString(),
-      impuesto_porcentaje: f.impuesto_porcentaje.toString()
-    }); 
-    setEditingId(f.id); 
-    setShowForm(true); 
+      cliente_id: factura.cliente_id || '',
+      servicio_id: factura.servicio_id || '',
+      fecha_emision: factura.fecha_emision || '',
+      fecha_vencimiento: factura.fecha_vencimiento || '',
+      concepto: factura.concepto || '',
+      importe_base: factura.importe_base || '',
+      tipo_iva: factura.tipo_iva || 21,
+      estado: factura.estado || 'pendiente'
+    });
+    setShowForm(true);
   };
 
-  const getClienteNombre = (id) => clientes.find(c => c.id === id)?.nombre || 'N/A';
-  
-  const isVencida = (f) => f.estado === 'pendiente' && new Date(f.fecha_vencimiento) < new Date();
-  
-  const facturasFiltradas = facturas.filter(f => 
-    f.numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    getClienteNombre(f.cliente_id).toLowerCase().includes(searchTerm.toLowerCase())
+  const resetForm = () => {
+    setFormData({
+      cliente_id: '',
+      servicio_id: '',
+      fecha_emision: new Date().toISOString().split('T')[0],
+      fecha_vencimiento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      concepto: '',
+      importe_base: '',
+      tipo_iva: 21,
+      estado: 'pendiente'
+    });
+  };
+
+  const getClienteNombre = (id) => {
+    const c = clientes.find(c => c.id === id);
+    return c ? `${c.nombre} ${c.apellidos}` : 'N/A';
+  };
+
+  const getServicioInfo = (id) => {
+    const s = servicios.find(s => s.id === id);
+    return s ? `${s.origen} - ${s.destino}` : 'N/A';
+  };
+
+  const filteredFacturas = facturas.filter(f => 
+    f.concepto?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    getClienteNombre(f.cliente_id).toLowerCase().includes(searchTerm.toLowerCase()) ||
+    f.id.toString().includes(searchTerm)
   );
 
-  const totalPendiente = facturas
-    .filter(f => f.estado === 'pendiente')
-    .reduce((sum, f) => sum + f.total, 0);
-
-  if (loading) return <div className="loading-container"><div className="loading-spinner"></div></div>;
+  if (loading) return <div className="loading">Cargando facturas...</div>;
 
   return (
-    <div className="page">
+    <div className="facturas-container">
       <div className="page-header">
-        <div>
-          <h1 className="page-title">Facturas</h1>
-          <p className="page-subtitle">Gestión de facturación</p>
-          <p style={{color: '#f59e0b', fontWeight: 600, marginTop: '5px'}}>
-            <Euro size={16} style={{verticalAlign: 'middle'}} /> 
-            Total pendiente: €{totalPendiente.toFixed(2)}
-          </p>
-        </div>
-        <button className="btn btn-primary" onClick={() => { setShowForm(true); setEditingId(null); resetForm(); }}>
-          <Plus size={20} /> Nueva Factura
+        <h1>Gestión de Facturas</h1>
+        <button className="btn-primary" onClick={() => {
+          setShowForm(!showForm);
+          if (showForm) {
+            setEditingFactura(null);
+            resetForm();
+          }
+        }}>
+          <Plus size={20} />
+          {showForm ? 'Cancelar' : 'Nueva Factura'}
         </button>
       </div>
 
+      {error && <div className="error-message">{error}</div>}
+
       {showForm && (
-        <div className="form-container" style={{ marginBottom: '24px' }}>
-          <h3>{editingId ? 'Editar Factura' : 'Nueva Factura'}</h3>
-          <form onSubmit={handleSubmit}>
-            <div className="form-grid">
-              <select className="form-select" value={formData.cliente_id} onChange={(e) => setFormData({...formData, cliente_id: e.target.value})} required>
-                <option value="">Seleccionar cliente *</option>
-                {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+        <form onSubmit={handleSubmit} className="factura-form">
+          <div className="form-grid">
+            <div className="form-group">
+              <label>Cliente *</label>
+              <select
+                value={formData.cliente_id}
+                onChange={(e) => setFormData({...formData, cliente_id: e.target.value})}
+                required
+              >
+                <option value="">Seleccionar cliente</option>
+                {clientes.map(c => (
+                  <option key={c.id} value={c.id}>{c.nombre} {c.apellidos} - {c.dni}</option>
+                ))}
               </select>
-              
-              <input className="form-input" type="date" value={formData.fecha_emision} onChange={(e) => setFormData({...formData, fecha_emision: e.target.value})} required />
-              <input className="form-input" type="date" value={formData.fecha_vencimiento} onChange={(e) => setFormData({...formData, fecha_vencimiento: e.target.value})} required />
-              <input className="form-input" placeholder="Subtotal (€) *" type="number" value={formData.subtotal} onChange={(e) => setFormData({...formData, subtotal: e.target.value})} required />
-              <input className="form-input" placeholder="Descuento (€)" type="number" value={formData.descuento} onChange={(e) => setFormData({...formData, descuento: e.target.value})} />
-              
-              <select className="form-select" value={formData.impuesto_porcentaje} onChange={(e) => setFormData({...formData, impuesto_porcentaje: e.target.value})}>
-                <option value="10">IVA 10% (Transporte)</option>
-                <option value="21">IVA 21% (General)</option>
-                <option value="0">Exento (0%)</option>
+            </div>
+            <div className="form-group">
+              <label>Servicio (opcional)</label>
+              <select
+                value={formData.servicio_id}
+                onChange={(e) => setFormData({...formData, servicio_id: e.target.value})}
+              >
+                <option value="">Sin servicio asociado</option>
+                {servicios.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.fecha_inicio} - {s.origen.substring(0, 20)}...
+                  </option>
+                ))}
               </select>
-              
-              <select className="form-select" value={formData.metodo_pago} onChange={(e) => setFormData({...formData, metodo_pago: e.target.value})}>
-                <option value="transferencia">Transferencia</option>
-                <option value="tarjeta">Tarjeta</option>
-                <option value="efectivo">Efectivo</option>
-                <option value="bizum">Bizum</option>
+            </div>
+            <div className="form-group">
+              <label>Fecha Emisión *</label>
+              <input
+                type="date"
+                value={formData.fecha_emision}
+                onChange={(e) => setFormData({...formData, fecha_emision: e.target.value})}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Fecha Vencimiento *</label>
+              <input
+                type="date"
+                value={formData.fecha_vencimiento}
+                onChange={(e) => setFormData({...formData, fecha_vencimiento: e.target.value})}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Importe Base (€) *</label>
+              <input
+                type="number"
+                step="0.01"
+                value={formData.importe_base}
+                onChange={(e) => setFormData({...formData, importe_base: e.target.value})}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>IVA %</label>
+              <select
+                value={formData.tipo_iva}
+                onChange={(e) => setFormData({...formData, tipo_iva: parseInt(e.target.value)})}
+              >
+                <option value={0}>0%</option>
+                <option value={4}>4%</option>
+                <option value={10}>10%</option>
+                <option value={21}>21%</option>
               </select>
-              
-              <input className="form-input" placeholder="Forma de pago (ej: Transferencia - 30 días)" value={formData.forma_pago} onChange={(e) => setFormData({...formData, forma_pago: e.target.value})} />
-              <input className="form-input" placeholder="IBAN para pago" value={formData.iban} onChange={(e) => setFormData({...formData, iban: e.target.value})} />
             </div>
-            
-            <div style={{marginTop: '15px', padding: '15px', background: '#f3f4f6', borderRadius: '8px'}}>
-              <h4>Resumen</h4>
-              <p>Base imponible: €{calcularTotal().base}</p>
-              <p>Impuestos ({formData.impuesto_porcentaje}%): €{calcularTotal().impuestos}</p>
-              <p style={{fontSize: '18px', fontWeight: 'bold'}}>TOTAL: €{calcularTotal().total}</p>
+            <div className="form-group">
+              <label>Total con IVA</label>
+              <div className="total-display">{calcularTotal().toFixed(2)} €</div>
             </div>
-            
-            <div className="form-actions">
-              <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancelar</button>
-              <button type="submit" className="btn btn-primary">Guardar</button>
+            <div className="form-group full-width">
+              <label>Concepto</label>
+              <input
+                type="text"
+                value={formData.concepto}
+                onChange={(e) => setFormData({...formData, concepto: e.target.value})}
+                placeholder="Descripción del servicio..."
+              />
             </div>
-          </form>
-        </div>
+          </div>
+          <div className="form-actions">
+            <button type="submit" className="btn-primary">
+              {editingFactura ? 'Actualizar' : 'Crear'} Factura
+            </button>
+          </div>
+        </form>
       )}
 
-      <div className="filters-bar">
-        <div className="search-box">
-          <Search size={20} />
-          <input type="text" placeholder="Buscar facturas..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-        </div>
+      <div className="search-box">
+        <Search size={20} />
+        <input
+          type="text"
+          placeholder="Buscar factura..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
       </div>
 
-      <div className="table-container">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Número</th>
-              <th>Cliente</th>
-              <th>Fechas</th>
-              <th>Total</th>
-              <th>Estado</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {facturasFiltradas.map((f) => (
-              <tr key={f.id} className={isVencida(f) ? 'vencida' : ''}>
-                <td><span className="invoice-number">{f.numero}</span></td>
-                <td>{getClienteNombre(f.cliente_id)}</td>
-                <td>
-                  <div className="date-info">
-                    <Calendar size={14} /> Emisión: {f.fecha_emision}
-                  </div>
-                  <div className={`date-info ${isVencida(f) ? 'vencida' : ''}`}>
-                    <Calendar size={14} /> Vence: {f.fecha_vencimiento}
-                  </div>
-                </td>
-                <td>
-                  <span className="price total"><Euro size={14} />{f.total?.toFixed(2)}</span>
-                </td>
-                <td>
-                  <span className="status-badge" style={{ background: estadoColors[f.estado] + '20', color: estadoColors[f.estado] }}>
-                    {f.estado === 'pagada' && <CheckCircle size={14} style={{marginRight: '4px'}} />}
-                    {f.estado}
-                  </span>
-                </td>
-                <td>
-                  <div className="actions">
-                    {f.estado === 'pendiente' && (
-                      <button className="btn-icon" title="Marcar como pagada" onClick={() => marcarPagada(f)} style={{background: '#d1fae5', color: '#10b981'}}>
-                        <CheckCircle size={18} />
-                      </button>
-                    )}
-                    <button className="btn-icon" title="Ver detalles" style={{background: '#dbeafe', color: '#3b82f6'}}>
-                      <FileText size={18} />
-                    </button>
-                    <button className="btn-icon" onClick={() => handleEdit(f)}>
-                      <Edit2 size={18} />
-                    </button>
-                    <button className="btn-icon btn-danger" onClick={() => handleDelete(f.id)}>
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="facturas-grid">
+        {filteredFacturas.map((factura) => (
+          <div key={factura.id} className={`factura-card ${factura.estado}`}>
+            <div className="factura-header">
+              <div className="factura-numero">#{factura.id.toString().padStart(4, '0')}</div>
+              <span className={`estado-badge ${factura.estado}`}>{factura.estado}</span>
+            </div>
+            
+            <div className="factura-cliente">
+              <strong>{getClienteNombre(factura.cliente_id)}</strong>
+            </div>
+
+            {factura.concepto && (
+              <div className="factura-concepto">{factura.concepto}</div>
+            )}
+
+            <div className="factura-fechas">
+              <div className="fecha-item">
+                <Calendar size={14} />
+                <span>Emisión: {factura.fecha_emision}</span>
+              </div>
+              <div className="fecha-item">
+                <Calendar size={14} />
+                <span>Vence: {factura.fecha_vencimiento}</span>
+              </div>
+            </div>
+
+            <div className="factura-importes">
+              <div className="importe-item">
+                <span>Base:</span>
+                <strong>{parseFloat(factura.importe_base).toFixed(2)} €</strong>
+              </div>
+              <div className="importe-item">
+                <span>IVA ({factura.tipo_iva}%):</span>
+                <span>{parseFloat(factura.importe_iva).toFixed(2)} €</span>
+              </div>
+              <div className="importe-item total">
+                <span>Total:</span>
+                <strong>{parseFloat(factura.importe_total).toFixed(2)} €</strong>
+              </div>
+            </div>
+
+            <div className="factura-actions">
+              <button 
+                className="btn-icon btn-download"
+                title="Descargar PDF"
+              >
+                <Download size={18} />
+              </button>
+              <button 
+                className="btn-icon btn-edit"
+                onClick={() => handleEdit(factura)}
+                title="Editar"
+              >
+                <Edit2 size={18} />
+              </button>
+              <button 
+                className="btn-icon btn-delete"
+                onClick={() => handleDelete(factura.id)}
+                title="Eliminar"
+              >
+                <Trash2 size={18} />
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
+
+      {filteredFacturas.length === 0 && (
+        <div className="empty-state">
+          <p>No se encontraron facturas</p>
+        </div>
+      )}
     </div>
   );
-}
+};
+
+export default Facturas;

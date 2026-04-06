@@ -1,25 +1,22 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session, joinedload
-from jose import JWTError, jwt
-from passlib.context import CryptContext
+from sqlalchemy.orm import Session
+from sqlalchemy import text
 from datetime import datetime, timedelta
-from typing import Optional, List
-import os
-import secrets
-import string
-
+from typing import List, Optional
 import models
 import schemas
-from database import SessionLocal, engine, get_db
+import auth
+from database import SessionLocal, engine
+import secrets
+import string
 
 # Crear tablas
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Milano Transport System API")
+app = FastAPI(title="Milano Transport API")
 
-# Configuración CORS - Permitir orígenes específicos
+# Configuración CORS
 origins = [
     "http://localhost:3000",
     "http://localhost:5173",
@@ -34,46 +31,29 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"]
 )
 
-# Configuración JWT
-SECRET_KEY = os.getenv("SECRET_KEY", "tu-clave-secreta-muy-segura-123456789")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 480
+# Dependency
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-# Helper functions
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
-
-def get_password_hash(password):
-    return pwd_context.hash(password)
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+# Auth dependencies
+def get_current_user(token: str = Depends(auth.oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = auth.jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
         username: str = payload.get("sub")
         if username is None:
             raise credentials_exception
-    except JWTError:
+    except auth.JWTError:
         raise credentials_exception
     
     user = db.query(models.User).filter(models.User.username == username).first()
@@ -82,155 +62,63 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     return user
 
 def require_admin(current_user: models.User = Depends(get_current_user)):
-    if current_user.rol != models.UserRole.admin:
-        raise HTTPException(status_code=403, detail="Solo administradores pueden realizar esta acción")
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
 
-# Auth endpoints
-@app.post("/token", response_model=schemas.Token)
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.username == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.hashed_password):
+# ==================== AUTH ROUTES ====================
+
+@app.post("/auth/login", response_model=schemas.Token)
+def login(credentials: schemas.LoginRequest, db: Session = Depends(get_db)):
+    user = auth.authenticate_user(db, credentials.username, credentials.password)
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Usuario o contraseña incorrectos",
+            detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username, "rol": user.rol.value}, 
+    access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = auth.create_access_token(
+        data={"sub": user.username, "role": user.role}, 
         expires_delta=access_token_expires
     )
     
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "rol": user.rol,
-        "conductor_id": user.conductor_id
-    }
-
-@app.post("/users/", response_model=schemas.User)
-def create_user(user: schemas.UserCreate, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
-    db_user = db.query(models.User).filter(models.User.username == user.username).first()
-    if db_user:
-        raise HTTPException(status_code=400, detail="Username already registered")
-    
-    hashed_password = get_password_hash(user.password)
-    db_user = models.User(
-        username=user.username, 
-        hashed_password=hashed_password,
-        rol=user.rol,
-        conductor_id=user.conductor_id
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
-
-# Conductor endpoints
-@app.get("/conductores/", response_model=List[schemas.Conductor])
-def get_conductores(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    return db.query(models.Conductor).all()
-
-@app.post("/conductores/")
-def create_conductor(conductor: schemas.ConductorCreate, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
-    # 1. Crear conductor
-    db_conductor = models.Conductor(**conductor.dict())
-    db.add(db_conductor)
-    db.commit()
-    db.refresh(db_conductor)
-    
-    # 2. Generar contraseña aleatoria de 8 caracteres
-    password = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(8))
-    
-    # 3. Crear nombre de usuario basado en el ID
-    username = f"conductor{db_conductor.id}"
-    
-    # 4. Crear el usuario en la base de datos
-    hashed_password = get_password_hash(password)
-    db_user = models.User(
-        username=username,
-        hashed_password=hashed_password,
-        rol=models.UserRole.conductor,
-        conductor_id=db_conductor.id
-    )
-    db.add(db_user)
-    db.commit()
-    
-    # 5. Imprimir credenciales en los logs (para que las veas en Render)
-    print(f"========================================")
-    print(f"NUEVO CONDUCTOR CREADO:")
-    print(f"ID: {db_conductor.id}")
-    print(f"Nombre: {db_conductor.nombre} {db_conductor.apellidos}")
-    print(f"Usuario: {username}")
-    print(f"Contraseña: {password}")
-    print(f"========================================")
-    
-    # 6. Devolver conductor + credenciales
-    return {
-        "conductor": db_conductor,
-        "credenciales": {
-            "username": username,
-            "password": password
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "role": user.role,
+            "conductor_id": user.conductor_id
         }
     }
 
-@app.get("/conductores/{conductor_id}", response_model=schemas.Conductor)
-def get_conductor(conductor_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    conductor = db.query(models.Conductor).filter(models.Conductor.id == conductor_id).first()
-    if conductor is None:
-        raise HTTPException(status_code=404, detail="Conductor no encontrado")
-    return conductor
+@app.get("/auth/me", response_model=schemas.UserResponse)
+def get_me(current_user: models.User = Depends(get_current_user)):
+    return current_user
 
-@app.put("/conductores/{conductor_id}", response_model=schemas.Conductor)
-def update_conductor(conductor_id: int, conductor: schemas.ConductorCreate, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
-    db_conductor = db.query(models.Conductor).filter(models.Conductor.id == conductor_id).first()
-    if db_conductor is None:
-        raise HTTPException(status_code=404, detail="Conductor no encontrado")
-    
-    for key, value in conductor.dict().items():
-        setattr(db_conductor, key, value)
-    
-    db.commit()
-    db.refresh(db_conductor)
-    return db_conductor
+# ==================== CLIENTES ====================
 
-@app.delete("/conductores/{conductor_id}")
-def delete_conductor(conductor_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
-    db_conductor = db.query(models.Conductor).filter(models.Conductor.id == conductor_id).first()
-    if db_conductor is None:
-        raise HTTPException(status_code=404, detail="Conductor no encontrado")
-    
-    db.delete(db_conductor)
-    db.commit()
-    return {"message": "Conductor eliminado correctamente"}
-
-# Cliente endpoints
-@app.get("/clientes/", response_model=List[schemas.Cliente])
+@app.get("/clientes/", response_model=List[schemas.ClienteResponse])
 def get_clientes(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return db.query(models.Cliente).all()
 
-@app.post("/clientes/", response_model=schemas.Cliente)
-def create_cliente(cliente: schemas.ClienteCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+@app.post("/clientes/", response_model=schemas.ClienteResponse)
+def create_cliente(cliente: schemas.ClienteCreate, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
     db_cliente = models.Cliente(**cliente.dict())
     db.add(db_cliente)
     db.commit()
     db.refresh(db_cliente)
     return db_cliente
 
-@app.get("/clientes/{cliente_id}", response_model=schemas.Cliente)
-def get_cliente(cliente_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    cliente = db.query(models.Cliente).filter(models.Cliente.id == cliente_id).first()
-    if cliente is None:
-        raise HTTPException(status_code=404, detail="Cliente no encontrado")
-    return cliente
-
-@app.put("/clientes/{cliente_id}", response_model=schemas.Cliente)
-def update_cliente(cliente_id: int, cliente: schemas.ClienteCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+@app.put("/clientes/{cliente_id}", response_model=schemas.ClienteResponse)
+def update_cliente(cliente_id: int, cliente: schemas.ClienteCreate, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
     db_cliente = db.query(models.Cliente).filter(models.Cliente.id == cliente_id).first()
-    if db_cliente is None:
-        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    if not db_cliente:
+        raise HTTPException(status_code=404, detail="Cliente not found")
     
     for key, value in cliente.dict().items():
         setattr(db_cliente, key, value)
@@ -242,105 +130,100 @@ def update_cliente(cliente_id: int, cliente: schemas.ClienteCreate, db: Session 
 @app.delete("/clientes/{cliente_id}")
 def delete_cliente(cliente_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
     db_cliente = db.query(models.Cliente).filter(models.Cliente.id == cliente_id).first()
-    if db_cliente is None:
-        raise HTTPException(status_code=404, detail="Cliente no encontrado")
-    
+    if not db_cliente:
+        raise HTTPException(status_code=404, detail="Cliente not found")
     db.delete(db_cliente)
     db.commit()
-    return {"message": "Cliente eliminado correctamente"}
+    return {"message": "Cliente deleted"}
 
-# Servicio endpoints
-@app.get("/servicios/", response_model=List[schemas.Servicio])
-def get_servicios(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    servicios = db.query(models.Servicio).options(
-        joinedload(models.Servicio.cliente),
-        joinedload(models.Servicio.conductor)
-    ).all()
-    return servicios
+# ==================== CONDUCTORES ====================
 
-@app.get("/servicios/mis-servicios", response_model=List[schemas.Servicio])
-def get_mis_servicios(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    """Endpoint para conductores - devuelve solo los servicios asignados al conductor logueado"""
-    if current_user.rol != models.UserRole.conductor or not current_user.conductor_id:
-        raise HTTPException(status_code=403, detail="Usuario no es conductor o no tiene conductor asignado")
+@app.get("/conductores/", response_model=List[schemas.ConductorResponse])
+def get_conductores(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    return db.query(models.Conductor).all()
+
+@app.post("/conductores/", response_model=dict)
+def create_conductor(conductor: schemas.ConductorCreate, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
+    # Verificar si ya existe
+    db_conductor = db.query(models.Conductor).filter(models.Conductor.dni == conductor.dni).first()
+    if db_conductor:
+        raise HTTPException(status_code=400, detail="Ya existe un conductor con ese DNI")
     
-    servicios = db.query(models.Servicio).options(
-        joinedload(models.Servicio.cliente),
-        joinedload(models.Servicio.conductor)
-    ).filter(models.Servicio.conductor_id == current_user.conductor_id).all()
-    
-    return servicios
-
-@app.post("/servicios/", response_model=schemas.Servicio)
-def create_servicio(servicio: schemas.ServicioCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    db_servicio = models.Servicio(**servicio.dict())
-    db.add(db_servicio)
+    # Crear conductor
+    db_conductor = models.Conductor(**conductor.dict())
+    db.add(db_conductor)
     db.commit()
-    db.refresh(db_servicio)
+    db.refresh(db_conductor)
     
-    # Cargar relaciones para la respuesta
-    db_servicio = db.query(models.Servicio).options(
-        joinedload(models.Servicio.cliente),
-        joinedload(models.Servicio.conductor)
-    ).filter(models.Servicio.id == db_servicio.id).first()
+    # Generar credenciales automáticamente
+    username = f"conductor{db_conductor.id}"
+    password = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(8))
     
-    return db_servicio
-
-@app.get("/servicios/{servicio_id}", response_model=schemas.Servicio)
-def get_servicio(servicio_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    servicio = db.query(models.Servicio).options(
-        joinedload(models.Servicio.cliente),
-        joinedload(models.Servicio.conductor)
-    ).filter(models.Servicio.id == servicio_id).first()
-    
-    if servicio is None:
-        raise HTTPException(status_code=404, detail="Servicio no encontrado")
-    return servicio
-
-@app.put("/servicios/{servicio_id}", response_model=schemas.Servicio)
-def update_servicio(servicio_id: int, servicio: schemas.ServicioUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    db_servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
-    if db_servicio is None:
-        raise HTTPException(status_code=404, detail="Servicio no encontrado")
-    
-    # Conductores solo pueden cambiar el estado
-    if current_user.rol == models.UserRole.conductor:
-        if servicio.estado is not None:
-            db_servicio.estado = servicio.estado
-        db.commit()
-        db.refresh(db_servicio)
-    else:
-        # Admin puede cambiar todo
-        update_data = servicio.dict(exclude_unset=True)
-        for key, value in update_data.items():
-            setattr(db_servicio, key, value)
-        db.commit()
-        db.refresh(db_servicio)
-    
-    # Recargar con relaciones
-    db_servicio = db.query(models.Servicio).options(
-        joinedload(models.Servicio.cliente),
-        joinedload(models.Servicio.conductor)
-    ).filter(models.Servicio.id == servicio_id).first()
-    
-    return db_servicio
-
-@app.delete("/servicios/{servicio_id}")
-def delete_servicio(servicio_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
-    db_servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
-    if db_servicio is None:
-        raise HTTPException(status_code=404, detail="Servicio no encontrado")
-    
-    db.delete(db_servicio)
+    # Crear usuario asociado
+    hashed_password = auth.get_password_hash(password)
+    db_user = models.User(
+        username=username,
+        email=conductor.email or f"{username}@milano.temp",
+        hashed_password=hashed_password,
+        role="conductor",
+        conductor_id=db_conductor.id,
+        is_active=True
+    )
+    db.add(db_user)
     db.commit()
-    return {"message": "Servicio eliminado correctamente"}
+    
+    # IMPORTANTE: Devolver todo incluyendo credentials
+    return {
+        "id": db_conductor.id,
+        "nombre": db_conductor.nombre,
+        "apellidos": db_conductor.apellidos,
+        "dni": db_conductor.dni,
+        "telefono": db_conductor.telefono,
+        "email": db_conductor.email,
+        "licencia_conducir": db_conductor.licencia_conducir,
+        "fecha_vencimiento_licencia": db_conductor.fecha_vencimiento_licencia,
+        "estado": db_conductor.estado,
+        "credentials": {
+            "username": username,
+            "password": password
+        }
+    }
 
-# Vehiculo endpoints
-@app.get("/vehiculos/", response_model=List[schemas.Vehiculo])
+@app.put("/conductores/{conductor_id}", response_model=schemas.ConductorResponse)
+def update_conductor(conductor_id: int, conductor: schemas.ConductorCreate, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
+    db_conductor = db.query(models.Conductor).filter(models.Conductor.id == conductor_id).first()
+    if not db_conductor:
+        raise HTTPException(status_code=404, detail="Conductor not found")
+    
+    for key, value in conductor.dict().items():
+        setattr(db_conductor, key, value)
+    
+    db.commit()
+    db.refresh(db_conductor)
+    return db_conductor
+
+@app.delete("/conductores/{conductor_id}")
+def delete_conductor(conductor_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
+    db_conductor = db.query(models.Conductor).filter(models.Conductor.id == conductor_id).first()
+    if not db_conductor:
+        raise HTTPException(status_code=404, detail="Conductor not found")
+    
+    # Eliminar usuario asociado si existe
+    db_user = db.query(models.User).filter(models.User.conductor_id == conductor_id).first()
+    if db_user:
+        db.delete(db_user)
+    
+    db.delete(db_conductor)
+    db.commit()
+    return {"message": "Conductor deleted"}
+
+# ==================== VEHICULOS ====================
+
+@app.get("/vehiculos/", response_model=List[schemas.VehiculoResponse])
 def get_vehiculos(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return db.query(models.Vehiculo).all()
 
-@app.post("/vehiculos/", response_model=schemas.Vehiculo)
+@app.post("/vehiculos/", response_model=schemas.VehiculoResponse)
 def create_vehiculo(vehiculo: schemas.VehiculoCreate, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
     db_vehiculo = models.Vehiculo(**vehiculo.dict())
     db.add(db_vehiculo)
@@ -348,18 +231,11 @@ def create_vehiculo(vehiculo: schemas.VehiculoCreate, db: Session = Depends(get_
     db.refresh(db_vehiculo)
     return db_vehiculo
 
-@app.get("/vehiculos/{vehiculo_id}", response_model=schemas.Vehiculo)
-def get_vehiculo(vehiculo_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
-    if vehiculo is None:
-        raise HTTPException(status_code=404, detail="Vehiculo no encontrado")
-    return vehiculo
-
-@app.put("/vehiculos/{vehiculo_id}", response_model=schemas.Vehiculo)
+@app.put("/vehiculos/{vehiculo_id}", response_model=schemas.VehiculoResponse)
 def update_vehiculo(vehiculo_id: int, vehiculo: schemas.VehiculoCreate, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
     db_vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
-    if db_vehiculo is None:
-        raise HTTPException(status_code=404, detail="Vehiculo no encontrado")
+    if not db_vehiculo:
+        raise HTTPException(status_code=404, detail="Vehiculo not found")
     
     for key, value in vehiculo.dict().items():
         setattr(db_vehiculo, key, value)
@@ -371,39 +247,156 @@ def update_vehiculo(vehiculo_id: int, vehiculo: schemas.VehiculoCreate, db: Sess
 @app.delete("/vehiculos/{vehiculo_id}")
 def delete_vehiculo(vehiculo_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
     db_vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
-    if db_vehiculo is None:
-        raise HTTPException(status_code=404, detail="Vehiculo no encontrado")
-    
+    if not db_vehiculo:
+        raise HTTPException(status_code=404, detail="Vehiculo not found")
     db.delete(db_vehiculo)
     db.commit()
-    return {"message": "Vehiculo eliminado correctamente"}
+    return {"message": "Vehiculo deleted"}
 
-# Setup endpoint - Crear primer admin
-@app.post("/setup")
-def setup_admin(db: Session = Depends(get_db)):
-    # Verificar si ya existe algún usuario
-    existing_users = db.query(models.User).first()
-    if existing_users:
-        raise HTTPException(status_code=400, detail="Setup ya completado")
+# ==================== SERVICIOS ====================
+
+@app.get("/servicios/", response_model=List[schemas.ServicioResponse])
+def get_servicios(
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_user),
+    conductor_id: Optional[int] = None
+):
+    query = db.query(models.Servicio)
     
-    # Crear usuario admin por defecto
-    hashed_password = get_password_hash("admin")
-    db_user = models.User(
-        username="admin",
-        hashed_password=hashed_password,
-        rol=models.UserRole.admin,
-        conductor_id=None
-    )
-    db.add(db_user)
+    # Si es conductor, solo ver sus servicios asignados
+    if current_user.role == "conductor" and current_user.conductor_id:
+        query = query.filter(models.Servicio.conductor_id == current_user.conductor_id)
+    elif conductor_id:
+        query = query.filter(models.Servicio.conductor_id == conductor_id)
+    
+    return query.order_by(models.Servicio.fecha_inicio.desc()).all()
+
+@app.post("/servicios/", response_model=schemas.ServicioResponse)
+def create_servicio(servicio: schemas.ServicioCreate, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
+    db_servicio = models.Servicio(**servicio.dict())
+    db.add(db_servicio)
     db.commit()
-    
-    return {"message": "Usuario admin creado", "username": "admin", "password": "admin"}
+    db.refresh(db_servicio)
+    return db_servicio
 
-# Health check
-@app.get("/")
-def read_root():
-    return {"message": "Milano Transport System API", "status": "running"}
+@app.put("/servicios/{servicio_id}", response_model=schemas.ServicioResponse)
+def update_servicio(servicio_id: int, servicio: schemas.ServicioCreate, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
+    db_servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
+    if not db_servicio:
+        raise HTTPException(status_code=404, detail="Servicio not found")
+    
+    for key, value in servicio.dict().items():
+        setattr(db_servicio, key, value)
+    
+    db.commit()
+    db.refresh(db_servicio)
+    return db_servicio
+
+@app.delete("/servicios/{servicio_id}")
+def delete_servicio(servicio_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
+    db_servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
+    if not db_servicio:
+        raise HTTPException(status_code=404, detail="Servicio not found")
+    db.delete(db_servicio)
+    db.commit()
+    return {"message": "Servicio deleted"}
+
+# ==================== FACTURAS ====================
+
+@app.get("/facturas/", response_model=List[schemas.FacturaResponse])
+def get_facturas(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    return db.query(models.Factura).order_by(models.Factura.id.desc()).all()
+
+@app.post("/facturas/", response_model=schemas.FacturaResponse)
+def create_factura(factura: schemas.FacturaCreate, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
+    # Calcular IVA y total si no vienen
+    importe_base = factura.importe_base
+    tipo_iva = factura.tipo_iva or 21
+    importe_iva = importe_base * tipo_iva / 100
+    importe_total = importe_base + importe_iva
+    
+    db_factura = models.Factura(
+        **factura.dict(exclude={'importe_iva', 'importe_total'}),
+        importe_iva=importe_iva,
+        importe_total=importe_total
+    )
+    db.add(db_factura)
+    db.commit()
+    db.refresh(db_factura)
+    return db_factura
+
+@app.put("/facturas/{factura_id}", response_model=schemas.FacturaResponse)
+def update_factura(factura_id: int, factura: schemas.FacturaCreate, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
+    db_factura = db.query(models.Factura).filter(models.Factura.id == factura_id).first()
+    if not db_factura:
+        raise HTTPException(status_code=404, detail="Factura not found")
+    
+    # Recalcular totales
+    importe_base = factura.importe_base
+    tipo_iva = factura.tipo_iva or 21
+    importe_iva = importe_base * tipo_iva / 100
+    importe_total = importe_base + importe_iva
+    
+    for key, value in factura.dict().items():
+        setattr(db_factura, key, value)
+    
+    db_factura.importe_iva = importe_iva
+    db_factura.importe_total = importe_total
+    
+    db.commit()
+    db.refresh(db_factura)
+    return db_factura
+
+@app.delete("/facturas/{factura_id}")
+def delete_factura(factura_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
+    db_factura = db.query(models.Factura).filter(models.Factura.id == factura_id).first()
+    if not db_factura:
+        raise HTTPException(status_code=404, detail="Factura not found")
+    db.delete(db_factura)
+    db.commit()
+    return {"message": "Factura deleted"}
+
+# ==================== CONDUCTOR PANEL ====================
+
+@app.get("/conductor/mis-servicios/", response_model=List[schemas.ServicioResponse])
+def get_mis_servicios(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if current_user.role != "conductor" or not current_user.conductor_id:
+        raise HTTPException(status_code=403, detail="Solo conductores pueden acceder")
+    
+    servicios = db.query(models.Servicio).filter(
+        models.Servicio.conductor_id == current_user.conductor_id
+    ).order_by(models.Servicio.fecha_inicio.desc()).all()
+    
+    return servicios
+
+@app.patch("/conductor/servicios/{servicio_id}/completar", response_model=schemas.ServicioResponse)
+def completar_servicio(servicio_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if current_user.role != "conductor" or not current_user.conductor_id:
+        raise HTTPException(status_code=403, detail="Solo conductores pueden acceder")
+    
+    servicio = db.query(models.Servicio).filter(
+        models.Servicio.id == servicio_id,
+        models.Servicio.conductor_id == current_user.conductor_id
+    ).first()
+    
+    if not servicio:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    
+    servicio.estado = "completado"
+    db.commit()
+    db.refresh(servicio)
+    return servicio
+
+# ==================== HEALTH CHECK ====================
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy"}
+    return {"status": "ok", "timestamp": datetime.now()}
+
+@app.get("/")
+def root():
+    return {
+        "message": "Milano Transport API",
+        "version": "2.0.0",
+        "docs": "/docs"
+    }
