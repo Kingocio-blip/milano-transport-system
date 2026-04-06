@@ -1,5 +1,6 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from datetime import datetime, timedelta
@@ -16,13 +17,12 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Milano Transport API")
 
-# Configuración CORS
+# Configuración CORS - DEBE IR PRIMERO
 origins = [
     "http://localhost:3000",
     "http://localhost:5173",
     "https://milano-transport.netlify.app",
     "https://milanobus.netlify.app",
-    "https://*.netlify.app"
 ]
 
 app.add_middleware(
@@ -31,7 +31,20 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
+# Manejador de excepciones global para CORS
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc)},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Credentials": "true",
+        }
+    )
 
 # Dependency
 def get_db():
@@ -42,7 +55,9 @@ def get_db():
         db.close()
 
 # Auth dependencies
-def get_current_user(token: str = Depends(auth.oauth2_scheme), db: Session = Depends(get_db)):
+oauth2_scheme = auth.oauth2_scheme
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -76,12 +91,14 @@ def create_initial_admin():
         admin_user = db.query(models.User).filter(models.User.username == "admin").first()
         
         if admin_user:
-            # Actualizar contraseña del admin existente
+            # Actualizar contraseña y asegurar que tenga role
             admin_user.hashed_password = auth.get_password_hash("admin123")
             admin_user.is_active = True
+            if not hasattr(admin_user, 'role') or admin_user.role is None:
+                admin_user.role = "admin"
             db.commit()
             print("=" * 50)
-            print("✓ CONTRASEÑA ADMIN ACTUALIZADA")
+            print("✓ ADMIN ACTUALIZADO")
             print("=" * 50)
         else:
             # Crear usuario admin nuevo
@@ -95,21 +112,24 @@ def create_initial_admin():
             db.add(admin_user)
             db.commit()
             print("=" * 50)
-            print("✓ USUARIO ADMIN CREADO")
+            print("✓ ADMIN CREADO")
             print("=" * 50)
         
         print("Usuario: admin")
         print("Contraseña: admin123")
         print("=" * 50)
         
-        # Mostrar todos los usuarios para debug
+        # Mostrar todos los usuarios
         all_users = db.query(models.User).all()
-        print(f"Total usuarios en BD: {len(all_users)}")
+        print(f"Total usuarios: {len(all_users)}")
         for u in all_users:
-            print(f"  - {u.username} ({u.role})")
+            role = getattr(u, 'role', 'SIN ROL')
+            print(f"  - {u.username} ({role})")
             
     except Exception as e:
-        print(f"Error con admin: {e}")
+        print(f"ERROR: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
         db.close()
 
@@ -118,33 +138,42 @@ create_initial_admin()
 
 # ==================== AUTH ROUTES ====================
 
-@app.post("/auth/login", response_model=schemas.Token)
+@app.post("/auth/login")
 def login(credentials: schemas.LoginRequest, db: Session = Depends(get_db)):
-    user = auth.authenticate_user(db, credentials.username, credentials.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
+    try:
+        user = auth.authenticate_user(db, credentials.username, credentials.password)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+            )
+        
+        # Verificar que user tenga role
+        if not hasattr(user, 'role') or user.role is None:
+            user.role = "conductor"
+        
+        access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = auth.create_access_token(
+            data={"sub": user.username, "role": user.role}, 
+            expires_delta=access_token_expires
         )
-    
-    access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = auth.create_access_token(
-        data={"sub": user.username, "role": user.role}, 
-        expires_delta=access_token_expires
-    )
-    
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "role": user.role,
-            "conductor_id": user.conductor_id
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "role": user.role,
+                "conductor_id": user.conductor_id
+            }
         }
-    }
+    except Exception as e:
+        print(f"Login error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/auth/me", response_model=schemas.UserResponse)
 def get_me(current_user: models.User = Depends(get_current_user)):
