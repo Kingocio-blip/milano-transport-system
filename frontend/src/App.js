@@ -29,7 +29,7 @@ const AdminRoute = ({ children }) => {
 
 // Componente para proteger rutas de conductor
 const ConductorRoute = ({ children }) => {
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
   
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
