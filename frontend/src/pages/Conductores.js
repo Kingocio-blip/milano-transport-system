@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../store/authStore';
-import { Plus, Search, Edit2, Trash2, Phone, Mail, CreditCard } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Phone, Mail, CreditCard, User, Key, Copy, Check } from 'lucide-react';
 
 export default function Conductores() {
   const [conductores, setConductores] = useState([]);
@@ -8,6 +8,9 @@ export default function Conductores() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [showCredentials, setShowCredentials] = useState(false);
+  const [credentials, setCredentials] = useState(null);
+  const [copied, setCopied] = useState(false);
   const [formData, setFormData] = useState({ 
     nombre: '', 
     apellidos: '', 
@@ -37,22 +40,45 @@ export default function Conductores() {
     try {
       if (editingId) {
         await api.put(`/conductores/${editingId}`, formData);
+        setShowForm(false); 
+        setEditingId(null);
+        setFormData({ 
+          nombre: '', 
+          apellidos: '', 
+          email: '', 
+          telefono: '', 
+          dni: '', 
+          licencia_conducir: '',
+          fecha_contratacion: '',
+          direccion: ''
+        });
+        fetchConductores();
       } else {
-        await api.post('/conductores/', formData);
+        // Crear nuevo conductor - la respuesta incluye credenciales
+        const response = await api.post('/conductores/', formData);
+        
+        if (response && response.credenciales) {
+          setCredentials({
+            nombre: response.conductor?.nombre + ' ' + response.conductor?.apellidos,
+            username: response.credenciales.username,
+            password: response.credenciales.password
+          });
+          setShowCredentials(true);
+        }
+        
+        setShowForm(false);
+        setFormData({ 
+          nombre: '', 
+          apellidos: '', 
+          email: '', 
+          telefono: '', 
+          dni: '', 
+          licencia_conducir: '',
+          fecha_contratacion: '',
+          direccion: ''
+        });
+        fetchConductores();
       }
-      setShowForm(false); 
-      setEditingId(null);
-      setFormData({ 
-        nombre: '', 
-        apellidos: '', 
-        email: '', 
-        telefono: '', 
-        dni: '', 
-        licencia_conducir: '',
-        fecha_contratacion: '',
-        direccion: ''
-      });
-      fetchConductores();
     } catch (error) { 
       alert('Error al guardar: ' + error.message); 
     }
@@ -83,6 +109,12 @@ export default function Conductores() {
     setShowForm(true); 
   };
 
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const conductoresFiltrados = conductores.filter(c => 
     `${c.nombre} ${c.apellidos}`.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -101,6 +133,89 @@ export default function Conductores() {
         </button>
       </div>
 
+      {/* Modal de Credenciales */}
+      {showCredentials && credentials && (
+        <div className="form-container" style={{ marginBottom: '24px', background: '#ecfdf5', border: '2px solid #10b981' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
+            <Key size={24} color="#10b981" />
+            <h3 style={{ margin: 0, color: '#065f46' }}>Conductor Creado - Credenciales de Acceso</h3>
+          </div>
+          
+          <p style={{ color: '#374151', marginBottom: '15px' }}>
+            El conductor <strong>{credentials.nombre}</strong> ha sido creado exitosamente. 
+            Guarda estas credenciales para enviárselas:
+          </p>
+
+          <div style={{ background: 'white', padding: '15px', borderRadius: '8px', marginBottom: '15px' }}>
+            <div style={{ marginBottom: '10px' }}>
+              <label style={{ fontSize: '12px', color: '#6b7280', textTransform: 'uppercase' }}>Usuario:</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <code style={{ 
+                  background: '#f3f4f6', 
+                  padding: '8px 12px', 
+                  borderRadius: '4px',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  color: '#111827',
+                  flex: 1
+                }}>
+                  {credentials.username}
+                </code>
+                <button 
+                  onClick={() => copyToClipboard(credentials.username)}
+                  className="btn-icon"
+                  title="Copiar usuario"
+                >
+                  {copied ? <Check size={18} color="#10b981" /> : <Copy size={18} />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '12px', color: '#6b7280', textTransform: 'uppercase' }}>Contraseña:</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <code style={{ 
+                  background: '#f3f4f6', 
+                  padding: '8px 12px', 
+                  borderRadius: '4px',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  color: '#dc2626',
+                  flex: 1
+                }}>
+                  {credentials.password}
+                </code>
+                <button 
+                  onClick={() => copyToClipboard(credentials.password)}
+                  className="btn-icon"
+                  title="Copiar contraseña"
+                >
+                  {copied ? <Check size={18} color="#10b981" /> : <Copy size={18} />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button 
+              onClick={() => copyToClipboard(`Usuario: ${credentials.username}\nContraseña: ${credentials.password}`)}
+              className="btn btn-primary"
+              style={{ flex: 1 }}
+            >
+              <Copy size={16} style={{ marginRight: '8px' }} />
+              Copiar Todo
+            </button>
+            <button 
+              onClick={() => setShowCredentials(false)}
+              className="btn btn-secondary"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Formulario */}
       {showForm && (
         <div className="form-container" style={{ marginBottom: '24px' }}>
           <h3>{editingId ? 'Editar Conductor' : 'Nuevo Conductor'}</h3>
