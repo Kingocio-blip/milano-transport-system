@@ -1,15 +1,25 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { Bus, Lock, User, AlertCircle } from 'lucide-react';
 
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const { login, isLoading, error } = useAuthStore();
+  const { login, loading, error } = useAuthStore();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    await login(username, password);
+    const result = await login(username, password);
+    if (result.success) {
+      // Redirigir según el rol
+      if (result.rol === 'conductor') {
+        navigate('/mis-servicios');
+      } else {
+        navigate('/dashboard');
+      }
+    }
   };
 
   return (
@@ -61,8 +71,8 @@ export default function Login() {
             />
           </div>
 
-          <button type="submit" className="login-button" disabled={isLoading}>
-            {isLoading ? 'Iniciando...' : 'Iniciar Sesion'}
+          <button type="submit" className="login-button" disabled={loading}>
+            {loading ? 'Iniciando...' : 'Iniciar Sesion'}
           </button>
         </form>
 
