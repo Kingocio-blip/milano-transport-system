@@ -66,6 +66,42 @@ def require_admin(current_user: models.User = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
 
+# ==================== INIT ADMIN USER ====================
+
+def create_initial_admin():
+    """Crea usuario admin inicial si no existe ningún usuario"""
+    db = SessionLocal()
+    try:
+        # Verificar si ya existe algún usuario
+        existing_user = db.query(models.User).first()
+        if existing_user:
+            print("✓ Usuarios ya existen en la base de datos")
+            return
+        
+        # Crear usuario admin por defecto
+        admin_user = models.User(
+            username="admin",
+            email="admin@milano.com",
+            hashed_password=auth.get_password_hash("admin123"),
+            role="admin",
+            is_active=True
+        )
+        db.add(admin_user)
+        db.commit()
+        print("=" * 50)
+        print("✓ USUARIO ADMIN CREADO AUTOMÁTICAMENTE")
+        print("=" * 50)
+        print("Usuario: admin")
+        print("Contraseña: admin123")
+        print("=" * 50)
+    except Exception as e:
+        print(f"Error creando admin: {e}")
+    finally:
+        db.close()
+
+# Crear admin al iniciar
+create_initial_admin()
+
 # ==================== AUTH ROUTES ====================
 
 @app.post("/auth/login", response_model=schemas.Token)
@@ -172,7 +208,7 @@ def create_conductor(conductor: schemas.ConductorCreate, db: Session = Depends(g
     db.add(db_user)
     db.commit()
     
-    # IMPORTANTE: Devolver todo incluyendo credentials
+    # Devolver todo incluyendo credentials
     return {
         "id": db_conductor.id,
         "nombre": db_conductor.nombre,
