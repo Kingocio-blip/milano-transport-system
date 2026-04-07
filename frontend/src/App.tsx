@@ -1,10 +1,10 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useAuthStore } from './store/authStore';
+import { useAuthStore } from './store';
 import Login from './pages/Login';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
-import Clientes from './pages/Clientes';
+import CRM from './pages/CRM';
 import Conductores from './pages/Conductores';
 import Vehiculos from './pages/Vehiculos';
 import Servicios from './pages/Servicios';
@@ -13,14 +13,14 @@ import PanelConductor from './pages/PanelConductor';
 import './App.css';
 
 // Componente para proteger rutas de admin
-const AdminRoute = ({ children }) => {
+const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, user } = useAuthStore();
   
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
   
-  if (user?.role === 'conductor') {
+  if (user?.rol === 'conductor') {
     return <Navigate to="/conductor/mis-servicios" replace />;
   }
   
@@ -28,14 +28,14 @@ const AdminRoute = ({ children }) => {
 };
 
 // Componente para proteger rutas de conductor
-const ConductorRoute = ({ children }) => {
+const ConductorRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated } = useAuthStore();
   
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
   
-  return children;
+  return <>{children}</>;
 };
 
 function App() {
@@ -46,7 +46,7 @@ function App() {
       <Routes>
         <Route path="/login" element={
           isAuthenticated ? (
-            user?.role === 'conductor' ? (
+            user?.rol === 'conductor' ? (
               <Navigate to="/conductor/mis-servicios" replace />
             ) : (
               <Navigate to="/dashboard" replace />
@@ -65,7 +65,7 @@ function App() {
         
         <Route path="/clientes" element={
           <AdminRoute>
-            <Clientes />
+            <CRM />
           </AdminRoute>
         } />
         
@@ -103,7 +103,7 @@ function App() {
         {/* Redirección por defecto */}
         <Route path="/" element={
           isAuthenticated ? (
-            user?.role === 'conductor' ? (
+            user?.rol === 'conductor' ? (
               <Navigate to="/conductor/mis-servicios" replace />
             ) : (
               <Navigate to="/dashboard" replace />

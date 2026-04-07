@@ -5,7 +5,7 @@ export interface User {
   email: string;
   nombre: string;
   apellidos: string;
-  rol: 'admin' | 'vendedor';
+  rol: 'admin' | 'vendedor' | 'conductor';
   activo: boolean;
   fechaAlta: string;
   ultimoAcceso?: string;

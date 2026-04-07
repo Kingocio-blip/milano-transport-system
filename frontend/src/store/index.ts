@@ -126,7 +126,6 @@ const convertClienteFromBackend = (cliente: any): Cliente => ({
     cargo: cliente.contacto.cargo || '',
     principal: cliente.contacto.principal,
   } : undefined,
-  // Campos de estadísticas
   totalServicios: cliente.total_servicios || 0,
   totalFacturado: cliente.total_facturado || 0,
   ultimoServicio: cliente.ultimo_servicio,
@@ -147,12 +146,16 @@ const convertClienteToBackend = (data: CreateClienteData | UpdateClienteData) =>
   if (data.diasPago !== undefined) backendData.dias_pago = data.diasPago || null;
   if (data.condicionesEspeciales !== undefined) backendData.condiciones_especiales = data.condicionesEspeciales || null;
   if (data.notas !== undefined) backendData.notas = data.notas || null;
-  if (data.contacto !== undefined) backendData.contacto = data.contacto;
+  
+  // contacto solo existe en CreateClienteData
+  if ('contacto' in data && data.contacto !== undefined) {
+    backendData.contacto = data.contacto;
+  }
   
   return backendData;
 };
 
-export const useClientesStore = create<ClientesState>((set, get) => ({
+export const useClientesStore = create<ClientesState>((set) => ({
   clientes: [],
   clienteActual: null,
   loading: false,
@@ -312,19 +315,28 @@ const convertServicioFromBackend = (servicio: any): Servicio => ({
 const convertServicioToBackend = (data: CreateServicioData | UpdateServicioData) => {
   const backendData: any = {};
   
-  if (data.clienteId !== undefined) backendData.cliente_id = data.clienteId;
+  // Campos que solo existen en CreateServicioData
+  if ('clienteId' in data && data.clienteId !== undefined) {
+    backendData.cliente_id = data.clienteId;
+  }
+  
+  // Campos que solo existen en UpdateServicioData
+  if ('estado' in data && data.estado !== undefined) {
+    backendData.estado = data.estado;
+  }
+  
+  // Campos comunes
   if (data.tipo !== undefined) backendData.tipo = data.tipo;
   if (data.descripcion !== undefined) backendData.descripcion = data.descripcion;
   if (data.fechaInicio !== undefined) backendData.fecha_inicio = data.fechaInicio;
   if (data.fechaFin !== undefined) backendData.fecha_fin = data.fechaFin || null;
-  if (data.estado !== undefined) backendData.estado = data.estado;
   if (data.importe !== undefined) backendData.importe = data.importe || null;
   if (data.notas !== undefined) backendData.notas = data.notas || null;
   
   return backendData;
 };
 
-export const useServiciosStore = create<ServiciosState>((set, get) => ({
+export const useServiciosStore = create<ServiciosState>((set) => ({
   servicios: [],
   servicioActual: null,
   loading: false,
@@ -480,7 +492,7 @@ const convertFacturaFromBackend = (factura: any): Factura => ({
   concepto: factura.concepto,
 });
 
-export const useFacturasStore = create<FacturasState>((set, get) => ({
+export const useFacturasStore = create<FacturasState>((set) => ({
   facturas: [],
   facturaActual: null,
   loading: false,
