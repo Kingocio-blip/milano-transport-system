@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../store/authStore';
+import { useAuthStore } from '../store';
 import { Bus, User, Lock, AlertCircle } from 'lucide-react';
 import './Login.css';
 
@@ -20,10 +20,10 @@ const Login = () => {
     try {
       const data = await login(username, password);
       
-      // Redirigir según el rol
-      if (data.user.role === 'admin') {
+      // Redirigir según el rol (backend usa 'rol', no 'role')
+      if (data.user.rol === 'admin') {
         navigate('/dashboard');
-      } else if (data.user.role === 'conductor') {
+      } else if (data.user.rol === 'conductor') {
         navigate('/conductor/mis-servicios');
       } else {
         navigate('/dashboard');
