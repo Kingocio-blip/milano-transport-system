@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { 
-  Plus, Search, Edit2, Trash2, User, Phone, Mail, MapPin, 
+  Plus, Search, Edit2, Trash2, User, Phone, Mail, 
   Filter, X, Calendar, Euro, Star, TrendingUp, FileText, 
   Briefcase, Building2, UserCircle
 } from 'lucide-react';
