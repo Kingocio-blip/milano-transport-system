@@ -10,7 +10,7 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     email = Column(String, unique=True, index=True, nullable=True)
     hashed_password = Column(String)
-    role = Column(String, default="conductor")  # admin, conductor
+    role = Column(String, default="conductor")
     is_active = Column(Boolean, default=True)
     conductor_id = Column(Integer, ForeignKey("conductores.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -19,16 +19,23 @@ class Cliente(Base):
     __tablename__ = "clientes"
     
     id = Column(Integer, primary_key=True, index=True)
+    codigo = Column(String, unique=True, index=True)  # CLI-001, CLI-002...
     nombre = Column(String, nullable=False)
     apellidos = Column(String, nullable=False)
-    dni = Column(String, unique=True, index=True)
+    dni = Column(String, nullable=True, index=True)  # Para particulares
+    cif = Column(String, nullable=True, index=True)  # Para empresas/autónomos
+    tipo = Column(String, default="particular")  # particular, autonomo, empresa
     telefono = Column(String, nullable=True)
     email = Column(String, nullable=True)
     direccion = Column(String, nullable=True)
     ciudad = Column(String, nullable=True)
     codigo_postal = Column(String, nullable=True)
+    persona_contacto = Column(String, nullable=True)  # Solo para empresas
     notas = Column(Text, nullable=True)
     fecha_registro = Column(DateTime, default=datetime.utcnow)
+    
+    # Relaciones
+    servicios = relationship("Servicio", back_populates="cliente")
 
 class Conductor(Base):
     __tablename__ = "conductores"
@@ -41,7 +48,7 @@ class Conductor(Base):
     email = Column(String, nullable=True)
     licencia_conducir = Column(String, nullable=True)
     fecha_vencimiento_licencia = Column(Date, nullable=True)
-    estado = Column(String, default="activo")  # activo, inactivo, vacaciones, baja
+    estado = Column(String, default="activo")
     fecha_contratacion = Column(DateTime, default=datetime.utcnow)
 
 class Vehiculo(Base):
@@ -54,7 +61,7 @@ class Vehiculo(Base):
     tipo = Column(String, default="autobus")
     capacidad_pasajeros = Column(Integer, default=50)
     anno_fabricacion = Column(Integer, nullable=True)
-    estado = Column(String, default="disponible")  # disponible, en_uso, mantenimiento, fuera_servicio
+    estado = Column(String, default="disponible")
 
 class Servicio(Base):
     __tablename__ = "servicios"
@@ -76,8 +83,11 @@ class Servicio(Base):
     gastos_peaje = Column(Float, default=0)
     gastos_otros = Column(Float, default=0)
     notas = Column(Text, nullable=True)
-    estado = Column(String, default="pendiente")  # pendiente, en_curso, completado, cancelado
+    estado = Column(String, default="pendiente")
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    
+    # Relaciones
+    cliente = relationship("Cliente", back_populates="servicios")
 
 class Factura(Base):
     __tablename__ = "facturas"
@@ -92,5 +102,5 @@ class Factura(Base):
     tipo_iva = Column(Integer, default=21)
     importe_iva = Column(Float, default=0)
     importe_total = Column(Float, default=0)
-    estado = Column(String, default="pendiente")  # pendiente, pagada, vencida, anulada
+    estado = Column(String, default="pendiente")
     fecha_creacion = Column(DateTime, default=datetime.utcnow)

@@ -1,6 +1,7 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, validator
 from typing import Optional, List
 from datetime import date, datetime
+import re
 
 # ==================== AUTH ====================
 
@@ -41,20 +42,94 @@ class UserResponse(UserBase):
 class ClienteBase(BaseModel):
     nombre: str
     apellidos: str
-    dni: str
+    dni: Optional[str] = None
+    cif: Optional[str] = None
+    tipo: str = "particular"
     telefono: Optional[str] = None
     email: Optional[str] = None
     direccion: Optional[str] = None
     ciudad: Optional[str] = None
     codigo_postal: Optional[str] = None
+    persona_contacto: Optional[str] = None
     notas: Optional[str] = None
+
+    @validator('dni')
+    def validar_dni(cls, v, values):
+        if v and values.get('tipo') == 'particular':
+            # Validar formato DNI español (8 números + letra)
+            if not re.match(r'^\d{8}[A-HJ-NP-TV-Z]$', v.upper()):
+                raise ValueError('DNI inválido. Formato: 12345678A')
+            # Validar letra
+            letras = 'TRWAGMYFPDXBNJZSQVHLCKE'
+            numero = int(v[:-1])
+            letra_correcta = letras[numero % 23]
+            if v[-1].upper() != letra_correcta:
+                raise ValueError(f'Letra de DNI incorrecta. Debería ser: {letra_correcta}')
+        return v.upper() if v else v
+
+    @validator('cif')
+    def validar_cif(cls, v, values):
+        if v and values.get('tipo') in ['autonomo', 'empresa']:
+            # Validar formato CIF (letra + 7 números + dígito de control)
+            if not re.match(r'^[A-HJ-NP-SW]\d{7}[0-9A-J]$', v.upper()):
+                raise ValueError('CIF inválido')
+        return v.upper() if v else v
+
+    @validator('tipo')
+    def validar_tipo_documento(cls, v, values):
+        if v == 'particular' and not values.get('dni'):
+            raise ValueError('Los particulares deben tener DNI')
+        if v in ['autonomo', 'empresa'] and not values.get('cif'):
+            raise ValueError('Autónomos y empresas deben tener CIF')
+        return v
 
 class ClienteCreate(ClienteBase):
     pass
 
+class ClienteServicio(BaseModel):
+    id: int
+    fecha_inicio: date
+    origen: str
+    destino: str
+    precio: float
+    estado: str
+    
+    class Config:
+        from_attributes = True
+
+class ClienteDetalle(BaseModel):
+    id: int
+    codigo: str
+    nombre: str
+    apellidos: str
+    dni: Optional[str]
+    cif: Optional[str]
+    tipo: str
+    telefono: Optional[str]
+    email: Optional[str]
+    direccion: Optional[str]
+    ciudad: Optional[str]
+    codigo_postal: Optional[str]
+    persona_contacto: Optional[str]
+    notas: Optional[str]
+    fecha_registro: Optional[datetime]
+    total_servicios: int = 0
+    total_facturado: float = 0.0
+    servicios_recientes: List[ClienteServicio] = []
+    es_frecuente: bool = False
+    es_vip: bool = False
+    
+    class Config:
+        from_attributes = True
+
 class ClienteResponse(ClienteBase):
     id: int
+    codigo: str
     fecha_registro: Optional[datetime] = None
+    total_servicios: int = 0
+    total_facturado: float = 0.0
+    es_frecuente: bool = False
+    es_vip: bool = False
     
     class Config:
         from_attributes = True

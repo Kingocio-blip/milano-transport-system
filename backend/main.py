@@ -1,8 +1,8 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Request
+from fastapi import FastAPI, Depends, HTTPException, status, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import func
 from datetime import datetime, timedelta
 from typing import List, Optional
 import models
@@ -11,13 +11,14 @@ import auth
 from database import SessionLocal, engine
 import secrets
 import string
+import re
 
 # Crear tablas
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Milano Transport API")
 
-# Configuración CORS - DEBE IR PRIMERO
+# Configuración CORS
 origins = [
     "http://localhost:3000",
     "http://localhost:5173",
@@ -33,18 +34,6 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
-
-# Manejador de excepciones global para CORS
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    return JSONResponse(
-        status_code=500,
-        content={"detail": str(exc)},
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Credentials": "true",
-        }
-    )
 
 # Dependency
 def get_db():
@@ -81,17 +70,45 @@ def require_admin(current_user: models.User = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
 
+# ==================== FUNCIONES AUXILIARES ====================
+
+def generar_codigo_cliente(db: Session):
+    """Genera código automático CLI-001, CLI-002..."""
+    ultimo = db.query(models.Cliente).order_by(models.Cliente.id.desc()).first()
+    if ultimo:
+        numero = ultimo.id + 1
+    else:
+        numero = 1
+    return f"CLI-{numero:03d}"
+
+def calcular_estadisticas_cliente(db: Session, cliente_id: int):
+    """Calcula servicios e ingresos del último año"""
+    fecha_inicio = datetime.now() - timedelta(days=365)
+    
+    servicios = db.query(models.Servicio).filter(
+        models.Servicio.cliente_id == cliente_id,
+        models.Servicio.fecha_creacion >= fecha_inicio
+    ).all()
+    
+    total_servicios = len(servicios)
+    total_facturado = sum(s.precio for s in servicios)
+    
+    return {
+        "total_servicios": total_servicios,
+        "total_facturado": total_facturado,
+        "es_frecuente": total_servicios > 5,
+        "es_vip": total_facturado > 5000
+    }
+
 # ==================== INIT ADMIN USER ====================
 
 def create_initial_admin():
     """Crea o actualiza usuario admin"""
     db = SessionLocal()
     try:
-        # Buscar usuario admin existente
         admin_user = db.query(models.User).filter(models.User.username == "admin").first()
         
         if admin_user:
-            # Actualizar contraseña y asegurar que tenga role
             admin_user.hashed_password = auth.get_password_hash("admin123")
             admin_user.is_active = True
             if not hasattr(admin_user, 'role') or admin_user.role is None:
@@ -101,7 +118,6 @@ def create_initial_admin():
             print("✓ ADMIN ACTUALIZADO")
             print("=" * 50)
         else:
-            # Crear usuario admin nuevo
             admin_user = models.User(
                 username="admin",
                 email="admin@milano.com",
@@ -119,7 +135,6 @@ def create_initial_admin():
         print("Contraseña: admin123")
         print("=" * 50)
         
-        # Mostrar todos los usuarios
         all_users = db.query(models.User).all()
         print(f"Total usuarios: {len(all_users)}")
         for u in all_users:
@@ -133,7 +148,6 @@ def create_initial_admin():
     finally:
         db.close()
 
-# Crear admin al iniciar
 create_initial_admin()
 
 # ==================== AUTH ROUTES ====================
@@ -148,7 +162,6 @@ def login(credentials: schemas.LoginRequest, db: Session = Depends(get_db)):
                 detail="Incorrect username or password",
             )
         
-        # Verificar que user tenga role
         if not hasattr(user, 'role') or user.role is None:
             user.role = "conductor"
         
@@ -182,38 +195,284 @@ def get_me(current_user: models.User = Depends(get_current_user)):
 # ==================== CLIENTES ====================
 
 @app.get("/clientes/", response_model=List[schemas.ClienteResponse])
-def get_clientes(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    return db.query(models.Cliente).all()
+def get_clientes(
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_user),
+    buscar: Optional[str] = None,
+    tipo: Optional[str] = None
+):
+    query = db.query(models.Cliente)
+    
+    if tipo:
+        query = query.filter(models.Cliente.tipo == tipo)
+    
+    if buscar:
+        buscar = f"%{buscar}%"
+        query = query.filter(
+            (models.Cliente.nombre.ilike(buscar)) |
+            (models.Cliente.apellidos.ilike(buscar)) |
+            (models.Cliente.dni.ilike(buscar)) |
+            (models.Cliente.cif.ilike(buscar)) |
+            (models.Cliente.email.ilike(buscar)) |
+            (models.Cliente.telefono.ilike(buscar)) |
+            (models.Cliente.codigo.ilike(buscar))
+        )
+    
+    clientes = query.order_by(models.Cliente.nombre).all()
+    
+    resultado = []
+    for cliente in clientes:
+        stats = calcular_estadisticas_cliente(db, cliente.id)
+        cliente_dict = {
+            "id": cliente.id,
+            "codigo": cliente.codigo,
+            "nombre": cliente.nombre,
+            "apellidos": cliente.apellidos,
+            "dni": cliente.dni,
+            "cif": cliente.cif,
+            "tipo": cliente.tipo,
+            "telefono": cliente.telefono,
+            "email": cliente.email,
+            "direccion": cliente.direccion,
+            "ciudad": cliente.ciudad,
+            "codigo_postal": cliente.codigo_postal,
+            "persona_contacto": cliente.persona_contacto,
+            "notas": cliente.notas,
+            "fecha_registro": cliente.fecha_registro,
+            "total_servicios": stats["total_servicios"],
+            "total_facturado": stats["total_facturado"],
+            "es_frecuente": stats["es_frecuente"],
+            "es_vip": stats["es_vip"]
+        }
+        resultado.append(cliente_dict)
+    
+    return resultado
+
+@app.get("/clientes/{cliente_id}", response_model=schemas.ClienteDetalle)
+def get_cliente_detalle(
+    cliente_id: int, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    cliente = db.query(models.Cliente).filter(models.Cliente.id == cliente_id).first()
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    
+    stats = calcular_estadisticas_cliente(db, cliente.id)
+    
+    servicios = db.query(models.Servicio).filter(
+        models.Servicio.cliente_id == cliente_id
+    ).order_by(models.Servicio.fecha_inicio.desc()).limit(10).all()
+    
+    servicios_list = []
+    for s in servicios:
+        servicios_list.append({
+            "id": s.id,
+            "fecha_inicio": s.fecha_inicio,
+            "origen": s.origen,
+            "destino": s.destino,
+            "precio": s.precio,
+            "estado": s.estado
+        })
+    
+    return {
+        "id": cliente.id,
+        "codigo": cliente.codigo,
+        "nombre": cliente.nombre,
+        "apellidos": cliente.apellidos,
+        "dni": cliente.dni,
+        "cif": cliente.cif,
+        "tipo": cliente.tipo,
+        "telefono": cliente.telefono,
+        "email": cliente.email,
+        "direccion": cliente.direccion,
+        "ciudad": cliente.ciudad,
+        "codigo_postal": cliente.codigo_postal,
+        "persona_contacto": cliente.persona_contacto,
+        "notas": cliente.notas,
+        "fecha_registro": cliente.fecha_registro,
+        "total_servicios": stats["total_servicios"],
+        "total_facturado": stats["total_facturado"],
+        "servicios_recientes": servicios_list,
+        "es_frecuente": stats["es_frecuente"],
+        "es_vip": stats["es_vip"]
+    }
 
 @app.post("/clientes/", response_model=schemas.ClienteResponse)
-def create_cliente(cliente: schemas.ClienteCreate, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
-    db_cliente = models.Cliente(**cliente.dict())
+def create_cliente(
+    cliente: schemas.ClienteCreate, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(require_admin)
+):
+    # Validar DNI
+    if cliente.dni:
+        cliente.dni = cliente.dni.upper()
+        if not re.match(r'^\d{8}[A-HJ-NP-TV-Z]$', cliente.dni):
+            raise HTTPException(status_code=400, detail="DNI inválido. Formato: 12345678A")
+        letras = 'TRWAGMYFPDXBNJZSQVHLCKE'
+        numero = int(cliente.dni[:-1])
+        letra_correcta = letras[numero % 23]
+        if cliente.dni[-1] != letra_correcta:
+            raise HTTPException(status_code=400, detail=f"Letra de DNI incorrecta. Debería ser: {letra_correcta}")
+        
+        existente = db.query(models.Cliente).filter(models.Cliente.dni == cliente.dni).first()
+        if existente:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Ya existe un cliente con ese DNI: {existente.nombre} {existente.apellidos} (Código: {existente.codigo})"
+            )
+    
+    # Validar CIF
+    if cliente.cif:
+        cliente.cif = cliente.cif.upper()
+        if not re.match(r'^[A-HJ-NP-SW]\d{7}[0-9A-J]$', cliente.cif):
+            raise HTTPException(status_code=400, detail="CIF inválido")
+        
+        existente = db.query(models.Cliente).filter(models.Cliente.cif == cliente.cif).first()
+        if existente:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Ya existe un cliente con ese CIF: {existente.nombre} {existente.apellidos} (Código: {existente.codigo})"
+            )
+    
+    # Validar tipo vs documento
+    if cliente.tipo == 'particular' and not cliente.dni:
+        raise HTTPException(status_code=400, detail="Los particulares deben tener DNI")
+    if cliente.tipo in ['autonomo', 'empresa'] and not cliente.cif:
+        raise HTTPException(status_code=400, detail="Autónomos y empresas deben tener CIF")
+    
+    codigo = generar_codigo_cliente(db)
+    
+    db_cliente = models.Cliente(
+        **cliente.dict(),
+        codigo=codigo
+    )
     db.add(db_cliente)
     db.commit()
     db.refresh(db_cliente)
-    return db_cliente
+    
+    stats = calcular_estadisticas_cliente(db, db_cliente.id)
+    return {
+        "id": db_cliente.id,
+        "codigo": db_cliente.codigo,
+        "nombre": db_cliente.nombre,
+        "apellidos": db_cliente.apellidos,
+        "dni": db_cliente.dni,
+        "cif": db_cliente.cif,
+        "tipo": db_cliente.tipo,
+        "telefono": db_cliente.telefono,
+        "email": db_cliente.email,
+        "direccion": db_cliente.direccion,
+        "ciudad": db_cliente.ciudad,
+        "codigo_postal": db_cliente.codigo_postal,
+        "persona_contacto": db_cliente.persona_contacto,
+        "notas": db_cliente.notas,
+        "fecha_registro": db_cliente.fecha_registro,
+        "total_servicios": stats["total_servicios"],
+        "total_facturado": stats["total_facturado"],
+        "es_frecuente": stats["es_frecuente"],
+        "es_vip": stats["es_vip"]
+    }
 
 @app.put("/clientes/{cliente_id}", response_model=schemas.ClienteResponse)
-def update_cliente(cliente_id: int, cliente: schemas.ClienteCreate, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
+def update_cliente(
+    cliente_id: int, 
+    cliente: schemas.ClienteCreate, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(require_admin)
+):
     db_cliente = db.query(models.Cliente).filter(models.Cliente.id == cliente_id).first()
     if not db_cliente:
-        raise HTTPException(status_code=404, detail="Cliente not found")
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    
+    # Validar DNI si cambió
+    if cliente.dni:
+        cliente.dni = cliente.dni.upper()
+        if not re.match(r'^\d{8}[A-HJ-NP-TV-Z]$', cliente.dni):
+            raise HTTPException(status_code=400, detail="DNI inválido. Formato: 12345678A")
+        letras = 'TRWAGMYFPDXBNJZSQVHLCKE'
+        numero = int(cliente.dni[:-1])
+        letra_correcta = letras[numero % 23]
+        if cliente.dni[-1] != letra_correcta:
+            raise HTTPException(status_code=400, detail=f"Letra de DNI incorrecta. Debería ser: {letra_correcta}")
+        
+        if cliente.dni != db_cliente.dni:
+            existente = db.query(models.Cliente).filter(
+                models.Cliente.dni == cliente.dni,
+                models.Cliente.id != cliente_id
+            ).first()
+            if existente:
+                raise HTTPException(status_code=400, detail=f"Ya existe un cliente con ese DNI: {existente.nombre} {existente.apellidos}")
+    
+    # Validar CIF si cambió
+    if cliente.cif:
+        cliente.cif = cliente.cif.upper()
+        if not re.match(r'^[A-HJ-NP-SW]\d{7}[0-9A-J]$', cliente.cif):
+            raise HTTPException(status_code=400, detail="CIF inválido")
+        
+        if cliente.cif != db_cliente.cif:
+            existente = db.query(models.Cliente).filter(
+                models.Cliente.cif == cliente.cif,
+                models.Cliente.id != cliente_id
+            ).first()
+            if existente:
+                raise HTTPException(status_code=400, detail=f"Ya existe un cliente con ese CIF: {existente.nombre} {existente.apellidos}")
+    
+    # Validar tipo vs documento
+    if cliente.tipo == 'particular' and not cliente.dni:
+        raise HTTPException(status_code=400, detail="Los particulares deben tener DNI")
+    if cliente.tipo in ['autonomo', 'empresa'] and not cliente.cif:
+        raise HTTPException(status_code=400, detail="Autónomos y empresas deben tener CIF")
     
     for key, value in cliente.dict().items():
         setattr(db_cliente, key, value)
     
     db.commit()
     db.refresh(db_cliente)
-    return db_cliente
+    
+    stats = calcular_estadisticas_cliente(db, db_cliente.id)
+    return {
+        "id": db_cliente.id,
+        "codigo": db_cliente.codigo,
+        "nombre": db_cliente.nombre,
+        "apellidos": db_cliente.apellidos,
+        "dni": db_cliente.dni,
+        "cif": db_cliente.cif,
+        "tipo": db_cliente.tipo,
+        "telefono": db_cliente.telefono,
+        "email": db_cliente.email,
+        "direccion": db_cliente.direccion,
+        "ciudad": db_cliente.ciudad,
+        "codigo_postal": db_cliente.codigo_postal,
+        "persona_contacto": db_cliente.persona_contacto,
+        "notas": db_cliente.notas,
+        "fecha_registro": db_cliente.fecha_registro,
+        "total_servicios": stats["total_servicios"],
+        "total_facturado": stats["total_facturado"],
+        "es_frecuente": stats["es_frecuente"],
+        "es_vip": stats["es_vip"]
+    }
 
 @app.delete("/clientes/{cliente_id}")
-def delete_cliente(cliente_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
+def delete_cliente(
+    cliente_id: int, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(require_admin)
+):
     db_cliente = db.query(models.Cliente).filter(models.Cliente.id == cliente_id).first()
     if not db_cliente:
-        raise HTTPException(status_code=404, detail="Cliente not found")
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    
+    servicios = db.query(models.Servicio).filter(models.Servicio.cliente_id == cliente_id).count()
+    if servicios > 0:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"No se puede eliminar: el cliente tiene {servicios} servicios asociados"
+        )
+    
     db.delete(db_cliente)
     db.commit()
-    return {"message": "Cliente deleted"}
+    return {"message": "Cliente eliminado correctamente"}
 
 # ==================== CONDUCTORES ====================
 
@@ -223,22 +482,18 @@ def get_conductores(db: Session = Depends(get_db), current_user: models.User = D
 
 @app.post("/conductores/", response_model=dict)
 def create_conductor(conductor: schemas.ConductorCreate, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
-    # Verificar si ya existe
     db_conductor = db.query(models.Conductor).filter(models.Conductor.dni == conductor.dni).first()
     if db_conductor:
         raise HTTPException(status_code=400, detail="Ya existe un conductor con ese DNI")
     
-    # Crear conductor
     db_conductor = models.Conductor(**conductor.dict())
     db.add(db_conductor)
     db.commit()
     db.refresh(db_conductor)
     
-    # Generar credenciales automáticamente
     username = f"conductor{db_conductor.id}"
     password = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(8))
     
-    # Crear usuario asociado
     hashed_password = auth.get_password_hash(password)
     db_user = models.User(
         username=username,
@@ -251,7 +506,6 @@ def create_conductor(conductor: schemas.ConductorCreate, db: Session = Depends(g
     db.add(db_user)
     db.commit()
     
-    # Devolver todo incluyendo credentials
     return {
         "id": db_conductor.id,
         "nombre": db_conductor.nombre,
@@ -287,7 +541,6 @@ def delete_conductor(conductor_id: int, db: Session = Depends(get_db), current_u
     if not db_conductor:
         raise HTTPException(status_code=404, detail="Conductor not found")
     
-    # Eliminar usuario asociado si existe
     db_user = db.query(models.User).filter(models.User.conductor_id == conductor_id).first()
     if db_user:
         db.delete(db_user)
@@ -342,7 +595,6 @@ def get_servicios(
 ):
     query = db.query(models.Servicio)
     
-    # Si es conductor, solo ver sus servicios asignados
     if current_user.role == "conductor" and current_user.conductor_id:
         query = query.filter(models.Servicio.conductor_id == current_user.conductor_id)
     elif conductor_id:
@@ -388,7 +640,6 @@ def get_facturas(db: Session = Depends(get_db), current_user: models.User = Depe
 
 @app.post("/facturas/", response_model=schemas.FacturaResponse)
 def create_factura(factura: schemas.FacturaCreate, db: Session = Depends(get_db), current_user: models.User = Depends(require_admin)):
-    # Calcular IVA y total si no vienen
     importe_base = factura.importe_base
     tipo_iva = factura.tipo_iva or 21
     importe_iva = importe_base * tipo_iva / 100
@@ -410,7 +661,6 @@ def update_factura(factura_id: int, factura: schemas.FacturaCreate, db: Session 
     if not db_factura:
         raise HTTPException(status_code=404, detail="Factura not found")
     
-    # Recalcular totales
     importe_base = factura.importe_base
     tipo_iva = factura.tipo_iva or 21
     importe_iva = importe_base * tipo_iva / 100
