@@ -15,7 +15,7 @@ import {
   AuthResponse,
 } from '../types';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 // ==================== AUTH STORE ====================
 
@@ -51,8 +51,10 @@ export const useAuthStore = create<AuthState>()(
       login: async (credentials) => {
         const response = await fetch(`${API_URL}/auth/login`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
+          headers: { 
+            'Content-Type': 'application/json' 
+          },
+          body: JSON.stringify({
             username: credentials.username,
             password: credentials.password,
           }),
@@ -315,12 +317,12 @@ const convertServicioFromBackend = (servicio: any): Servicio => ({
 const convertServicioToBackend = (data: CreateServicioData | UpdateServicioData) => {
   const backendData: any = {};
   
-  // Campos que solo existen en CreateServicioData
+  // clienteId solo existe en CreateServicioData
   if ('clienteId' in data && data.clienteId !== undefined) {
     backendData.cliente_id = data.clienteId;
   }
   
-  // Campos que solo existen en UpdateServicioData
+  // estado solo existe en UpdateServicioData
   if ('estado' in data && data.estado !== undefined) {
     backendData.estado = data.estado;
   }
