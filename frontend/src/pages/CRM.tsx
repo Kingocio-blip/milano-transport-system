@@ -5,7 +5,7 @@ import {
   CreditCard, Clock, Star, ChevronDown, ChevronUp,
   TrendingUp, DollarSign, Package
 } from 'lucide-react';
-import { useAuthStore, useClientesStore } from '../store';
+import { useClientesStore } from '../store';
 import { Cliente, CreateClienteData, UpdateClienteData } from '../types';
 import './CRM.css';
 
@@ -19,7 +19,6 @@ const FORMAS_PAGO = [
 ];
 
 export default function CRM() {
-  const { token } = useAuthStore();
   const { 
     clientes, 
     loading, 
@@ -58,10 +57,8 @@ export default function CRM() {
   });
 
   useEffect(() => {
-    if (token) {
-      fetchClientes(token);
-    }
-  }, [token, fetchClientes]);
+    fetchClientes();
+  }, [fetchClientes]);
 
   // Filtrar y ordenar clientes
   const filteredClientes = clientes.filter(cliente =>
@@ -158,7 +155,6 @@ export default function CRM() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token) return;
 
     try {
       // Limpiar valores vacíos - convertir a undefined si están vacíos
@@ -187,9 +183,9 @@ export default function CRM() {
       }
 
       if (selectedCliente) {
-        await updateCliente(selectedCliente.id, cleanData, token);
+        await updateCliente(selectedCliente.id, cleanData);
       } else {
-        await createCliente(cleanData as CreateClienteData, token);
+        await createCliente(cleanData as CreateClienteData);
       }
 
       setShowModal(false);
@@ -200,11 +196,10 @@ export default function CRM() {
   };
 
   const handleDelete = async (cliente: Cliente) => {
-    if (!token) return;
     if (!window.confirm(`¿Estás seguro de eliminar a ${cliente.nombre}?`)) return;
 
     try {
-      await deleteCliente(cliente.id, token);
+      await deleteCliente(cliente.id);
     } catch (err: any) {
       alert(err.message || 'Error al eliminar cliente');
     }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '../store/authStore';
+import { api } from '../store';
 import { Users, Bus, UserCheck, ClipboardList, FileText, Euro } from 'lucide-react';
 
 const statCards = [
@@ -14,6 +14,7 @@ const statCards = [
 export default function Dashboard() {
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchStats();
@@ -21,6 +22,9 @@ export default function Dashboard() {
 
   const fetchStats = async () => {
     try {
+      setLoading(true);
+      setError(null);
+      
       // Llamar a los endpoints existentes
       const [clientes, vehiculos, conductores, servicios] = await Promise.all([
         api.get('/clientes/'),
@@ -46,6 +50,7 @@ export default function Dashboard() {
       });
     } catch (error) {
       console.error('Error:', error);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
@@ -56,6 +61,15 @@ export default function Dashboard() {
       <div className="loading-container">
         <div className="loading-spinner"></div>
         <p>Cargando estadisticas...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="error-container">
+        <p>Error: {error}</p>
+        <button onClick={fetchStats}>Reintentar</button>
       </div>
     );
   }

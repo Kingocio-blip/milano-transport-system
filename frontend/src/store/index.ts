@@ -1,21 +1,208 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import {
-  User,
-  Cliente,
-  Servicio,
-  Factura,
-  CreateClienteData,
-  UpdateClienteData,
-  CreateServicioData,
-  UpdateServicioData,
-  CreateFacturaData,
-  DashboardData,
-  LoginCredentials,
-  AuthResponse,
-} from '../types';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+
+// ==================== TIPOS ====================
+
+export interface User {
+  id: number;
+  username: string;
+  email: string;
+  nombre: string;
+  apellidos: string;
+  rol: 'admin' | 'conductor' | 'usuario';
+  activo: boolean;
+  fechaAlta?: string;
+  ultimoAcceso?: string;
+}
+
+export interface LoginCredentials {
+  username: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  token_type: string;
+  user: any;
+}
+
+// Cliente
+export interface Cliente {
+  id: number;
+  codigo: string;
+  nombre: string;
+  cif: string;
+  email: string;
+  telefono: string;
+  direccion: string;
+  ciudad: string;
+  codigoPostal: string;
+  formaPago: string;
+  diasPago: number;
+  condicionesEspeciales: string;
+  notas: string;
+  fechaAlta: string;
+  contacto: {
+    id: number;
+    clienteId: number;
+    nombre: string;
+    email: string;
+    telefono: string;
+    cargo: string;
+    principal: boolean;
+  };
+  totalServicios: number;
+  totalFacturado: number;
+  ultimoServicio?: string;
+}
+
+export interface CreateClienteData {
+  nombre: string;
+  cif?: string;
+  email?: string;
+  telefono?: string;
+  direccion?: string;
+  ciudad?: string;
+  codigoPostal?: string;
+  formaPago?: string;
+  diasPago?: number;
+  condicionesEspeciales?: string;
+  notas?: string;
+  contacto?: {
+    nombre: string;
+    email: string;
+    telefono: string;
+    cargo: string;
+  };
+}
+
+export interface UpdateClienteData {
+  nombre?: string;
+  cif?: string;
+  email?: string;
+  telefono?: string;
+  direccion?: string;
+  ciudad?: string;
+  codigoPostal?: string;
+  formaPago?: string;
+  diasPago?: number;
+  condicionesEspeciales?: string;
+  notas?: string;
+}
+
+// Servicio
+export interface Servicio {
+  id: number;
+  codigo: string;
+  clienteId: number;
+  clienteNombre: string;
+  tipo: string;
+  descripcion: string;
+  fechaInicio: string;
+  fechaFin?: string;
+  estado: 'pendiente' | 'en_curso' | 'completado' | 'cancelado';
+  importe: number;
+  notas: string;
+}
+
+export interface CreateServicioData {
+  clienteId: number;
+  tipo: string;
+  descripcion?: string;
+  fechaInicio: string;
+  fechaFin?: string;
+  importe?: number;
+  notas?: string;
+}
+
+export interface UpdateServicioData {
+  tipo?: string;
+  descripcion?: string;
+  fechaInicio?: string;
+  fechaFin?: string;
+  estado?: 'pendiente' | 'en_curso' | 'completado' | 'cancelado';
+  importe?: number;
+  notas?: string;
+}
+
+// Factura
+export interface Factura {
+  id: number;
+  numero: string;
+  clienteId: number;
+  clienteNombre: string;
+  fecha: string;
+  fechaVencimiento: string;
+  subtotal: number;
+  iva: number;
+  total: number;
+  estado: 'pendiente' | 'pagada' | 'vencida' | 'anulada';
+  concepto: string;
+}
+
+export interface CreateFacturaData {
+  clienteId: number;
+  fecha: string;
+  fechaVencimiento: string;
+  subtotal: number;
+  iva?: number;
+  concepto?: string;
+}
+
+// Dashboard
+export interface DashboardData {
+  stats: {
+    totalClientes: number;
+    totalServicios: number;
+    totalFacturado: number;
+    facturasPendientes: number;
+    serviciosPendientes: number;
+    serviciosEsteMes: number;
+  };
+  monthlyData: any[];
+  ultimosServicios: any[];
+  facturasPendientes: any[];
+}
+
+// ==================== API HELPER ====================
+
+export const api = {
+  async fetch(endpoint: string, options: RequestInit = {}) {
+    const token = localStorage.getItem('token');
+    const url = `${API_URL}${endpoint}`;
+    
+    const defaultOptions: RequestInit = {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    };
+    
+    const response = await fetch(url, { ...defaultOptions, ...options });
+    
+    if (response.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+      throw new Error('Sesión expirada');
+    }
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Error desconocido' }));
+      throw new Error(error.detail || `Error ${response.status}`);
+    }
+    
+    return response.json();
+  },
+  
+  get(endpoint: string) { return this.fetch(endpoint, { method: 'GET' }); },
+  post(endpoint: string, data: any) { return this.fetch(endpoint, { method: 'POST', body: JSON.stringify(data) }); },
+  put(endpoint: string, data: any) { return this.fetch(endpoint, { method: 'PUT', body: JSON.stringify(data) }); },
+  delete(endpoint: string) { return this.fetch(endpoint, { method: 'DELETE' }); }
+};
 
 // ==================== AUTH STORE ====================
 
@@ -23,12 +210,11 @@ interface AuthState {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
-  login: (credentials: LoginCredentials) => Promise<void>;
+  login: (credentials: LoginCredentials) => Promise<AuthResponse>;
   logout: () => void;
   checkAuth: () => boolean;
 }
 
-// Helper para convertir usuario del backend
 const convertUserFromBackend = (user: any): User => ({
   id: user.id,
   username: user.username,
@@ -51,13 +237,8 @@ export const useAuthStore = create<AuthState>()(
       login: async (credentials) => {
         const response = await fetch(`${API_URL}/auth/login`, {
           method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json' 
-          },
-          body: JSON.stringify({
-            username: credentials.username,
-            password: credentials.password,
-          }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(credentials),
         });
 
         if (!response.ok) {
@@ -67,14 +248,22 @@ export const useAuthStore = create<AuthState>()(
 
         const data: AuthResponse = await response.json();
         
+        // Guardar también en localStorage para compatibilidad con api helper
+        localStorage.setItem('token', data.access_token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        
         set({
           user: convertUserFromBackend(data.user),
           token: data.access_token,
           isAuthenticated: true,
         });
+        
+        return data;
       },
 
       logout: () => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
         set({ user: null, token: null, isAuthenticated: false });
       },
 
@@ -95,15 +284,14 @@ interface ClientesState {
   clienteActual: Cliente | null;
   loading: boolean;
   error: string | null;
-  fetchClientes: (token: string) => Promise<void>;
-  fetchCliente: (id: number, token: string) => Promise<void>;
-  createCliente: (data: CreateClienteData, token: string) => Promise<void>;
-  updateCliente: (id: number, data: UpdateClienteData, token: string) => Promise<void>;
-  deleteCliente: (id: number, token: string) => Promise<void>;
+  fetchClientes: () => Promise<void>;
+  fetchCliente: (id: number) => Promise<void>;
+  createCliente: (data: CreateClienteData) => Promise<void>;
+  updateCliente: (id: number, data: UpdateClienteData) => Promise<void>;
+  deleteCliente: (id: number) => Promise<void>;
   clearError: () => void;
 }
 
-// Helper para convertir cliente del backend
 const convertClienteFromBackend = (cliente: any): Cliente => ({
   id: cliente.id,
   codigo: cliente.codigo,
@@ -133,7 +321,6 @@ const convertClienteFromBackend = (cliente: any): Cliente => ({
   ultimoServicio: cliente.ultimo_servicio,
 });
 
-// Helper para convertir datos al backend
 const convertClienteToBackend = (data: CreateClienteData | UpdateClienteData) => {
   const backendData: any = {};
   
@@ -149,7 +336,6 @@ const convertClienteToBackend = (data: CreateClienteData | UpdateClienteData) =>
   if (data.condicionesEspeciales !== undefined) backendData.condiciones_especiales = data.condicionesEspeciales || null;
   if (data.notas !== undefined) backendData.notas = data.notas || null;
   
-  // contacto solo existe en CreateClienteData
   if ('contacto' in data && data.contacto !== undefined) {
     backendData.contacto = data.contacto;
   }
@@ -163,16 +349,10 @@ export const useClientesStore = create<ClientesState>((set) => ({
   loading: false,
   error: null,
 
-  fetchClientes: async (token) => {
+  fetchClientes: async () => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_URL}/clientes/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) throw new Error('Error al cargar clientes');
-
-      const data = await response.json();
+      const data = await api.get('/clientes/');
       set({ 
         clientes: data.map(convertClienteFromBackend),
         loading: false 
@@ -182,16 +362,10 @@ export const useClientesStore = create<ClientesState>((set) => ({
     }
   },
 
-  fetchCliente: async (id, token) => {
+  fetchCliente: async (id) => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_URL}/clientes/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) throw new Error('Error al cargar cliente');
-
-      const data = await response.json();
+      const data = await api.get(`/clientes/${id}`);
       set({ 
         clienteActual: convertClienteFromBackend(data),
         loading: false 
@@ -201,24 +375,10 @@ export const useClientesStore = create<ClientesState>((set) => ({
     }
   },
 
-  createCliente: async (data, token) => {
+  createCliente: async (data) => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_URL}/clientes/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(convertClienteToBackend(data)),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Error al crear cliente');
-      }
-
-      const newCliente = await response.json();
+      const newCliente = await api.post('/clientes/', convertClienteToBackend(data));
       set((state) => ({
         clientes: [...state.clientes, convertClienteFromBackend(newCliente)],
         loading: false,
@@ -229,24 +389,10 @@ export const useClientesStore = create<ClientesState>((set) => ({
     }
   },
 
-  updateCliente: async (id, data, token) => {
+  updateCliente: async (id, data) => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_URL}/clientes/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(convertClienteToBackend(data)),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Error al actualizar cliente');
-      }
-
-      const updatedCliente = await response.json();
+      const updatedCliente = await api.put(`/clientes/${id}`, convertClienteToBackend(data));
       set((state) => ({
         clientes: state.clientes.map((c) =>
           c.id === id ? convertClienteFromBackend(updatedCliente) : c
@@ -260,16 +406,10 @@ export const useClientesStore = create<ClientesState>((set) => ({
     }
   },
 
-  deleteCliente: async (id, token) => {
+  deleteCliente: async (id) => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_URL}/clientes/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) throw new Error('Error al eliminar cliente');
-
+      await api.delete(`/clientes/${id}`);
       set((state) => ({
         clientes: state.clientes.filter((c) => c.id !== id),
         loading: false,
@@ -290,15 +430,14 @@ interface ServiciosState {
   servicioActual: Servicio | null;
   loading: boolean;
   error: string | null;
-  fetchServicios: (token: string) => Promise<void>;
-  fetchServicio: (id: number, token: string) => Promise<void>;
-  createServicio: (data: CreateServicioData, token: string) => Promise<void>;
-  updateServicio: (id: number, data: UpdateServicioData, token: string) => Promise<void>;
-  deleteServicio: (id: number, token: string) => Promise<void>;
+  fetchServicios: () => Promise<void>;
+  fetchServicio: (id: number) => Promise<void>;
+  createServicio: (data: CreateServicioData) => Promise<void>;
+  updateServicio: (id: number, data: UpdateServicioData) => Promise<void>;
+  deleteServicio: (id: number) => Promise<void>;
   clearError: () => void;
 }
 
-// Helper para convertir servicio del backend
 const convertServicioFromBackend = (servicio: any): Servicio => ({
   id: servicio.id,
   codigo: servicio.codigo,
@@ -313,21 +452,17 @@ const convertServicioFromBackend = (servicio: any): Servicio => ({
   notas: servicio.notas_cliente || '',
 });
 
-// Helper para convertir datos al backend
 const convertServicioToBackend = (data: CreateServicioData | UpdateServicioData) => {
   const backendData: any = {};
   
-  // clienteId solo existe en CreateServicioData
   if ('clienteId' in data && data.clienteId !== undefined) {
     backendData.cliente_id = data.clienteId;
   }
   
-  // estado solo existe en UpdateServicioData
   if ('estado' in data && data.estado !== undefined) {
     backendData.estado = data.estado;
   }
   
-  // Campos comunes
   if (data.tipo !== undefined) backendData.tipo = data.tipo;
   if (data.descripcion !== undefined) backendData.descripcion = data.descripcion;
   if (data.fechaInicio !== undefined) backendData.fecha_inicio = data.fechaInicio;
@@ -344,16 +479,10 @@ export const useServiciosStore = create<ServiciosState>((set) => ({
   loading: false,
   error: null,
 
-  fetchServicios: async (token) => {
+  fetchServicios: async () => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_URL}/servicios/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) throw new Error('Error al cargar servicios');
-
-      const data = await response.json();
+      const data = await api.get('/servicios/');
       set({ 
         servicios: data.map(convertServicioFromBackend),
         loading: false 
@@ -363,16 +492,10 @@ export const useServiciosStore = create<ServiciosState>((set) => ({
     }
   },
 
-  fetchServicio: async (id, token) => {
+  fetchServicio: async (id) => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_URL}/servicios/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) throw new Error('Error al cargar servicio');
-
-      const data = await response.json();
+      const data = await api.get(`/servicios/${id}`);
       set({ 
         servicioActual: convertServicioFromBackend(data),
         loading: false 
@@ -382,24 +505,10 @@ export const useServiciosStore = create<ServiciosState>((set) => ({
     }
   },
 
-  createServicio: async (data, token) => {
+  createServicio: async (data) => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_URL}/servicios/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(convertServicioToBackend(data)),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Error al crear servicio');
-      }
-
-      const newServicio = await response.json();
+      const newServicio = await api.post('/servicios/', convertServicioToBackend(data));
       set((state) => ({
         servicios: [...state.servicios, convertServicioFromBackend(newServicio)],
         loading: false,
@@ -410,24 +519,10 @@ export const useServiciosStore = create<ServiciosState>((set) => ({
     }
   },
 
-  updateServicio: async (id, data, token) => {
+  updateServicio: async (id, data) => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_URL}/servicios/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(convertServicioToBackend(data)),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Error al actualizar servicio');
-      }
-
-      const updatedServicio = await response.json();
+      const updatedServicio = await api.put(`/servicios/${id}`, convertServicioToBackend(data));
       set((state) => ({
         servicios: state.servicios.map((s) =>
           s.id === id ? convertServicioFromBackend(updatedServicio) : s
@@ -441,16 +536,10 @@ export const useServiciosStore = create<ServiciosState>((set) => ({
     }
   },
 
-  deleteServicio: async (id, token) => {
+  deleteServicio: async (id) => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_URL}/servicios/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) throw new Error('Error al eliminar servicio');
-
+      await api.delete(`/servicios/${id}`);
       set((state) => ({
         servicios: state.servicios.filter((s) => s.id !== id),
         loading: false,
@@ -471,15 +560,14 @@ interface FacturasState {
   facturaActual: Factura | null;
   loading: boolean;
   error: string | null;
-  fetchFacturas: (token: string) => Promise<void>;
-  fetchFactura: (id: number, token: string) => Promise<void>;
-  createFactura: (data: CreateFacturaData, token: string) => Promise<void>;
-  updateFacturaEstado: (id: number, estado: string, token: string) => Promise<void>;
-  deleteFactura: (id: number, token: string) => Promise<void>;
+  fetchFacturas: () => Promise<void>;
+  fetchFactura: (id: number) => Promise<void>;
+  createFactura: (data: CreateFacturaData) => Promise<void>;
+  updateFacturaEstado: (id: number, estado: string) => Promise<void>;
+  deleteFactura: (id: number) => Promise<void>;
   clearError: () => void;
 }
 
-// Helper para convertir factura del backend
 const convertFacturaFromBackend = (factura: any): Factura => ({
   id: factura.id,
   numero: factura.numero,
@@ -500,16 +588,10 @@ export const useFacturasStore = create<FacturasState>((set) => ({
   loading: false,
   error: null,
 
-  fetchFacturas: async (token) => {
+  fetchFacturas: async () => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_URL}/facturas/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) throw new Error('Error al cargar facturas');
-
-      const data = await response.json();
+      const data = await api.get('/facturas/');
       set({ 
         facturas: data.map(convertFacturaFromBackend),
         loading: false 
@@ -519,16 +601,10 @@ export const useFacturasStore = create<FacturasState>((set) => ({
     }
   },
 
-  fetchFactura: async (id, token) => {
+  fetchFactura: async (id) => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_URL}/facturas/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) throw new Error('Error al cargar factura');
-
-      const data = await response.json();
+      const data = await api.get(`/facturas/${id}`);
       set({ 
         facturaActual: convertFacturaFromBackend(data),
         loading: false 
@@ -538,32 +614,18 @@ export const useFacturasStore = create<FacturasState>((set) => ({
     }
   },
 
-  createFactura: async (data, token) => {
+  createFactura: async (data) => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_URL}/facturas/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          cliente_id: data.clienteId,
-          fecha_emision: data.fecha,
-          fecha_vencimiento: data.fechaVencimiento,
-          notas: data.concepto,
-          subtotal: data.subtotal,
-          impuestos: data.iva || 21,
-          total: data.subtotal * (1 + (data.iva || 21) / 100),
-        }),
+      const newFactura = await api.post('/facturas/', {
+        cliente_id: data.clienteId,
+        fecha_emision: data.fecha,
+        fecha_vencimiento: data.fechaVencimiento,
+        notas: data.concepto,
+        subtotal: data.subtotal,
+        impuestos: data.iva || 21,
+        total: data.subtotal * (1 + (data.iva || 21) / 100),
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Error al crear factura');
-      }
-
-      const newFactura = await response.json();
       set((state) => ({
         facturas: [...state.facturas, convertFacturaFromBackend(newFactura)],
         loading: false,
@@ -574,21 +636,10 @@ export const useFacturasStore = create<FacturasState>((set) => ({
     }
   },
 
-  updateFacturaEstado: async (id, estado, token) => {
+  updateFacturaEstado: async (id, estado) => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_URL}/facturas/${id}/estado`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ estado }),
-      });
-
-      if (!response.ok) throw new Error('Error al actualizar estado');
-
-      const updatedFactura = await response.json();
+      const updatedFactura = await api.put(`/facturas/${id}/estado`, { estado });
       set((state) => ({
         facturas: state.facturas.map((f) =>
           f.id === id ? convertFacturaFromBackend(updatedFactura) : f
@@ -601,16 +652,10 @@ export const useFacturasStore = create<FacturasState>((set) => ({
     }
   },
 
-  deleteFactura: async (id, token) => {
+  deleteFactura: async (id) => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_URL}/facturas/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) throw new Error('Error al eliminar factura');
-
+      await api.delete(`/facturas/${id}`);
       set((state) => ({
         facturas: state.facturas.filter((f) => f.id !== id),
         loading: false,
@@ -630,7 +675,7 @@ interface DashboardState {
   data: DashboardData | null;
   loading: boolean;
   error: string | null;
-  fetchDashboard: (token: string) => Promise<void>;
+  fetchDashboard: () => Promise<void>;
   clearError: () => void;
 }
 
@@ -639,16 +684,10 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   loading: false,
   error: null,
 
-  fetchDashboard: async (token) => {
+  fetchDashboard: async () => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_URL}/dashboard/stats`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) throw new Error('Error al cargar dashboard');
-
-      const data = await response.json();
+      const data = await api.get('/dashboard/stats');
       set({ 
         data: {
           stats: {
