@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuthStore } from '../store/authStore';
+import { useAuthStore } from '../store';
 import { Plus, Search, Edit2, Trash2, Bus, Calendar, Users } from 'lucide-react';
 import './Vehiculos.css';
 

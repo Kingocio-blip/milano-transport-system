@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuthStore } from '../store/authStore';
+import { useAuthStore } from '../store';
 import { Calendar, MapPin, CheckCircle, User, Bus } from 'lucide-react';
 import './PanelConductor.css';
 
