@@ -9,7 +9,7 @@ import os
 
 import models
 import schemas
-from models import get_db, init_db
+from models import get_db, init_db, SessionLocal
 
 # JWT Configuration
 SECRET_KEY = os.getenv("SECRET_KEY", "milano-secret-key-2024")
@@ -58,6 +58,36 @@ def require_admin(current_user: models.Usuario = Depends(get_current_user)):
     if current_user.rol != "admin":
         raise HTTPException(status_code=403, detail="Se requiere rol de administrador")
     return current_user
+
+# ==================== DEFAULT ADMIN ====================
+
+def create_default_admin():
+    """Crea usuario admin por defecto si no existe ninguno"""
+    db = SessionLocal()
+    try:
+        existing = db.query(models.Usuario).first()
+        if not existing:
+            admin = models.Usuario(
+                username="admin",
+                password="admin123",
+                nombre="Administrador",
+                rol="admin",
+                activo=True
+            )
+            db.add(admin)
+            db.commit()
+            print("=" * 50)
+            print("✅ ADMIN CREADO AUTOMÁTICAMENTE")
+            print("=" * 50)
+            print("Usuario: admin")
+            print("Contraseña: admin123")
+            print("=" * 50)
+        else:
+            print("✅ Usuarios ya existen en la base de datos")
+    except Exception as e:
+        print(f"⚠️ Error creando admin: {e}")
+    finally:
+        db.close()
 
 # ==================== AUTH ENDPOINTS ====================
 
@@ -200,7 +230,6 @@ def create_conductor(
     db.commit()
     db.refresh(db_conductor)
     
-    # Generar código
     db_conductor.codigo = generar_codigo_conductor(db)
     db.commit()
     db.refresh(db_conductor)
@@ -389,7 +418,6 @@ def get_cliente(
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
     
-    # Calcular estadísticas
     servicios = db.query(models.Servicio).filter(models.Servicio.cliente_id == cliente_id).all()
     facturas = db.query(models.Factura).filter(
         models.Factura.cliente_id == cliente_id,
@@ -414,10 +442,8 @@ def create_cliente(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    # Extraer contacto del objeto anidado
     contacto = cliente_data.get("contacto", {})
     
-    # Verificar NIF único si se proporciona
     nif = cliente_data.get("nif")
     if nif and db.query(models.Cliente).filter(models.Cliente.nif == nif).first():
         raise HTTPException(status_code=400, detail="NIF ya registrado")
@@ -442,7 +468,6 @@ def create_cliente(
     db.commit()
     db.refresh(db_cliente)
     
-    # Generar código
     db_cliente.codigo = generar_codigo_cliente(db)
     db.commit()
     db.refresh(db_cliente)
@@ -460,10 +485,8 @@ def update_cliente(
     if not db_cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
     
-    # Extraer contacto del objeto anidado
     contacto = cliente_data.get("contacto", {})
     
-    # Actualizar campos simples
     if "nombre" in cliente_data:
         db_cliente.nombre = cliente_data["nombre"]
     if "tipo" in cliente_data:
@@ -481,7 +504,6 @@ def update_cliente(
     if "notas" in cliente_data:
         db_cliente.notas = cliente_data["notas"]
     
-    # Actualizar campos de contacto
     if "email" in contacto:
         db_cliente.contacto_email = contacto["email"]
     if "telefono" in contacto:
@@ -507,7 +529,6 @@ def delete_cliente(
     if not db_cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
     
-    # Verificar si tiene servicios
     servicios = db.query(models.Servicio).filter(models.Servicio.cliente_id == cliente_id).count()
     if servicios > 0:
         raise HTTPException(
@@ -578,7 +599,6 @@ def create_servicio(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    # Calcular margen
     margen = servicio.precio - servicio.coste_estimado
     
     db_servicio = models.Servicio(**servicio.dict(), margen=margen, creado_por=current_user.username)
@@ -586,7 +606,6 @@ def create_servicio(
     db.commit()
     db.refresh(db_servicio)
     
-    # Generar código
     db_servicio.codigo = generar_codigo_servicio(db)
     db.commit()
     db.refresh(db_servicio)
@@ -608,7 +627,6 @@ def update_servicio(
     for key, value in update_data.items():
         setattr(db_servicio, key, value)
     
-    # Recalcular margen si cambió precio o coste
     if "precio" in update_data or "coste_real" in update_data:
         db_servicio.margen = db_servicio.precio - (db_servicio.coste_real or db_servicio.coste_estimado)
     
@@ -684,7 +702,6 @@ def create_factura(
     db.commit()
     db.refresh(db_factura)
     
-    # Generar número
     db_factura.numero = generar_numero_factura(db)
     db.commit()
     db.refresh(db_factura)
@@ -724,7 +741,7 @@ def delete_factura(
     db.commit()
     return {"message": "Factura eliminada"}
 
-# ==================== DASHBOARD STATS ====================
+# ==================== DASHBOARD ====================
 
 @app.get("/dashboard/stats")
 def get_dashboard_stats(
@@ -734,46 +751,38 @@ def get_dashboard_stats(
     today = datetime.utcnow().date()
     first_day_of_month = today.replace(day=1)
     
-    # Servicios hoy
     servicios_hoy = db.query(models.Servicio).filter(
         models.Servicio.fecha_inicio >= datetime.combine(today, datetime.min.time()),
         models.Servicio.fecha_inicio < datetime.combine(today + timedelta(days=1), datetime.min.time())
     ).count()
     
-    # Servicios mes
     servicios_mes = db.query(models.Servicio).filter(
         models.Servicio.fecha_inicio >= datetime.combine(first_day_of_month, datetime.min.time())
     ).count()
     
-    # Servicios pendientes (no completados ni cancelados)
     servicios_pendientes = db.query(models.Servicio).filter(
         ~models.Servicio.estado.in_(["completado", "cancelado", "facturado"])
     ).count()
     
-    # Total facturado mes
     facturado_mes = db.query(models.Factura).filter(
         models.Factura.fecha_emision >= datetime.combine(first_day_of_month, datetime.min.time()),
         models.Factura.estado == "pagada"
     ).all()
     total_facturado_mes = sum(f.total for f in facturado_mes)
     
-    # Pendiente de cobro
     pendiente_cobro = db.query(models.Factura).filter(
         models.Factura.estado.in_(["pendiente", "enviada", "vencida"])
     ).all()
     total_pendiente = sum(f.total for f in pendiente_cobro)
     
-    # Conductores activos
     conductores_activos = db.query(models.Conductor).filter(
         models.Conductor.estado == "activo"
     ).count()
     
-    # Vehículos operativos
     vehiculos_operativos = db.query(models.Vehiculo).filter(
         models.Vehiculo.estado == "operativo"
     ).count()
     
-    # Total clientes
     total_clientes = db.query(models.Cliente).count()
     
     return {
@@ -820,6 +829,7 @@ def get_servicios_recientes(
 @app.on_event("startup")
 def startup_event():
     init_db()
+    create_default_admin()
     print("✅ Database initialized")
 
 @app.get("/")
