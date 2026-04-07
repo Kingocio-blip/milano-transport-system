@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
   Users, Search, Plus, Edit2, Trash2, Eye, X, 
-  Phone, Mail, MapPin, FileText, Calendar, Building,
+  Phone, Mail, MapPin, Calendar, Building,
   CreditCard, Clock, Star, ChevronDown, ChevronUp,
   TrendingUp, DollarSign, Package
 } from 'lucide-react';
@@ -22,7 +22,6 @@ export default function CRM() {
   const { token } = useAuthStore();
   const { 
     clientes, 
-    clienteActual, 
     loading, 
     error, 
     fetchClientes, 
