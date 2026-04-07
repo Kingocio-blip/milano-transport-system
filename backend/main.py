@@ -362,7 +362,7 @@ def generar_codigo_cliente(db: Session):
 
 def cliente_to_dict(cliente: models.Cliente) -> dict:
     """Convierte un cliente a diccionario con estructura de contacto anidada"""
-    return {
+n    return {
         "id": cliente.id,
         "codigo": cliente.codigo,
         "nombre": cliente.nombre,
@@ -373,14 +373,20 @@ def cliente_to_dict(cliente: models.Cliente) -> dict:
         "dias_pago": cliente.dias_pago,
         "estado": cliente.estado,
         "notas": cliente.notas,
-        "fecha_alta": cliente.fecha_alta,
+        "fecha_alta": cliente.fecha_alta.isoformat() if cliente.fecha_alta else None,
         "contacto": {
-            "email": cliente.contacto_email,
-            "telefono": cliente.contacto_telefono,
-            "direccion": cliente.contacto_direccion,
-            "ciudad": cliente.contacto_ciudad,
-            "codigoPostal": cliente.contacto_codigo_postal
-        }
+            "email": cliente.contacto_email or '',
+            "telefono": cliente.contacto_telefono or '',
+            "direccion": cliente.contacto_direccion or '',
+            "ciudad": cliente.contacto_ciudad or '',
+            "codigoPostal": cliente.contacto_codigo_postal or ''
+        },
+        # Campos individuales para compatibilidad
+        "contacto_email": cliente.contacto_email,
+        "contacto_telefono": cliente.contacto_telefono,
+        "contacto_direccion": cliente.contacto_direccion,
+        "contacto_ciudad": cliente.contacto_ciudad,
+        "contacto_codigo_postal": cliente.contacto_codigo_postal
     }
 
 @app.get("/clientes/", response_model=List[dict])
@@ -421,8 +427,8 @@ def get_clientes(
         cliente_dict = cliente_to_dict(cliente)
         cliente_dict.update({
             "total_servicios": total_servicios,
-            "total_facturado": total_facturado,
-            "ultimo_servicio": ultimo_servicio
+            "total_facturado": total_facturado or 0,
+            "ultimo_servicio": ultimo_servicio.isoformat() if ultimo_servicio else None
         })
         resultado.append(cliente_dict)
     
@@ -451,8 +457,8 @@ def get_cliente(
     result = cliente_to_dict(cliente)
     result.update({
         "total_servicios": total_servicios,
-        "total_facturado": total_facturado,
-        "ultimo_servicio": ultimo_servicio
+        "total_facturado": total_facturado or 0,
+        "ultimo_servicio": ultimo_servicio.isoformat() if ultimo_servicio else None
     })
     return result
 
@@ -462,26 +468,28 @@ def create_cliente(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    contacto = cliente_data.get("contacto", {})
+    # Extraer contacto del objeto anidado
+    contacto = cliente_data.get("contacto", {}) if cliente_data.get("contacto") else {}
     
+    # Verificar NIF único si se proporciona
     nif = cliente_data.get("nif")
     if nif and db.query(models.Cliente).filter(models.Cliente.nif == nif).first():
         raise HTTPException(status_code=400, detail="NIF ya registrado")
     
     db_cliente = models.Cliente(
-        nombre=cliente_data.get("nombre"),
+        nombre=cliente_data.get("nombre", ""),
         tipo=cliente_data.get("tipo", "particular"),
-        nif=nif,
-        condiciones_especiales=cliente_data.get("condiciones_especiales"),
-        forma_pago=cliente_data.get("forma_pago"),
+        nif=nif if nif else None,
+        condiciones_especiales=cliente_data.get("condiciones_especiales") if cliente_data.get("condiciones_especiales") else None,
+        forma_pago=cliente_data.get("forma_pago") if cliente_data.get("forma_pago") else None,
         dias_pago=cliente_data.get("dias_pago", 30),
         estado=cliente_data.get("estado", "activo"),
-        notas=cliente_data.get("notas"),
-        contacto_email=contacto.get("email"),
-        contacto_telefono=contacto.get("telefono"),
-        contacto_direccion=contacto.get("direccion"),
-        contacto_ciudad=contacto.get("ciudad"),
-        contacto_codigo_postal=contacto.get("codigoPostal")
+        notas=cliente_data.get("notas") if cliente_data.get("notas") else None,
+        contacto_email=contacto.get("email") if contacto.get("email") else None,
+        contacto_telefono=contacto.get("telefono") if contacto.get("telefono") else None,
+        contacto_direccion=contacto.get("direccion") if contacto.get("direccion") else None,
+        contacto_ciudad=contacto.get("ciudad") if contacto.get("ciudad") else None,
+        contacto_codigo_postal=contacto.get("codigoPostal") if contacto.get("codigoPostal") else None
     )
     
     db.add(db_cliente)
@@ -508,7 +516,7 @@ def create_cliente(
     result.update({
         "total_servicios": total_servicios,
         "total_facturado": total_facturado or 0,
-        "ultimo_servicio": ultimo_servicio
+        "ultimo_servicio": ultimo_servicio.isoformat() if ultimo_servicio else None
     })
     return result
 
@@ -523,35 +531,38 @@ def update_cliente(
     if not db_cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
     
-    contacto = cliente_data.get("contacto", {})
+    # Extraer contacto del objeto anidado
+    contacto = cliente_data.get("contacto", {}) if cliente_data.get("contacto") else {}
     
+    # Actualizar campos simples
     if "nombre" in cliente_data:
         db_cliente.nombre = cliente_data["nombre"]
     if "tipo" in cliente_data:
         db_cliente.tipo = cliente_data["tipo"]
     if "nif" in cliente_data:
-        db_cliente.nif = cliente_data["nif"]
+        db_cliente.nif = cliente_data["nif"] if cliente_data["nif"] else None
     if "condiciones_especiales" in cliente_data:
-        db_cliente.condiciones_especiales = cliente_data["condiciones_especiales"]
+        db_cliente.condiciones_especiales = cliente_data["condiciones_especiales"] if cliente_data["condiciones_especiales"] else None
     if "forma_pago" in cliente_data:
-        db_cliente.forma_pago = cliente_data["forma_pago"]
+        db_cliente.forma_pago = cliente_data["forma_pago"] if cliente_data["forma_pago"] else None
     if "dias_pago" in cliente_data:
         db_cliente.dias_pago = cliente_data["dias_pago"]
     if "estado" in cliente_data:
         db_cliente.estado = cliente_data["estado"]
     if "notas" in cliente_data:
-        db_cliente.notas = cliente_data["notas"]
+        db_cliente.notas = cliente_data["notas"] if cliente_data["notas"] else None
     
+    # Actualizar campos de contacto
     if "email" in contacto:
-        db_cliente.contacto_email = contacto["email"]
+        db_cliente.contacto_email = contacto["email"] if contacto["email"] else None
     if "telefono" in contacto:
-        db_cliente.contacto_telefono = contacto["telefono"]
+        db_cliente.contacto_telefono = contacto["telefono"] if contacto["telefono"] else None
     if "direccion" in contacto:
-        db_cliente.contacto_direccion = contacto["direccion"]
+        db_cliente.contacto_direccion = contacto["direccion"] if contacto["direccion"] else None
     if "ciudad" in contacto:
-        db_cliente.contacto_ciudad = contacto["ciudad"]
+        db_cliente.contacto_ciudad = contacto["ciudad"] if contacto["ciudad"] else None
     if "codigoPostal" in contacto:
-        db_cliente.contacto_codigo_postal = contacto["codigoPostal"]
+        db_cliente.contacto_codigo_postal = contacto["codigoPostal"] if contacto["codigoPostal"] else None
     
     db.commit()
     db.refresh(db_cliente)
@@ -571,7 +582,7 @@ def update_cliente(
     result.update({
         "total_servicios": total_servicios,
         "total_facturado": total_facturado or 0,
-        "ultimo_servicio": ultimo_servicio
+        "ultimo_servicio": ultimo_servicio.isoformat() if ultimo_servicio else None
     })
     return result
 
