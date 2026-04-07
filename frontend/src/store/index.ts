@@ -72,9 +72,9 @@ export interface CreateClienteData {
   notas?: string;
   contacto?: {
     nombre: string;
-    email: string;
-    telefono: string;
-    cargo: string;
+    email?: string;
+    telefono?: string;
+    cargo?: string;
   };
 }
 
