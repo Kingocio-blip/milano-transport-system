@@ -18,7 +18,7 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const data = await login(username, password);
+      const data = await login({ username, password });
       
       // Redirigir según el rol (backend usa 'rol', no 'role')
       if (data.user.rol === 'admin') {
