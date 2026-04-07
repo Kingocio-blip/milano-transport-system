@@ -37,8 +37,8 @@ const convertUserFromBackend = (user: any): User => ({
   apellidos: user.apellidos,
   rol: user.rol,
   activo: user.activo,
-  fechaAlta: user.fecha_alta,
-  ultimoAcceso: user.ultimo_aceso,
+  fechaAlta: user.fecha_creacion,
+  ultimoAcceso: user.ultimo_acceso,
 });
 
 export const useAuthStore = create<AuthState>()(
@@ -52,9 +52,9 @@ export const useAuthStore = create<AuthState>()(
         const response = await fetch(`${API_URL}/auth/login`, {
           method: 'POST',
           headers: { 
-            'Content-Type': 'application/x-www-form-urlencoded' 
+            'Content-Type': 'application/json' 
           },
-          body: new URLSearchParams({
+          body: JSON.stringify({
             username: credentials.username,
             password: credentials.password,
           }),
@@ -108,26 +108,26 @@ const convertClienteFromBackend = (cliente: any): Cliente => ({
   id: cliente.id,
   codigo: cliente.codigo,
   nombre: cliente.nombre,
-  cif: cliente.cif || '',
-  email: cliente.email || '',
-  telefono: cliente.telefono || '',
-  direccion: cliente.direccion || '',
-  ciudad: cliente.ciudad || '',
-  codigoPostal: cliente.codigo_postal || '',
+  cif: cliente.nif || '',
+  email: cliente.contacto_email || '',
+  telefono: cliente.contacto_telefono || '',
+  direccion: cliente.contacto_direccion || '',
+  ciudad: cliente.contacto_ciudad || '',
+  codigoPostal: cliente.contacto_codigo_postal || '',
   formaPago: cliente.forma_pago || '',
-  diasPago: cliente.dias_pago || 0,
+  diasPago: cliente.dias_pago || 30,
   condicionesEspeciales: cliente.condiciones_especiales || '',
   notas: cliente.notas || '',
   fechaAlta: cliente.fecha_alta,
-  contacto: cliente.contacto ? {
-    id: cliente.contacto.id,
-    clienteId: cliente.contacto.cliente_id,
-    nombre: cliente.contacto.nombre,
-    email: cliente.contacto.email || '',
-    telefono: cliente.contacto.telefono || '',
-    cargo: cliente.contacto.cargo || '',
-    principal: cliente.contacto.principal,
-  } : undefined,
+  contacto: {
+    id: 0,
+    clienteId: cliente.id,
+    nombre: '',
+    email: cliente.contacto_email || '',
+    telefono: cliente.contacto_telefono || '',
+    cargo: '',
+    principal: true,
+  },
   totalServicios: cliente.total_servicios || 0,
   totalFacturado: cliente.total_facturado || 0,
   ultimoServicio: cliente.ultimo_servicio,
@@ -138,12 +138,12 @@ const convertClienteToBackend = (data: CreateClienteData | UpdateClienteData) =>
   const backendData: any = {};
   
   if (data.nombre !== undefined) backendData.nombre = data.nombre;
-  if (data.cif !== undefined) backendData.cif = data.cif || null;
-  if (data.email !== undefined) backendData.email = data.email || null;
-  if (data.telefono !== undefined) backendData.telefono = data.telefono || null;
-  if (data.direccion !== undefined) backendData.direccion = data.direccion || null;
-  if (data.ciudad !== undefined) backendData.ciudad = data.ciudad || null;
-  if (data.codigoPostal !== undefined) backendData.codigo_postal = data.codigoPostal || null;
+  if (data.cif !== undefined) backendData.nif = data.cif || null;
+  if (data.email !== undefined) backendData.contacto_email = data.email || null;
+  if (data.telefono !== undefined) backendData.contacto_telefono = data.telefono || null;
+  if (data.direccion !== undefined) backendData.contacto_direccion = data.direccion || null;
+  if (data.ciudad !== undefined) backendData.contacto_ciudad = data.ciudad || null;
+  if (data.codigoPostal !== undefined) backendData.contacto_codigo_postal = data.codigoPostal || null;
   if (data.formaPago !== undefined) backendData.forma_pago = data.formaPago || null;
   if (data.diasPago !== undefined) backendData.dias_pago = data.diasPago || null;
   if (data.condicionesEspeciales !== undefined) backendData.condiciones_especiales = data.condicionesEspeciales || null;
@@ -303,14 +303,14 @@ const convertServicioFromBackend = (servicio: any): Servicio => ({
   id: servicio.id,
   codigo: servicio.codigo,
   clienteId: servicio.cliente_id,
-  clienteNombre: servicio.cliente_nombre,
+  clienteNombre: servicio.cliente?.nombre || '',
   tipo: servicio.tipo,
-  descripcion: servicio.descripcion,
-  fechaInicio: servicio.fecha_inicio,
+  descripcion: servicio.descripcion || '',
+  fechaInicio: servicio.fecha_inicio || '',
   fechaFin: servicio.fecha_fin,
   estado: servicio.estado,
-  importe: servicio.importe || 0,
-  notas: servicio.notas || '',
+  importe: servicio.precio || 0,
+  notas: servicio.notas_cliente || '',
 });
 
 // Helper para convertir datos al backend
@@ -332,8 +332,8 @@ const convertServicioToBackend = (data: CreateServicioData | UpdateServicioData)
   if (data.descripcion !== undefined) backendData.descripcion = data.descripcion;
   if (data.fechaInicio !== undefined) backendData.fecha_inicio = data.fechaInicio;
   if (data.fechaFin !== undefined) backendData.fecha_fin = data.fechaFin || null;
-  if (data.importe !== undefined) backendData.importe = data.importe || null;
-  if (data.notas !== undefined) backendData.notas = data.notas || null;
+  if (data.importe !== undefined) backendData.precio = data.importe || 0;
+  if (data.notas !== undefined) backendData.notas_cliente = data.notas || null;
   
   return backendData;
 };
@@ -484,14 +484,14 @@ const convertFacturaFromBackend = (factura: any): Factura => ({
   id: factura.id,
   numero: factura.numero,
   clienteId: factura.cliente_id,
-  clienteNombre: factura.cliente_nombre,
-  fecha: factura.fecha,
-  fechaVencimiento: factura.fecha_vencimiento,
-  subtotal: factura.subtotal,
-  iva: factura.iva,
-  total: factura.total,
+  clienteNombre: factura.cliente?.nombre || '',
+  fecha: factura.fecha_emision || '',
+  fechaVencimiento: factura.fecha_vencimiento || '',
+  subtotal: factura.subtotal || 0,
+  iva: factura.impuestos || 0,
+  total: factura.total || 0,
   estado: factura.estado,
-  concepto: factura.concepto,
+  concepto: factura.notas || '',
 });
 
 export const useFacturasStore = create<FacturasState>((set) => ({
@@ -549,11 +549,12 @@ export const useFacturasStore = create<FacturasState>((set) => ({
         },
         body: JSON.stringify({
           cliente_id: data.clienteId,
-          fecha: data.fecha,
+          fecha_emision: data.fecha,
           fecha_vencimiento: data.fechaVencimiento,
-          concepto: data.concepto,
+          notas: data.concepto,
           subtotal: data.subtotal,
-          iva: data.iva || 21,
+          impuestos: data.iva || 21,
+          total: data.subtotal * (1 + (data.iva || 21) / 100),
         }),
       });
 
@@ -641,7 +642,7 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   fetchDashboard: async (token) => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(`${API_URL}/dashboard/`, {
+      const response = await fetch(`${API_URL}/dashboard/stats`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -650,10 +651,17 @@ export const useDashboardStore = create<DashboardState>((set) => ({
       const data = await response.json();
       set({ 
         data: {
-          stats: data.stats,
-          monthlyData: data.monthly_data,
-          ultimosServicios: data.ultimos_servicios.map(convertServicioFromBackend),
-          facturasPendientes: data.facturas_pendientes.map(convertFacturaFromBackend),
+          stats: {
+            totalClientes: data.totalClientes || 0,
+            totalServicios: data.serviciosMes || 0,
+            totalFacturado: data.facturacionMes || 0,
+            facturasPendientes: 0,
+            serviciosPendientes: data.serviciosActivos || 0,
+            serviciosEsteMes: data.serviciosMes || 0,
+          },
+          monthlyData: [],
+          ultimosServicios: [],
+          facturasPendientes: [],
         },
         loading: false 
       });
