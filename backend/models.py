@@ -1,106 +1,212 @@
-from sqlalchemy import Column, Integer, String, Float, Date, DateTime, Text, ForeignKey, Boolean
-from sqlalchemy.orm import relationship
-from database import Base
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Float, Boolean, create_engine, JSON
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship, sessionmaker
 from datetime import datetime
+import os
 
-class User(Base):
-    __tablename__ = "users"
+Base = declarative_base()
+
+class Usuario(Base):
+    __tablename__ = "usuarios"
     
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    email = Column(String, unique=True, index=True, nullable=True)
-    hashed_password = Column(String)
-    role = Column(String, default="conductor")
-    is_active = Column(Boolean, default=True)
-    conductor_id = Column(Integer, ForeignKey("conductores.id"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-class Cliente(Base):
-    __tablename__ = "clientes"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    codigo = Column(String, unique=True, index=True)  # CLI-001, CLI-002...
+    username = Column(String, unique=True, index=True, nullable=False)
+    password = Column(String, nullable=False)
     nombre = Column(String, nullable=False)
-    apellidos = Column(String, nullable=False)
-    dni = Column(String, nullable=True, index=True)  # Para particulares
-    cif = Column(String, nullable=True, index=True)  # Para empresas/autónomos
-    tipo = Column(String, default="particular")  # particular, autonomo, empresa
-    telefono = Column(String, nullable=True)
-    email = Column(String, nullable=True)
-    direccion = Column(String, nullable=True)
-    ciudad = Column(String, nullable=True)
-    codigo_postal = Column(String, nullable=True)
-    persona_contacto = Column(String, nullable=True)  # Solo para empresas
-    notas = Column(Text, nullable=True)
-    fecha_registro = Column(DateTime, default=datetime.utcnow)
-    
-    # Relaciones
-    servicios = relationship("Servicio", back_populates="cliente")
+    rol = Column(String, default="conductor")  # admin, conductor
+    activo = Column(Boolean, default=True)
+    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    ultimo_acceso = Column(DateTime, nullable=True)
 
 class Conductor(Base):
     __tablename__ = "conductores"
     
     id = Column(Integer, primary_key=True, index=True)
+    codigo = Column(String, unique=True, index=True)
     nombre = Column(String, nullable=False)
     apellidos = Column(String, nullable=False)
     dni = Column(String, unique=True, index=True)
-    telefono = Column(String, nullable=True)
-    email = Column(String, nullable=True)
-    licencia_conducir = Column(String, nullable=True)
-    fecha_vencimiento_licencia = Column(Date, nullable=True)
-    estado = Column(String, default="activo")
-    fecha_contratacion = Column(DateTime, default=datetime.utcnow)
+    telefono = Column(String)
+    email = Column(String)
+    direccion = Column(String)
+    licencia_tipo = Column(String)
+    licencia_numero = Column(String)
+    licencia_caducidad = Column(DateTime)
+    fecha_nacimiento = Column(DateTime)
+    fecha_alta = Column(DateTime, default=datetime.utcnow)
+    tarifa_hora = Column(Float, default=0.0)
+    estado = Column(String, default="activo")  # activo, baja, vacaciones, descanso
+    notas = Column(Text)
+    
+    servicios = relationship("Servicio", back_populates="conductor")
 
 class Vehiculo(Base):
     __tablename__ = "vehiculos"
     
     id = Column(Integer, primary_key=True, index=True)
-    matricula = Column(String, unique=True, index=True)
+    matricula = Column(String, unique=True, index=True, nullable=False)
+    bastidor = Column(String, unique=True)
     marca = Column(String, nullable=False)
     modelo = Column(String, nullable=False)
-    tipo = Column(String, default="autobus")
-    capacidad_pasajeros = Column(Integer, default=50)
-    anno_fabricacion = Column(Integer, nullable=True)
-    estado = Column(String, default="disponible")
+    tipo = Column(String)  # autobus, minibus, furgoneta, coche
+    plazas = Column(Integer)
+    anno_fabricacion = Column(Integer)
+    combustible = Column(String)  # diesel, gasolina, electric, hibrido
+    kilometraje = Column(Integer, default=0)
+    
+    # ITV
+    itv_fecha_ultima = Column(DateTime)
+    itv_fecha_proxima = Column(DateTime)
+    itv_resultado = Column(String)
+    
+    # Seguro
+    seguro_compania = Column(String)
+    seguro_poliza = Column(String)
+    seguro_fecha_vencimiento = Column(DateTime)
+    
+    estado = Column(String, default="operativo")  # operativo, taller, baja, reservado
+    ubicacion = Column(String)
+    notas = Column(Text)
+    imagen_url = Column(String)
+    
+    servicios = relationship("Servicio", back_populates="vehiculo")
+
+class Cliente(Base):
+    __tablename__ = "clientes"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    codigo = Column(String, unique=True, index=True)
+    nombre = Column(String, nullable=False)
+    
+    # Tipo expandido: festival, promotor, colegio, empresa, particular
+    tipo = Column(String, default="particular")
+    
+    # Contacto como JSON para mantener estructura anidada del frontend
+    contacto_email = Column(String)
+    contacto_telefono = Column(String)
+    contacto_direccion = Column(String)
+    contacto_ciudad = Column(String)
+    contacto_codigo_postal = Column(String)
+    
+    # NIF/CIF
+    nif = Column(String, index=True)
+    
+    # Condiciones comerciales
+    condiciones_especiales = Column(Text)
+    forma_pago = Column(String)
+    dias_pago = Column(Integer, default=30)
+    
+    # Estado
+    estado = Column(String, default="activo")  # activo, inactivo
+    
+    notas = Column(Text)
+    fecha_alta = Column(DateTime, default=datetime.utcnow)
+    
+    servicios = relationship("Servicio", back_populates="cliente")
 
 class Servicio(Base):
     __tablename__ = "servicios"
     
     id = Column(Integer, primary_key=True, index=True)
-    cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=False)
-    conductor_id = Column(Integer, ForeignKey("conductores.id"), nullable=True)
-    vehiculo_id = Column(Integer, ForeignKey("vehiculos.id"), nullable=True)
-    tipo_servicio = Column(String, default="transfer")
-    origen = Column(String, nullable=False)
-    destino = Column(String, nullable=False)
-    fecha_inicio = Column(Date, nullable=False)
-    hora_inicio = Column(String, nullable=False)
-    fecha_fin = Column(Date, nullable=True)
-    hora_fin = Column(String, nullable=True)
-    numero_pasajeros = Column(Integer, default=1)
-    precio = Column(Float, default=0)
-    gastos_combustible = Column(Float, default=0)
-    gastos_peaje = Column(Float, default=0)
-    gastos_otros = Column(Float, default=0)
-    notas = Column(Text, nullable=True)
-    estado = Column(String, default="pendiente")
-    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    codigo = Column(String, unique=True, index=True)
     
-    # Relaciones
+    # Cliente
+    cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=False)
+    
+    # Tipo y estado expandidos
+    tipo = Column(String, default="lanzadera")  # lanzadera, discrecional, staff, ruta_programada
+    estado = Column(String, default="solicitud")  # solicitud, presupuesto, negociacion, confirmado, planificando, asignado, en_curso, completado, facturado, cancelado
+    
+    # Fechas
+    fecha_inicio = Column(DateTime)
+    fecha_fin = Column(DateTime)
+    hora_inicio = Column(String)
+    hora_fin = Column(String)
+    
+    # Descripción
+    titulo = Column(String)
+    descripcion = Column(Text)
+    
+    # Asignaciones
+    conductor_id = Column(Integer, ForeignKey("conductores.id"))
+    vehiculo_id = Column(Integer, ForeignKey("vehiculos.id"))
+    numero_vehiculos = Column(Integer, default=1)
+    
+    # Ubicación
+    origen = Column(String)
+    destino = Column(String)
+    ubicacion_evento = Column(String)
+    
+    # Financiero
+    coste_estimado = Column(Float, default=0.0)
+    coste_real = Column(Float, default=0.0)
+    precio = Column(Float, default=0.0)
+    margen = Column(Float, default=0.0)
+    
+    # Facturación
+    facturado = Column(Boolean, default=False)
+    factura_id = Column(Integer, ForeignKey("facturas.id"), nullable=True)
+    
+    # Notas
+    notas_internas = Column(Text)
+    notas_cliente = Column(Text)
+    
+    # Metadatos
+    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    creado_por = Column(String)
+    
     cliente = relationship("Cliente", back_populates="servicios")
+    conductor = relationship("Conductor", back_populates="servicios")
+    vehiculo = relationship("Vehiculo", back_populates="servicios")
+    factura = relationship("Factura", back_populates="servicio", foreign_keys="[Factura.servicio_id]")
 
 class Factura(Base):
     __tablename__ = "facturas"
     
     id = Column(Integer, primary_key=True, index=True)
+    numero = Column(String, unique=True, index=True)
+    serie = Column(String)
+    
+    # Relaciones
     cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=False)
     servicio_id = Column(Integer, ForeignKey("servicios.id"), nullable=True)
-    fecha_emision = Column(Date, nullable=False)
-    fecha_vencimiento = Column(Date, nullable=False)
-    concepto = Column(String, nullable=True)
-    importe_base = Column(Float, default=0)
-    tipo_iva = Column(Integer, default=21)
-    importe_iva = Column(Float, default=0)
-    importe_total = Column(Float, default=0)
-    estado = Column(String, default="pendiente")
-    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    
+    # Fechas
+    fecha_emision = Column(DateTime, default=datetime.utcnow)
+    fecha_vencimiento = Column(DateTime)
+    fecha_pago = Column(DateTime)
+    
+    # Totales
+    subtotal = Column(Float, default=0.0)
+    descuento_total = Column(Float, default=0.0)
+    base_imponible = Column(Float, default=0.0)
+    impuestos = Column(Float, default=0.0)
+    total = Column(Float, default=0.0)
+    
+    # Estado
+    estado = Column(String, default="pendiente")  # pendiente, enviada, pagada, vencida, anulada
+    metodo_pago = Column(String)
+    referencia_pago = Column(String)
+    
+    # Notas
+    notas = Column(Text)
+    condiciones = Column(Text)
+    pdf_url = Column(String)
+    
+    cliente = relationship("Cliente")
+    servicio = relationship("Servicio", back_populates="factura", foreign_keys="[Servicio.factura_id]")
+
+# Database connection
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/milano")
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+def init_db():
+    Base.metadata.create_all(bind=engine)

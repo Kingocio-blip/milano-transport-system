@@ -1,177 +1,106 @@
-from pydantic import BaseModel, EmailStr, validator
+from pydantic import BaseModel
 from typing import Optional, List
-from datetime import date, datetime
-import re
+from datetime import datetime
 
-# ==================== AUTH ====================
+# ==================== USUARIOS ====================
+
+class UsuarioBase(BaseModel):
+    username: str
+    nombre: str
+    rol: str = "conductor"
+    activo: bool = True
+
+class UsuarioCreate(UsuarioBase):
+    password: str
+
+class UsuarioResponse(UsuarioBase):
+    id: int
+    fecha_creacion: datetime
+    ultimo_acceso: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
 
 class LoginRequest(BaseModel):
     username: str
     password: str
 
-class Token(BaseModel):
+class LoginResponse(BaseModel):
     access_token: str
     token_type: str
-    
-    class Config:
-        from_attributes = True
+    user: UsuarioResponse
 
-class TokenWithUser(Token):
-    user: dict
+# ==================== CONTACTO ====================
 
-# ==================== USER ====================
-
-class UserBase(BaseModel):
-    username: str
+class Contacto(BaseModel):
     email: Optional[str] = None
-    role: str = "conductor"
-    is_active: bool = True
-
-class UserCreate(UserBase):
-    password: str
-
-class UserResponse(UserBase):
-    id: int
-    conductor_id: Optional[int] = None
-    
-    class Config:
-        from_attributes = True
-
-# ==================== CLIENTE ====================
-
-class ClienteBase(BaseModel):
-    nombre: str
-    apellidos: str
-    dni: Optional[str] = None
-    cif: Optional[str] = None
-    tipo: str = "particular"
     telefono: Optional[str] = None
-    email: Optional[str] = None
     direccion: Optional[str] = None
     ciudad: Optional[str] = None
-    codigo_postal: Optional[str] = None
-    persona_contacto: Optional[str] = None
-    notas: Optional[str] = None
+    codigoPostal: Optional[str] = None
 
-    @validator('dni')
-    def validar_dni(cls, v, values):
-        if v and values.get('tipo') == 'particular':
-            # Validar formato DNI español (8 números + letra)
-            if not re.match(r'^\d{8}[A-HJ-NP-TV-Z]$', v.upper()):
-                raise ValueError('DNI inválido. Formato: 12345678A')
-            # Validar letra
-            letras = 'TRWAGMYFPDXBNJZSQVHLCKE'
-            numero = int(v[:-1])
-            letra_correcta = letras[numero % 23]
-            if v[-1].upper() != letra_correcta:
-                raise ValueError(f'Letra de DNI incorrecta. Debería ser: {letra_correcta}')
-        return v.upper() if v else v
-
-    @validator('cif')
-    def validar_cif(cls, v, values):
-        if v and values.get('tipo') in ['autonomo', 'empresa']:
-            # Validar formato CIF (letra + 7 números + dígito de control)
-            if not re.match(r'^[A-HJ-NP-SW]\d{7}[0-9A-J]$', v.upper()):
-                raise ValueError('CIF inválido')
-        return v.upper() if v else v
-
-    @validator('tipo')
-    def validar_tipo_documento(cls, v, values):
-        if v == 'particular' and not values.get('dni'):
-            raise ValueError('Los particulares deben tener DNI')
-        if v in ['autonomo', 'empresa'] and not values.get('cif'):
-            raise ValueError('Autónomos y empresas deben tener CIF')
-        return v
-
-class ClienteCreate(ClienteBase):
-    pass
-
-class ClienteServicio(BaseModel):
-    id: int
-    fecha_inicio: date
-    origen: str
-    destino: str
-    precio: float
-    estado: str
-    
-    class Config:
-        from_attributes = True
-
-class ClienteDetalle(BaseModel):
-    id: int
-    codigo: str
-    nombre: str
-    apellidos: str
-    dni: Optional[str]
-    cif: Optional[str]
-    tipo: str
-    telefono: Optional[str]
-    email: Optional[str]
-    direccion: Optional[str]
-    ciudad: Optional[str]
-    codigo_postal: Optional[str]
-    persona_contacto: Optional[str]
-    notas: Optional[str]
-    fecha_registro: Optional[datetime]
-    total_servicios: int = 0
-    total_facturado: float = 0.0
-    servicios_recientes: List[ClienteServicio] = []
-    es_frecuente: bool = False
-    es_vip: bool = False
-    
-    class Config:
-        from_attributes = True
-
-class ClienteResponse(ClienteBase):
-    id: int
-    codigo: str
-    fecha_registro: Optional[datetime] = None
-    total_servicios: int = 0
-    total_facturado: float = 0.0
-    es_frecuente: bool = False
-    es_vip: bool = False
-    
-    class Config:
-        from_attributes = True
-
-# ==================== CONDUCTOR ====================
+# ==================== CONDUCTORES ====================
 
 class ConductorBase(BaseModel):
     nombre: str
     apellidos: str
-    dni: str
+    dni: Optional[str] = None
     telefono: Optional[str] = None
     email: Optional[str] = None
-    licencia_conducir: Optional[str] = None
-    fecha_vencimiento_licencia: Optional[date] = None
+    direccion: Optional[str] = None
+    licencia_tipo: Optional[str] = None
+    licencia_numero: Optional[str] = None
+    licencia_caducidad: Optional[datetime] = None
+    fecha_nacimiento: Optional[datetime] = None
+    tarifa_hora: float = 0.0
     estado: str = "activo"
+    notas: Optional[str] = None
 
 class ConductorCreate(ConductorBase):
     pass
 
+class ConductorUpdate(ConductorBase):
+    nombre: Optional[str] = None
+    apellidos: Optional[str] = None
+
 class ConductorResponse(ConductorBase):
     id: int
-    fecha_contratacion: Optional[datetime] = None
+    codigo: Optional[str] = None
+    fecha_alta: datetime
     
     class Config:
         from_attributes = True
 
-class ConductorWithCredentials(ConductorResponse):
-    credentials: Optional[dict] = None
-
-# ==================== VEHICULO ====================
+# ==================== VEHICULOS ====================
 
 class VehiculoBase(BaseModel):
     matricula: str
+    bastidor: Optional[str] = None
     marca: str
     modelo: str
-    tipo: str = "autobus"
-    capacidad_pasajeros: int = 50
+    tipo: Optional[str] = None
+    plazas: Optional[int] = None
     anno_fabricacion: Optional[int] = None
-    estado: str = "disponible"
+    combustible: Optional[str] = None
+    kilometraje: int = 0
+    itv_fecha_ultima: Optional[datetime] = None
+    itv_fecha_proxima: Optional[datetime] = None
+    itv_resultado: Optional[str] = None
+    seguro_compania: Optional[str] = None
+    seguro_poliza: Optional[str] = None
+    seguro_fecha_vencimiento: Optional[datetime] = None
+    estado: str = "operativo"
+    ubicacion: Optional[str] = None
+    notas: Optional[str] = None
+    imagen_url: Optional[str] = None
 
 class VehiculoCreate(VehiculoBase):
     pass
+
+class VehiculoUpdate(VehiculoBase):
+    matricula: Optional[str] = None
+    marca: Optional[str] = None
+    modelo: Optional[str] = None
 
 class VehiculoResponse(VehiculoBase):
     id: int
@@ -179,57 +108,187 @@ class VehiculoResponse(VehiculoBase):
     class Config:
         from_attributes = True
 
-# ==================== SERVICIO ====================
+# ==================== CLIENTES ====================
+
+class ClienteBase(BaseModel):
+    nombre: str
+    tipo: str = "particular"  # festival, promotor, colegio, empresa, particular
+    nif: Optional[str] = None
+    condiciones_especiales: Optional[str] = None
+    forma_pago: Optional[str] = None
+    dias_pago: int = 30
+    estado: str = "activo"
+    notas: Optional[str] = None
+
+class ClienteCreate(ClienteBase):
+    contacto: Optional[Contacto] = None
+
+class ClienteUpdate(ClienteBase):
+    nombre: Optional[str] = None
+    contacto: Optional[Contacto] = None
+
+class ClienteResponse(ClienteBase):
+    id: int
+    codigo: Optional[str] = None
+    fecha_alta: datetime
+    # Contacto como campos individuales que se mapean al objeto
+    contacto_email: Optional[str] = None
+    contacto_telefono: Optional[str] = None
+    contacto_direccion: Optional[str] = None
+    contacto_ciudad: Optional[str] = None
+    contacto_codigo_postal: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+    
+    # Propiedad para compatibilidad con frontend
+    @property
+    def contacto(self) -> Contacto:
+        return Contacto(
+            email=self.contacto_email,
+            telefono=self.contacto_telefono,
+            direccion=self.contacto_direccion,
+            ciudad=self.contacto_ciudad,
+            codigoPostal=self.contacto_codigo_postal
+        )
+
+class ClienteWithStats(ClienteResponse):
+    total_servicios: int = 0
+    total_facturado: float = 0.0
+    ultimo_servicio: Optional[datetime] = None
+
+# ==================== SERVICIOS ====================
 
 class ServicioBase(BaseModel):
     cliente_id: int
+    tipo: str = "lanzadera"
+    estado: str = "solicitud"
+    titulo: Optional[str] = None
+    descripcion: Optional[str] = None
+    fecha_inicio: Optional[datetime] = None
+    fecha_fin: Optional[datetime] = None
+    hora_inicio: Optional[str] = None
+    hora_fin: Optional[str] = None
     conductor_id: Optional[int] = None
     vehiculo_id: Optional[int] = None
-    tipo_servicio: str = "transfer"
-    origen: str
-    destino: str
-    fecha_inicio: date
-    hora_inicio: str
-    fecha_fin: Optional[date] = None
-    hora_fin: Optional[str] = None
-    numero_pasajeros: int = 1
-    precio: float = 0
-    gastos_combustible: Optional[float] = 0
-    gastos_peaje: Optional[float] = 0
-    gastos_otros: Optional[float] = 0
-    notas: Optional[str] = None
-    estado: str = "pendiente"
+    numero_vehiculos: int = 1
+    origen: Optional[str] = None
+    destino: Optional[str] = None
+    ubicacion_evento: Optional[str] = None
+    coste_estimado: float = 0.0
+    precio: float = 0.0
+    notas_internas: Optional[str] = None
+    notas_cliente: Optional[str] = None
 
 class ServicioCreate(ServicioBase):
     pass
 
+class ServicioUpdate(BaseModel):
+    cliente_id: Optional[int] = None
+    conductor_id: Optional[int] = None
+    vehiculo_id: Optional[int] = None
+    estado: Optional[str] = None
+    precio: Optional[float] = None
+    coste_real: Optional[float] = None
+
 class ServicioResponse(ServicioBase):
     id: int
-    fecha_creacion: Optional[datetime] = None
+    codigo: Optional[str] = None
+    coste_real: float = 0.0
+    margen: float = 0.0
+    facturado: bool = False
+    factura_id: Optional[int] = None
+    fecha_creacion: datetime
+    creado_por: Optional[str] = None
+    
+    cliente: Optional[ClienteResponse] = None
+    conductor: Optional[ConductorResponse] = None
+    vehiculo: Optional[VehiculoResponse] = None
     
     class Config:
         from_attributes = True
 
-# ==================== FACTURA ====================
+# ==================== FACTURAS ====================
+
+class ConceptoFactura(BaseModel):
+    id: str
+    concepto: str
+    descripcion: Optional[str] = None
+    cantidad: float
+    unidad: Optional[str] = None
+    precio_unitario: float
+    descuento: float = 0.0
+    impuesto: float
+    total: float
 
 class FacturaBase(BaseModel):
     cliente_id: int
     servicio_id: Optional[int] = None
-    fecha_emision: date
-    fecha_vencimiento: date
-    concepto: Optional[str] = None
-    importe_base: float
-    tipo_iva: int = 21
+    serie: Optional[str] = None
+    fecha_vencimiento: Optional[datetime] = None
+    subtotal: float = 0.0
+    descuento_total: float = 0.0
+    base_imponible: float = 0.0
+    impuestos: float = 0.0
+    total: float = 0.0
     estado: str = "pendiente"
+    metodo_pago: Optional[str] = None
+    referencia_pago: Optional[str] = None
+    notas: Optional[str] = None
+    condiciones: Optional[str] = None
+    pdf_url: Optional[str] = None
 
 class FacturaCreate(FacturaBase):
-    pass
+    conceptos: List[ConceptoFactura] = []
+
+class FacturaUpdate(BaseModel):
+    estado: Optional[str] = None
+    metodo_pago: Optional[str] = None
+    fecha_pago: Optional[datetime] = None
 
 class FacturaResponse(FacturaBase):
     id: int
-    importe_iva: float
-    importe_total: float
-    fecha_creacion: Optional[datetime] = None
+    numero: Optional[str] = None
+    fecha_emision: datetime
+    fecha_pago: Optional[datetime] = None
+    
+    cliente: Optional[ClienteResponse] = None
+    servicio: Optional[ServicioResponse] = None
+    conceptos: List[ConceptoFactura] = []
     
     class Config:
         from_attributes = True
+
+# ==================== ESTADISTICAS ====================
+
+class DashboardStats(BaseModel):
+    total_servicios_hoy: int
+    total_servicios_mes: int
+    servicios_pendientes: int
+    total_facturado_mes: float
+    total_pendiente_cobro: float
+    conductores_activos: int
+    vehiculos_disponibles: int
+    total_clientes: int
+
+class ServicioReciente(BaseModel):
+    id: int
+    codigo: str
+    cliente_nombre: str
+    origen: str
+    destino: str
+    fecha_servicio: datetime
+    estado: str
+    total: float
+
+class KPIDashboard(BaseModel):
+    serviciosActivos: int
+    serviciosHoy: int
+    serviciosMes: int
+    conductoresDisponibles: int
+    conductoresOcupados: int
+    vehiculosOperativos: int
+    vehiculosTaller: int
+    facturacionMes: float
+    facturacionPendiente: float
+    serviciosPendientesFacturar: int
