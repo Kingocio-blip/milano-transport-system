@@ -166,4 +166,7 @@ def get_db():
         db.close()
 
 def init_db():
+    # Borrar todas las tablas y recrearlas (para desarrollo)
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+    print("✅ Tablas recreadas correctamente")
