@@ -52,9 +52,9 @@ export const useAuthStore = create<AuthState>()(
         const response = await fetch(`${API_URL}/auth/login`, {
           method: 'POST',
           headers: { 
-            'Content-Type': 'application/json' 
+            'Content-Type': 'application/x-www-form-urlencoded' 
           },
-          body: JSON.stringify({
+          body: new URLSearchParams({
             username: credentials.username,
             password: credentials.password,
           }),
