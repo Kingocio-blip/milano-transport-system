@@ -362,7 +362,7 @@ def generar_codigo_cliente(db: Session):
 
 def cliente_to_dict(cliente: models.Cliente) -> dict:
     """Convierte un cliente a diccionario con estructura de contacto anidada"""
-n    return {
+    return {
         "id": cliente.id,
         "codigo": cliente.codigo,
         "nombre": cliente.nombre,
