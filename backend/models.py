@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Float, Boolean, create_engine
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Float, Boolean, create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from datetime import datetime
@@ -166,7 +166,10 @@ def get_db():
         db.close()
 
 def init_db():
-    # Borrar todas las tablas y recrearlas (para desarrollo)
-    Base.metadata.drop_all(bind=engine)
+    # Borrar todo el esquema y recrearlo (limpia completa)
+    with engine.connect() as conn:
+        conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+        conn.execute(text("CREATE SCHEMA public"))
+        conn.commit()
     Base.metadata.create_all(bind=engine)
-    print("✅ Tablas recreadas correctamente")
+    print("✅ Base de datos recreada correctamente")
