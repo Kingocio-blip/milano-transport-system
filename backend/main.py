@@ -406,7 +406,27 @@ def get_clientes(
         )
     
     clientes = query.order_by(models.Cliente.nombre).all()
-    return [cliente_to_dict(c) for c in clientes]
+    resultado = []
+    for cliente in clientes:
+        servicios = db.query(models.Servicio).filter(models.Servicio.cliente_id == cliente.id).all()
+        facturas = db.query(models.Factura).filter(
+            models.Factura.cliente_id == cliente.id,
+            models.Factura.estado == "pagada"
+        ).all()
+        
+        total_servicios = len(servicios)
+        total_facturado = sum(f.total for f in facturas)
+        ultimo_servicio = max((s.fecha_inicio for s in servicios if s.fecha_inicio), default=None)
+        
+        cliente_dict = cliente_to_dict(cliente)
+        cliente_dict.update({
+            "total_servicios": total_servicios,
+            "total_facturado": total_facturado,
+            "ultimo_servicio": ultimo_servicio
+        })
+        resultado.append(cliente_dict)
+    
+    return resultado
 
 @app.get("/clientes/{cliente_id}")
 def get_cliente(
@@ -468,11 +488,29 @@ def create_cliente(
     db.commit()
     db.refresh(db_cliente)
     
+    # Generar código
     db_cliente.codigo = generar_codigo_cliente(db)
     db.commit()
     db.refresh(db_cliente)
     
-    return cliente_to_dict(db_cliente)
+    # Calcular estadísticas (para devolver igual que en get)
+    servicios = db.query(models.Servicio).filter(models.Servicio.cliente_id == db_cliente.id).all()
+    facturas = db.query(models.Factura).filter(
+        models.Factura.cliente_id == db_cliente.id,
+        models.Factura.estado == "pagada"
+    ).all()
+    
+    total_servicios = len(servicios)
+    total_facturado = sum(f.total for f in facturas)
+    ultimo_servicio = max((s.fecha_inicio for s in servicios if s.fecha_inicio), default=None)
+    
+    result = cliente_to_dict(db_cliente)
+    result.update({
+        "total_servicios": total_servicios,
+        "total_facturado": total_facturado or 0,
+        "ultimo_servicio": ultimo_servicio
+    })
+    return result
 
 @app.put("/clientes/{cliente_id}")
 def update_cliente(
@@ -517,7 +555,25 @@ def update_cliente(
     
     db.commit()
     db.refresh(db_cliente)
-    return cliente_to_dict(db_cliente)
+    
+    # Calcular estadísticas
+    servicios = db.query(models.Servicio).filter(models.Servicio.cliente_id == cliente_id).all()
+    facturas = db.query(models.Factura).filter(
+        models.Factura.cliente_id == cliente_id,
+        models.Factura.estado == "pagada"
+    ).all()
+    
+    total_servicios = len(servicios)
+    total_facturado = sum(f.total for f in facturas)
+    ultimo_servicio = max((s.fecha_inicio for s in servicios if s.fecha_inicio), default=None)
+    
+    result = cliente_to_dict(db_cliente)
+    result.update({
+        "total_servicios": total_servicios,
+        "total_facturado": total_facturado or 0,
+        "ultimo_servicio": ultimo_servicio
+    })
+    return result
 
 @app.delete("/clientes/{cliente_id}")
 def delete_cliente(
