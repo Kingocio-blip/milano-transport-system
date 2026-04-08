@@ -248,7 +248,6 @@ export const useAuthStore = create<AuthState>()(
 
         const data: AuthResponse = await response.json();
         
-        // Guardar también en localStorage para compatibilidad con api helper
         localStorage.setItem('token', data.access_token);
         localStorage.setItem('user', JSON.stringify(data.user));
         
@@ -310,10 +309,10 @@ const convertClienteFromBackend = (cliente: any): Cliente => ({
   contacto: {
     id: 0,
     clienteId: cliente.id,
-    nombre: '',
-    email: cliente.contacto_email || '',
-    telefono: cliente.contacto_telefono || '',
-    cargo: '',
+    nombre: cliente.persona_contacto_nombre || '',
+    email: cliente.persona_contacto_email || '',
+    telefono: cliente.persona_contacto_telefono || '',
+    cargo: cliente.persona_contacto_cargo || '',
     principal: true,
   },
   totalServicios: cliente.total_servicios || 0,
@@ -324,20 +323,31 @@ const convertClienteFromBackend = (cliente: any): Cliente => ({
 const convertClienteToBackend = (data: CreateClienteData | UpdateClienteData) => {
   const backendData: any = {};
   
+  // Información básica
   if (data.nombre !== undefined) backendData.nombre = data.nombre;
   if (data.cif !== undefined) backendData.nif = data.cif || null;
+  
+  // Contacto principal del cliente (empresa/autónomo)
   if (data.email !== undefined) backendData.contacto_email = data.email || null;
   if (data.telefono !== undefined) backendData.contacto_telefono = data.telefono || null;
+  
+  // Dirección
   if (data.direccion !== undefined) backendData.contacto_direccion = data.direccion || null;
   if (data.ciudad !== undefined) backendData.contacto_ciudad = data.ciudad || null;
   if (data.codigoPostal !== undefined) backendData.contacto_codigo_postal = data.codigoPostal || null;
+  
+  // Condiciones
   if (data.formaPago !== undefined) backendData.forma_pago = data.formaPago || null;
   if (data.diasPago !== undefined) backendData.dias_pago = data.diasPago || null;
   if (data.condicionesEspeciales !== undefined) backendData.condiciones_especiales = data.condicionesEspeciales || null;
   if (data.notas !== undefined) backendData.notas = data.notas || null;
   
-  if ('contacto' in data && data.contacto !== undefined) {
-    backendData.contacto = data.contacto;
+  // Persona de contacto (campos planos separados)
+  if (data.contacto && data.contacto.nombre) {
+    backendData.persona_contacto_nombre = data.contacto.nombre;
+    backendData.persona_contacto_email = data.contacto.email || null;
+    backendData.persona_contacto_telefono = data.contacto.telefono || null;
+    backendData.persona_contacto_cargo = data.contacto.cargo || null;
   }
   
   return backendData;
