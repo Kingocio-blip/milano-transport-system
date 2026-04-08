@@ -48,20 +48,54 @@ class ConductorBase(BaseModel):
     telefono: Optional[str] = None
     email: Optional[str] = None
     direccion: Optional[str] = None
-    licencia_tipo: Optional[str] = None
+    
+    # Carnet de conducir
+    licencia_tipo: Optional[str] = None  # D, D1, C, B, etc.
     licencia_numero: Optional[str] = None
     licencia_caducidad: Optional[datetime] = None
+    
+    # CAP (Certificado de Aptitud Profesional)
+    tiene_cap: bool = False
+    cap_caducidad: Optional[datetime] = None
+    
+    # Datos laborales
+    numero_seguridad_social: Optional[str] = None
     fecha_nacimiento: Optional[datetime] = None
+    tipo_contrato: str = "indefinido"  # indefinido, temporal, autonomo, practicas
     tarifa_hora: float = 0.0
-    estado: str = "activo"
+    
+    # Estado y notas
+    estado: str = "activo"  # activo, vacaciones, baja_medica, baja, formacion
     notas: Optional[str] = None
 
 class ConductorCreate(ConductorBase):
     pass
 
-class ConductorUpdate(ConductorBase):
+class ConductorUpdate(BaseModel):
     nombre: Optional[str] = None
     apellidos: Optional[str] = None
+    dni: Optional[str] = None
+    telefono: Optional[str] = None
+    email: Optional[str] = None
+    direccion: Optional[str] = None
+    
+    # Carnet
+    licencia_tipo: Optional[str] = None
+    licencia_numero: Optional[str] = None
+    licencia_caducidad: Optional[datetime] = None
+    
+    # CAP
+    tiene_cap: Optional[bool] = None
+    cap_caducidad: Optional[datetime] = None
+    
+    # Laboral
+    numero_seguridad_social: Optional[str] = None
+    fecha_nacimiento: Optional[datetime] = None
+    tipo_contrato: Optional[str] = None
+    tarifa_hora: Optional[float] = None
+    
+    estado: Optional[str] = None
+    notas: Optional[str] = None
 
 class ConductorResponse(ConductorBase):
     id: int
