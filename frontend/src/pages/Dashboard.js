@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '../store';
+import { api } from '../lib/api';
 import { Users, Bus, UserCheck, ClipboardList, FileText, Euro } from 'lucide-react';
 
 const statCards = [

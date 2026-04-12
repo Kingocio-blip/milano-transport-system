@@ -5,7 +5,7 @@ import {
   CreditCard, Clock, Star, ChevronDown, ChevronUp,
   TrendingUp, DollarSign, Package
 } from 'lucide-react';
-import { useClientesStore } from '../store';
+import { useClientesStore, useAuthStore } from '../store';
 import { Cliente, CreateClienteData, UpdateClienteData } from '../types';
 import './CRM.css';
 
@@ -56,9 +56,11 @@ export default function CRM() {
     },
   });
 
+  const { token } = useAuthStore();
+
   useEffect(() => {
-    fetchClientes();
-  }, [fetchClientes]);
+    if (token) fetchClientes(token);
+  }, [fetchClientes, token]);
 
   // Filtrar y ordenar clientes
   const filteredClientes = clientes.filter(cliente =>
@@ -183,10 +185,12 @@ export default function CRM() {
         };
       }
 
+      if (!token) return;
+
       if (selectedCliente) {
-        await updateCliente(selectedCliente.id, cleanData);
+        await updateCliente(selectedCliente.id, cleanData, token);
       } else {
-        await createCliente(cleanData as CreateClienteData);
+        await createCliente(cleanData as CreateClienteData, token);
       }
 
       setShowModal(false);
@@ -200,7 +204,8 @@ export default function CRM() {
     if (!window.confirm(`¿Estás seguro de eliminar a ${cliente.nombre}?`)) return;
 
     try {
-      await deleteCliente(cliente.id);
+      if (!token) return;
+      await deleteCliente(cliente.id, token);
     } catch (err: any) {
       alert(err.message || 'Error al eliminar cliente');
     }

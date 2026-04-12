@@ -39,6 +39,7 @@ export interface Cliente {
   notas: string;
   fechaAlta: string;
   contacto?: Contacto;
+  // Campos de estadísticas
   totalServicios?: number;
   totalFacturado?: number;
   ultimoServicio?: string;
@@ -66,7 +67,7 @@ export interface CreateClienteData {
   diasPago?: number;
   condicionesEspeciales?: string;
   notas?: string;
-  contacto?: {
+  activo?: boolean;
     nombre: string;
     email?: string;
     telefono?: string;
@@ -86,6 +87,7 @@ export interface UpdateClienteData {
   diasPago?: number;
   condicionesEspeciales?: string;
   notas?: string;
+  activo?: boolean;
   contacto?: {
     nombre: string;
     email?: string;
@@ -116,19 +118,35 @@ export interface CreateServicioData {
   fechaInicio: string;
   fechaFin?: string;
   importe?: number;
-  notas?: string;
   estado?: string;
+  notas?: string;
+  activo?: boolean;
+  contacto?: {
+    nombre: string;
+    email?: string;
+    telefono?: string;
+    cargo?: string;
+  };
 }
 
 export interface UpdateServicioData {
   clienteId?: number;
   tipo?: string;
+  estado?: string;
   descripcion?: string;
   fechaInicio?: string;
   fechaFin?: string;
   estado?: 'pendiente' | 'en_progreso' | 'completado' | 'cancelado';
   importe?: number;
+  estado?: string;
   notas?: string;
+  activo?: boolean;
+  contacto?: {
+    nombre: string;
+    email?: string;
+    telefono?: string;
+    cargo?: string;
+  };
 }
 
 // Tipos de Factura
@@ -202,6 +220,13 @@ export interface Conductor {
   tarifaHora: number;
   activo: boolean;
   notas?: string;
+  activo?: boolean;
+  contacto?: {
+    nombre: string;
+    email?: string;
+    telefono?: string;
+    cargo?: string;
+  };
 }
 
 export interface CreateConductorData {
@@ -222,8 +247,14 @@ export interface CreateConductorData {
   numeroSeguridadSocial?: string;
   tipoContrato?: 'indefinido' | 'temporal' | 'autonomo';
   tarifaHora?: number;
-  activo?: boolean;
   notas?: string;
+  activo?: boolean;
+  contacto?: {
+    nombre: string;
+    email?: string;
+    telefono?: string;
+    cargo?: string;
+  };
 }
 
 export interface UpdateConductorData {
@@ -246,6 +277,13 @@ export interface UpdateConductorData {
   tarifaHora?: number;
   activo?: boolean;
   notas?: string;
+  activo?: boolean;
+  contacto?: {
+    nombre: string;
+    email?: string;
+    telefono?: string;
+    cargo?: string;
+  };
 }
 
 // Tipos de Vehiculo
@@ -272,6 +310,13 @@ export interface Vehiculo {
   imagenUrl?: string;
   fechaAlta: string;
   notas?: string;
+  activo?: boolean;
+  contacto?: {
+    nombre: string;
+    email?: string;
+    telefono?: string;
+    cargo?: string;
+  };
 }
 
 export interface CreateVehiculoData {
@@ -294,6 +339,13 @@ export interface CreateVehiculoData {
   };
   imagenUrl?: string;
   notas?: string;
+  activo?: boolean;
+  contacto?: {
+    nombre: string;
+    email?: string;
+    telefono?: string;
+    cargo?: string;
+  };
 }
 
 export interface UpdateVehiculoData {
@@ -303,6 +355,7 @@ export interface UpdateVehiculoData {
   annoFabricacion?: number;
   plazas?: number;
   tipo?: 'minibus' | 'bus' | 'furgoneta' | 'coche';
+  estado?: string;
   estado?: 'activo' | 'inactivo' | 'taller' | 'baja';
   itv?: {
     fechaUltima: string;
@@ -316,6 +369,13 @@ export interface UpdateVehiculoData {
   };
   imagenUrl?: string;
   notas?: string;
+  activo?: boolean;
+  contacto?: {
+    nombre: string;
+    email?: string;
+    telefono?: string;
+    cargo?: string;
+  };
 }
 
 // Tipos de API
