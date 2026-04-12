@@ -33,7 +33,7 @@ export default function CRM() {
   const [showModal, setShowModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
-  const [sortConfig, setSortConfig] = useState<{ key: keyof Cliente; direction: 'asc' | 'desc' } | null>(null);
+  const [sortConfig, setSortConfig] = useState<{ key: 'codigo' | 'nombre'; direction: 'asc' | 'desc' } | null>(null);
 
   // Formulario
   const [formData, setFormData] = useState<CreateClienteData>({
@@ -70,16 +70,17 @@ export default function CRM() {
 
   const sortedClientes = sortConfig
     ? [...filteredClientes].sort((a, b) => {
-        const aValue = a[sortConfig.key];
-        const bValue = b[sortConfig.key];
-        if (aValue === undefined || bValue === undefined) return 0;
+        const key = sortConfig.key;
+        const aValue = a[key];
+        const bValue = b[key];
+        if (!aValue || !bValue) return 0;
         if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
         if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
         return 0;
       })
     : filteredClientes;
 
-  const handleSort = (key: keyof Cliente) => {
+  const handleSort = (key: 'codigo' | 'nombre') => {
     setSortConfig(current => {
       if (!current || current.key !== key) {
         return { key, direction: 'asc' };
