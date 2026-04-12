@@ -27,12 +27,12 @@ export interface Contacto {
 }
 
 export interface Cliente {
-  id: string;
+  id: number;  // Cambiado de string a number
   codigo: string;
   nombre: string;
   tipo: TipoCliente;
   contacto: Contacto;
-  cif?: string;  // Cambiado de nif a cif
+  cif?: string;
   condicionesEspeciales?: string;
   formaPago?: string;
   diasPago?: number;
@@ -64,7 +64,7 @@ export interface CreateClienteData {
     telefono?: string;
     cargo?: string;
   };
-  cif?: string;  // Cambiado de nif a cif
+  cif?: string;
   email?: string;
   telefono?: string;
   direccion?: string;
@@ -85,7 +85,7 @@ export interface UpdateClienteData {
     telefono?: string;
     cargo?: string;
   };
-  cif?: string;  // Cambiado de nif a cif
+  cif?: string;
   email?: string;
   telefono?: string;
   direccion?: string;
@@ -101,7 +101,7 @@ export interface UpdateClienteData {
 // OPORTUNIDAD / CRM
 // ============================================
 export interface Oportunidad {
-  id: string;
+  id: number;  // Cambiado de string a number
   codigo: string;
   titulo: string;
   clienteId: string;
@@ -141,7 +141,7 @@ export interface Seguro {
 }
 
 export interface Mantenimiento {
-  id: string;
+  id: number;  // Cambiado de string a number
   fecha: Date | string;
   tipo: 'preventivo' | 'correctivo' | 'itv' | 'otro';
   descripcion: string;
@@ -154,7 +154,7 @@ export interface Mantenimiento {
 }
 
 export interface Vehiculo {
-  id: string;
+  id: number;  // Cambiado de string a number
   matricula: string;
   bastidor: string;
   marca: string;
@@ -198,7 +198,7 @@ export interface Disponibilidad {
 }
 
 export interface Conductor {
-  id: string;
+  id: number;  // Cambiado de string a number
   codigo: string;
   nombre: string;
   apellidos: string;
@@ -226,7 +226,7 @@ export interface Conductor {
 }
 
 export interface Fichaje {
-  id: string;
+  id: number;  // Cambiado de string a number
   conductorId: string;
   servicioId: string;
   fecha: Date | string;
@@ -241,7 +241,7 @@ export interface Fichaje {
 // RUTAS
 // ============================================
 export interface Parada {
-  id: string;
+  id: number;  // Cambiado de string a number
   nombre: string;
   direccion: string;
   coordenadas?: { lat: number; lng: number };
@@ -251,7 +251,7 @@ export interface Parada {
 }
 
 export interface Horario {
-  id: string;
+  id: number;  // Cambiado de string a number
   horaSalida: string;
   horaLlegada: string;
   diasSemana: number[];
@@ -261,7 +261,7 @@ export interface Horario {
 }
 
 export interface Ruta {
-  id: string;
+  id: number;  // Cambiado de string a number
   nombre: string;
   codigo?: string;
   servicioId: string;
@@ -289,7 +289,7 @@ export interface Ruta {
 // SERVICIOS
 // ============================================
 export interface Incidencia {
-  id: string;
+  id: number;  // Cambiado de string a number
   fecha: Date | string;
   tipo: 'retraso' | 'averia' | 'accidente' | 'conductor' | 'cliente' | 'trafico' | 'meteorologia' | 'otro';
   severidad: 'baja' | 'media' | 'alta' | 'critica';
@@ -302,7 +302,7 @@ export interface Incidencia {
 }
 
 export interface TareaServicio {
-  id: string;
+  id: number;  // Cambiado de string a number
   nombre: string;
   descripcion?: string;
   completada: boolean;
@@ -312,7 +312,7 @@ export interface TareaServicio {
 }
 
 export interface Servicio {
-  id: string;
+  id: number;  // Cambiado de string a number
   codigo: string;
   // Cliente
   clienteId: string;
@@ -367,7 +367,7 @@ export interface Servicio {
 // FACTURACIÓN
 // ============================================
 export interface ConceptoFactura {
-  id: string;
+  id: number;  // Cambiado de string a number
   concepto: string;
   descripcion?: string;
   cantidad: number;
@@ -379,7 +379,7 @@ export interface ConceptoFactura {
 }
 
 export interface Factura {
-  id: string;
+  id: number;  // Cambiado de string a number
   numero: string;
   serie?: string;
   // Relaciones
@@ -445,7 +445,7 @@ export interface InformeCostes {
 // DOCUMENTOS
 // ============================================
 export interface Documento {
-  id: string;
+  id: number;  // Cambiado de string a number
   nombre: string;
   tipo: 'contrato' | 'factura' | 'plano' | 'seguro' | 'licencia' | 'itv' | 'otro';
   categoria?: string;
@@ -462,7 +462,7 @@ export interface Documento {
 // COMUNICACIONES
 // ============================================
 export interface Mensaje {
-  id: string;
+  id: number;  // Cambiado de string a number
   canal: 'email' | 'whatsapp' | 'telefono' | 'interno';
   direccion: 'entrada' | 'salida';
   remitente: string;
@@ -480,7 +480,7 @@ export interface Mensaje {
 // ALERTAS Y NOTIFICACIONES
 // ============================================
 export interface Alerta {
-  id: string;
+  id: number;  // Cambiado de string a number
   tipo: 'itv' | 'seguro' | 'licencia' | 'mantenimiento' | 'servicio' | 'factura' | 'sistema';
   severidad: 'info' | 'warning' | 'error' | 'critical';
   titulo: string;
@@ -498,7 +498,7 @@ export interface Alerta {
 // USUARIO Y CONFIGURACIÓN
 // ============================================
 export interface Usuario {
-  id: string;
+  id: number;  // Cambiado de string a number
   nombre: string;
   email: string;
   rol: 'admin' | 'coordinador' | 'conductor' | 'cliente' | 'viewer';

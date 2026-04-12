@@ -169,7 +169,8 @@ class Servicio(Base):
     cliente = relationship("Cliente", back_populates="servicios")
     conductor = relationship("Conductor", back_populates="servicios")
     vehiculo = relationship("Vehiculo", back_populates="servicios")
-    factura = relationship("Factura", back_populates="servicio", foreign_keys="[Factura.servicio_id]")
+    # RELACIÓN CORREGIDA: Solo un lado tiene back_populates
+    factura = relationship("Factura", back_populates="servicios")
 
 class Factura(Base):
     __tablename__ = "facturas"
@@ -180,7 +181,7 @@ class Factura(Base):
     
     # Relaciones
     cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=False)
-    servicio_id = Column(Integer, ForeignKey("servicios.id"), nullable=True)
+    # ELIMINADO: servicio_id - ya no es necesario, usamos la relación inversa
     
     # Fechas
     fecha_emision = Column(DateTime, default=datetime.utcnow)
@@ -205,7 +206,8 @@ class Factura(Base):
     pdf_url = Column(String)
     
     cliente = relationship("Cliente")
-    servicio = relationship("Servicio", back_populates="factura", foreign_keys="[Servicio.factura_id]")
+    # RELACIÓN CORREGIDA: Una factura puede tener muchos servicios
+    servicios = relationship("Servicio", back_populates="factura")
 
 # Database connection
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/milano")
