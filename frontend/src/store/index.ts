@@ -71,7 +71,7 @@ export interface CreateClienteData {
   condicionesEspeciales?: string;
   notas?: string;
   contacto?: {
-    nombre: string;
+    nombre?: string;  // <-- CORREGIDO: AHORA ES OPCIONAL
     email?: string;
     telefono?: string;
     cargo?: string;
@@ -91,7 +91,7 @@ export interface UpdateClienteData {
   condicionesEspeciales?: string;
   notas?: string;
   contacto?: {
-    nombre?: string;
+    nombre?: string;  // <-- CORREGIDO: AHORA ES OPCIONAL
     email?: string;
     telefono?: string;
     cargo?: string;
