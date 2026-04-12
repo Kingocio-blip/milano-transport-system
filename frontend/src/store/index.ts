@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
-// Tipos compartidos (o importa desde types/index.ts)
+// Tipos compartidos
 type TipoCliente = 'festival' | 'promotor' | 'colegio' | 'empresa' | 'particular';
 
 // ==================== TIPOS ====================
@@ -47,8 +47,8 @@ export interface Cliente {
   condicionesEspeciales: string;
   notas: string;
   fechaAlta: string;
-  tipo: TipoCliente;    // <-- CORREGIDO: Usa el tipo específico
-  estado: string;
+  tipo: TipoCliente;
+  estado: 'activo' | 'inactivo';
   contacto: {
     id: number;
     clienteId: number;
@@ -317,8 +317,8 @@ const convertClienteFromBackend = (cliente: any): Cliente => ({
   condicionesEspeciales: cliente.condiciones_especiales || '',
   notas: cliente.notas || '',
   fechaAlta: cliente.fecha_alta,
-  tipo: (cliente.tipo as TipoCliente) || 'particular',  // <-- CORREGIDO: Cast a TipoCliente
-  estado: cliente.estado || 'activo',
+  tipo: (cliente.tipo as TipoCliente) || 'particular',
+  estado: (cliente.estado as 'activo' | 'inactivo') || 'activo',
   contacto: {
     id: 0,
     clienteId: cliente.id,
