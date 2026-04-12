@@ -206,7 +206,8 @@ export default function CRM() {
     }
   };
 
-  const getFormaPagoLabel = (value: string) => {
+  const getFormaPagoLabel = (value: string | undefined) => {
+    if (!value) return '-';
     return FORMAS_PAGO.find(f => f.value === value)?.label || value;
   };
 
