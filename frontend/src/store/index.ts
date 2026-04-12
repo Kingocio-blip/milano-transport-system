@@ -90,6 +90,12 @@ export interface UpdateClienteData {
   diasPago?: number;
   condicionesEspeciales?: string;
   notas?: string;
+  contacto?: {
+    nombre?: string;
+    email?: string;
+    telefono?: string;
+    cargo?: string;
+  };
 }
 
 // Servicio
