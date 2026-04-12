@@ -44,6 +44,8 @@ export interface Cliente {
   condicionesEspeciales: string;
   notas: string;
   fechaAlta: string;
+  tipo?: string;        // AÑADIDO
+  estado?: string;      // AÑADIDO
   contacto: {
     id: number;
     clienteId: number;
@@ -71,7 +73,7 @@ export interface CreateClienteData {
   condicionesEspeciales?: string;
   notas?: string;
   contacto?: {
-    nombre?: string;  // <-- CORREGIDO: AHORA ES OPCIONAL
+    nombre?: string;
     email?: string;
     telefono?: string;
     cargo?: string;
@@ -91,7 +93,7 @@ export interface UpdateClienteData {
   condicionesEspeciales?: string;
   notas?: string;
   contacto?: {
-    nombre?: string;  // <-- CORREGIDO: AHORA ES OPCIONAL
+    nombre?: string;
     email?: string;
     telefono?: string;
     cargo?: string;
@@ -312,6 +314,8 @@ const convertClienteFromBackend = (cliente: any): Cliente => ({
   condicionesEspeciales: cliente.condiciones_especiales || '',
   notas: cliente.notas || '',
   fechaAlta: cliente.fecha_alta,
+  tipo: cliente.tipo || 'particular',        // AÑADIDO
+  estado: cliente.estado || 'activo',        // AÑADIDO
   contacto: {
     id: 0,
     clienteId: cliente.id,
