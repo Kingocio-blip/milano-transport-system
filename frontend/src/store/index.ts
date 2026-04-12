@@ -234,6 +234,16 @@ export interface UpdateVehiculoData {
   annoFabricacion?: number;
   combustible?: string;
   kilometraje?: number;
+  itv?: {                          // <-- AÑADIDO
+    fechaUltima?: string;
+    fechaProxima?: string;
+    resultado?: string;
+  };
+  seguro?: {                       // <-- AÑADIDO
+    compania?: string;
+    poliza?: string;
+    fechaVencimiento?: string;
+  };
   estado?: string;
   ubicacion?: string;
   notas?: string;
@@ -816,15 +826,15 @@ const convertVehiculoToBackend = (data: CreateVehiculoData | UpdateVehiculoData)
   if (data.combustible !== undefined) backendData.combustible = data.combustible || null;
   if (data.kilometraje !== undefined) backendData.kilometraje = data.kilometraje || 0;
   
-  // ITV
-  if (data.itv) {
+  // ITV - CORREGIDO: Verificar con 'in'
+  if ('itv' in data && data.itv) {
     if (data.itv.fechaUltima !== undefined) backendData.itv_fecha_ultima = data.itv.fechaUltima || null;
     if (data.itv.fechaProxima !== undefined) backendData.itv_fecha_proxima = data.itv.fechaProxima || null;
     if (data.itv.resultado !== undefined) backendData.itv_resultado = data.itv.resultado || null;
   }
   
-  // Seguro
-  if (data.seguro) {
+  // Seguro - CORREGIDO: Verificar con 'in'
+  if ('seguro' in data && data.seguro) {
     if (data.seguro.compania !== undefined) backendData.seguro_compania = data.seguro.compania || null;
     if (data.seguro.poliza !== undefined) backendData.seguro_poliza = data.seguro.poliza || null;
     if (data.seguro.fechaVencimiento !== undefined) backendData.seguro_fecha_vencimiento = data.seguro.fechaVencimiento || null;
