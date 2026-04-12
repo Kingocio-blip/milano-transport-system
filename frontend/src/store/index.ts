@@ -103,39 +103,203 @@ export interface UpdateClienteData {
   };
 }
 
+// Conductor
+export interface Conductor {
+  id: number;
+  codigo: string;
+  nombre: string;
+  apellidos: string;
+  dni: string;
+  telefono: string;
+  email: string;
+  direccion?: string;
+  licencia: {
+    tipo: string;
+    numero: string;
+    fechaCaducidad: string;
+  };
+  tieneCap?: boolean;
+  capCaducidad?: string;
+  numeroSeguridadSocial?: string;
+  tipoContrato?: string;
+  tarifaHora: number;
+  estado: string;
+  notas?: string;
+  fechaAlta: string;
+}
+
+export interface CreateConductorData {
+  nombre: string;
+  apellidos: string;
+  dni?: string;
+  telefono?: string;
+  email?: string;
+  direccion?: string;
+  licencia?: {
+    tipo?: string;
+    numero?: string;
+    fechaCaducidad?: string;
+  };
+  tieneCap?: boolean;
+  capCaducidad?: string;
+  numeroSeguridadSocial?: string;
+  tipoContrato?: string;
+  tarifaHora?: number;
+  estado?: string;
+  notas?: string;
+}
+
+export interface UpdateConductorData {
+  nombre?: string;
+  apellidos?: string;
+  dni?: string;
+  telefono?: string;
+  email?: string;
+  direccion?: string;
+  licencia?: {
+    tipo?: string;
+    numero?: string;
+    fechaCaducidad?: string;
+  };
+  tieneCap?: boolean;
+  capCaducidad?: string;
+  numeroSeguridadSocial?: string;
+  tipoContrato?: string;
+  tarifaHora?: number;
+  estado?: string;
+  notas?: string;
+}
+
+// Vehiculo
+export interface Vehiculo {
+  id: number;
+  matricula: string;
+  bastidor?: string;
+  marca: string;
+  modelo: string;
+  tipo?: string;
+  plazas?: number;
+  annoFabricacion?: number;
+  combustible?: string;
+  kilometraje: number;
+  itv?: {
+    fechaUltima?: string;
+    fechaProxima?: string;
+    resultado?: string;
+  };
+  seguro?: {
+    compania?: string;
+    poliza?: string;
+    fechaVencimiento?: string;
+  };
+  estado: string;
+  ubicacion?: string;
+  notas?: string;
+  imagenUrl?: string;
+}
+
+export interface CreateVehiculoData {
+  matricula: string;
+  bastidor?: string;
+  marca: string;
+  modelo: string;
+  tipo?: string;
+  plazas?: number;
+  annoFabricacion?: number;
+  combustible?: string;
+  kilometraje?: number;
+  itv?: {
+    fechaUltima?: string;
+    fechaProxima?: string;
+    resultado?: string;
+  };
+  seguro?: {
+    compania?: string;
+    poliza?: string;
+    fechaVencimiento?: string;
+  };
+  estado?: string;
+  ubicacion?: string;
+  notas?: string;
+  imagenUrl?: string;
+}
+
+export interface UpdateVehiculoData {
+  matricula?: string;
+  bastidor?: string;
+  marca?: string;
+  modelo?: string;
+  tipo?: string;
+  plazas?: number;
+  annoFabricacion?: number;
+  combustible?: string;
+  kilometraje?: number;
+  estado?: string;
+  ubicacion?: string;
+  notas?: string;
+  imagenUrl?: string;
+}
+
 // Servicio
 export interface Servicio {
   id: number;
   codigo: string;
   clienteId: number;
-  clienteNombre: string;
+  clienteNombre?: string;
   tipo: string;
-  descripcion: string;
-  fechaInicio: string;
+  estado: string;
+  titulo?: string;
+  descripcion?: string;
+  fechaInicio?: string;
   fechaFin?: string;
-  estado: 'pendiente' | 'en_curso' | 'completado' | 'cancelado';
-  importe: number;
-  notas: string;
+  horaInicio?: string;
+  horaFin?: string;
+  conductorId?: number;
+  vehiculoId?: number;
+  numeroVehiculos: number;
+  origen?: string;
+  destino?: string;
+  ubicacionEvento?: string;
+  costeEstimado: number;
+  costeReal?: number;
+  precio: number;
+  margen?: number;
+  facturado: boolean;
+  facturaId?: number;
+  notasInternas?: string;
+  notasCliente?: string;
+  fechaCreacion: string;
 }
 
 export interface CreateServicioData {
   clienteId: number;
-  tipo: string;
-  descripcion?: string;
-  fechaInicio: string;
-  fechaFin?: string;
-  importe?: number;
-  notas?: string;
-}
-
-export interface UpdateServicioData {
   tipo?: string;
+  estado?: string;
+  titulo?: string;
   descripcion?: string;
   fechaInicio?: string;
   fechaFin?: string;
-  estado?: 'pendiente' | 'en_curso' | 'completado' | 'cancelado';
-  importe?: number;
-  notas?: string;
+  horaInicio?: string;
+  horaFin?: string;
+  conductorId?: number;
+  vehiculoId?: number;
+  numeroVehiculos?: number;
+  origen?: string;
+  destino?: string;
+  ubicacionEvento?: string;
+  costeEstimado?: number;
+  precio?: number;
+  notasInternas?: string;
+  notasCliente?: string;
+}
+
+export interface UpdateServicioData {
+  clienteId?: number;
+  conductorId?: number;
+  vehiculoId?: number;
+  estado?: string;
+  precio?: number;
+  costeReal?: number;
 }
 
 // Factura
@@ -143,20 +307,20 @@ export interface Factura {
   id: number;
   numero: string;
   clienteId: number;
-  clienteNombre: string;
+  clienteNombre?: string;
   fecha: string;
-  fechaVencimiento: string;
+  fechaVencimiento?: string;
   subtotal: number;
   iva: number;
   total: number;
   estado: 'pendiente' | 'pagada' | 'vencida' | 'anulada';
-  concepto: string;
+  concepto?: string;
 }
 
 export interface CreateFacturaData {
   clienteId: number;
   fecha: string;
-  fechaVencimiento: string;
+  fechaVencimiento?: string;
   subtotal: number;
   iva?: number;
   concepto?: string;
@@ -340,11 +504,11 @@ const convertClienteToBackend = (data: CreateClienteData | UpdateClienteData) =>
   if (data.nombre !== undefined) backendData.nombre = data.nombre;
   if (data.cif !== undefined) backendData.nif = data.cif || null;
   
-  // Contacto principal del cliente (empresa/autónomo)
+  // Contacto principal - CAMPOS PLANOS (no anidados)
   if (data.email !== undefined) backendData.contacto_email = data.email || null;
   if (data.telefono !== undefined) backendData.contacto_telefono = data.telefono || null;
   
-  // Dirección
+  // Dirección - CAMPOS PLANOS
   if (data.direccion !== undefined) backendData.contacto_direccion = data.direccion || null;
   if (data.ciudad !== undefined) backendData.contacto_ciudad = data.ciudad || null;
   if (data.codigoPostal !== undefined) backendData.contacto_codigo_postal = data.codigoPostal || null;
@@ -356,11 +520,11 @@ const convertClienteToBackend = (data: CreateClienteData | UpdateClienteData) =>
   if (data.notas !== undefined) backendData.notas = data.notas || null;
   
   // Persona de contacto (campos planos separados)
-  if (data.contacto && data.contacto.nombre) {
-    backendData.persona_contacto_nombre = data.contacto.nombre;
-    backendData.persona_contacto_email = data.contacto.email || null;
-    backendData.persona_contacto_telefono = data.contacto.telefono || null;
-    backendData.persona_contacto_cargo = data.contacto.cargo || null;
+  if (data.contacto) {
+    if (data.contacto.nombre) backendData.persona_contacto_nombre = data.contacto.nombre;
+    if (data.contacto.email !== undefined) backendData.persona_contacto_email = data.contacto.email || null;
+    if (data.contacto.telefono !== undefined) backendData.persona_contacto_telefono = data.contacto.telefono || null;
+    if (data.contacto.cargo !== undefined) backendData.persona_contacto_cargo = data.contacto.cargo || null;
   }
   
   return backendData;
@@ -446,6 +610,314 @@ export const useClientesStore = create<ClientesState>((set) => ({
   clearError: () => set({ error: null }),
 }));
 
+// ==================== CONDUCTORES STORE ====================
+
+interface ConductoresState {
+  conductores: Conductor[];
+  conductorActual: Conductor | null;
+  loading: boolean;
+  error: string | null;
+  fetchConductores: () => Promise<void>;
+  fetchConductor: (id: number) => Promise<void>;
+  createConductor: (data: CreateConductorData) => Promise<void>;
+  updateConductor: (id: number, data: UpdateConductorData) => Promise<void>;
+  deleteConductor: (id: number) => Promise<void>;
+  clearError: () => void;
+}
+
+const convertConductorFromBackend = (conductor: any): Conductor => ({
+  id: conductor.id,
+  codigo: conductor.codigo,
+  nombre: conductor.nombre,
+  apellidos: conductor.apellidos,
+  dni: conductor.dni || '',
+  telefono: conductor.telefono || '',
+  email: conductor.email || '',
+  direccion: conductor.direccion,
+  licencia: {
+    tipo: conductor.licencia_tipo || '',
+    numero: conductor.licencia_numero || '',
+    fechaCaducidad: conductor.licencia_caducidad,
+  },
+  tieneCap: conductor.tiene_cap,
+  capCaducidad: conductor.cap_caducidad,
+  numeroSeguridadSocial: conductor.numero_seguridad_social,
+  tipoContrato: conductor.tipo_contrato,
+  tarifaHora: conductor.tarifa_hora || 0,
+  estado: conductor.estado || 'activo',
+  notas: conductor.notas,
+  fechaAlta: conductor.fecha_alta,
+});
+
+const convertConductorToBackend = (data: CreateConductorData | UpdateConductorData) => {
+  const backendData: any = {};
+  
+  if (data.nombre !== undefined) backendData.nombre = data.nombre;
+  if (data.apellidos !== undefined) backendData.apellidos = data.apellidos;
+  if (data.dni !== undefined) backendData.dni = data.dni || null;
+  if (data.telefono !== undefined) backendData.telefono = data.telefono || null;
+  if (data.email !== undefined) backendData.email = data.email || null;
+  if (data.direccion !== undefined) backendData.direccion = data.direccion || null;
+  
+  // Licencia
+  if (data.licencia) {
+    if (data.licencia.tipo !== undefined) backendData.licencia_tipo = data.licencia.tipo || null;
+    if (data.licencia.numero !== undefined) backendData.licencia_numero = data.licencia.numero || null;
+    if (data.licencia.fechaCaducidad !== undefined) backendData.licencia_caducidad = data.licencia.fechaCaducidad || null;
+  }
+  
+  // CAP
+  if (data.tieneCap !== undefined) backendData.tiene_cap = data.tieneCap;
+  if (data.capCaducidad !== undefined) backendData.cap_caducidad = data.capCaducidad || null;
+  
+  // Laboral
+  if (data.numeroSeguridadSocial !== undefined) backendData.numero_seguridad_social = data.numeroSeguridadSocial || null;
+  if (data.tipoContrato !== undefined) backendData.tipo_contrato = data.tipoContrato || 'indefinido';
+  if (data.tarifaHora !== undefined) backendData.tarifa_hora = data.tarifaHora || 0;
+  
+  if (data.estado !== undefined) backendData.estado = data.estado || 'activo';
+  if (data.notas !== undefined) backendData.notas = data.notas || null;
+  
+  return backendData;
+};
+
+export const useConductoresStore = create<ConductoresState>((set) => ({
+  conductores: [],
+  conductorActual: null,
+  loading: false,
+  error: null,
+
+  fetchConductores: async () => {
+    set({ loading: true, error: null });
+    try {
+      const data = await api.get('/conductores/');
+      set({ 
+        conductores: data.map(convertConductorFromBackend),
+        loading: false 
+      });
+    } catch (error: any) {
+      set({ error: error.message, loading: false });
+    }
+  },
+
+  fetchConductor: async (id) => {
+    set({ loading: true, error: null });
+    try {
+      const data = await api.get(`/conductores/${id}`);
+      set({ 
+        conductorActual: convertConductorFromBackend(data),
+        loading: false 
+      });
+    } catch (error: any) {
+      set({ error: error.message, loading: false });
+    }
+  },
+
+  createConductor: async (data) => {
+    set({ loading: true, error: null });
+    try {
+      const newConductor = await api.post('/conductores/', convertConductorToBackend(data));
+      set((state) => ({
+        conductores: [...state.conductores, convertConductorFromBackend(newConductor)],
+        loading: false,
+      }));
+    } catch (error: any) {
+      set({ error: error.message, loading: false });
+      throw error;
+    }
+  },
+
+  updateConductor: async (id, data) => {
+    set({ loading: true, error: null });
+    try {
+      const updatedConductor = await api.put(`/conductores/${id}`, convertConductorToBackend(data));
+      set((state) => ({
+        conductores: state.conductores.map((c) =>
+          c.id === id ? convertConductorFromBackend(updatedConductor) : c
+        ),
+        conductorActual: convertConductorFromBackend(updatedConductor),
+        loading: false,
+      }));
+    } catch (error: any) {
+      set({ error: error.message, loading: false });
+      throw error;
+    }
+  },
+
+  deleteConductor: async (id) => {
+    set({ loading: true, error: null });
+    try {
+      await api.delete(`/conductores/${id}`);
+      set((state) => ({
+        conductores: state.conductores.filter((c) => c.id !== id),
+        loading: false,
+      }));
+    } catch (error: any) {
+      set({ error: error.message, loading: false });
+      throw error;
+    }
+  },
+
+  clearError: () => set({ error: null }),
+}));
+
+// ==================== VEHICULOS STORE ====================
+
+interface VehiculosState {
+  vehiculos: Vehiculo[];
+  vehiculoActual: Vehiculo | null;
+  loading: boolean;
+  error: string | null;
+  fetchVehiculos: () => Promise<void>;
+  fetchVehiculo: (id: number) => Promise<void>;
+  createVehiculo: (data: CreateVehiculoData) => Promise<void>;
+  updateVehiculo: (id: number, data: UpdateVehiculoData) => Promise<void>;
+  deleteVehiculo: (id: number) => Promise<void>;
+  clearError: () => void;
+}
+
+const convertVehiculoFromBackend = (vehiculo: any): Vehiculo => ({
+  id: vehiculo.id,
+  matricula: vehiculo.matricula,
+  bastidor: vehiculo.bastidor,
+  marca: vehiculo.marca,
+  modelo: vehiculo.modelo,
+  tipo: vehiculo.tipo,
+  plazas: vehiculo.plazas,
+  annoFabricacion: vehiculo.anno_fabricacion,
+  combustible: vehiculo.combustible,
+  kilometraje: vehiculo.kilometraje || 0,
+  itv: {
+    fechaUltima: vehiculo.itv_fecha_ultima,
+    fechaProxima: vehiculo.itv_fecha_proxima,
+    resultado: vehiculo.itv_resultado,
+  },
+  seguro: {
+    compania: vehiculo.seguro_compania,
+    poliza: vehiculo.seguro_poliza,
+    fechaVencimiento: vehiculo.seguro_fecha_vencimiento,
+  },
+  estado: vehiculo.estado || 'operativo',
+  ubicacion: vehiculo.ubicacion,
+  notas: vehiculo.notas,
+  imagenUrl: vehiculo.imagen_url,
+});
+
+const convertVehiculoToBackend = (data: CreateVehiculoData | UpdateVehiculoData) => {
+  const backendData: any = {};
+  
+  if (data.matricula !== undefined) backendData.matricula = data.matricula;
+  if (data.bastidor !== undefined) backendData.bastidor = data.bastidor || null;
+  if (data.marca !== undefined) backendData.marca = data.marca;
+  if (data.modelo !== undefined) backendData.modelo = data.modelo;
+  if (data.tipo !== undefined) backendData.tipo = data.tipo || null;
+  if (data.plazas !== undefined) backendData.plazas = data.plazas || null;
+  if (data.annoFabricacion !== undefined) backendData.anno_fabricacion = data.annoFabricacion || null;
+  if (data.combustible !== undefined) backendData.combustible = data.combustible || null;
+  if (data.kilometraje !== undefined) backendData.kilometraje = data.kilometraje || 0;
+  
+  // ITV
+  if (data.itv) {
+    if (data.itv.fechaUltima !== undefined) backendData.itv_fecha_ultima = data.itv.fechaUltima || null;
+    if (data.itv.fechaProxima !== undefined) backendData.itv_fecha_proxima = data.itv.fechaProxima || null;
+    if (data.itv.resultado !== undefined) backendData.itv_resultado = data.itv.resultado || null;
+  }
+  
+  // Seguro
+  if (data.seguro) {
+    if (data.seguro.compania !== undefined) backendData.seguro_compania = data.seguro.compania || null;
+    if (data.seguro.poliza !== undefined) backendData.seguro_poliza = data.seguro.poliza || null;
+    if (data.seguro.fechaVencimiento !== undefined) backendData.seguro_fecha_vencimiento = data.seguro.fechaVencimiento || null;
+  }
+  
+  if (data.estado !== undefined) backendData.estado = data.estado || 'operativo';
+  if (data.ubicacion !== undefined) backendData.ubicacion = data.ubicacion || null;
+  if (data.notas !== undefined) backendData.notas = data.notas || null;
+  if (data.imagenUrl !== undefined) backendData.imagen_url = data.imagenUrl || null;
+  
+  return backendData;
+};
+
+export const useVehiculosStore = create<VehiculosState>((set) => ({
+  vehiculos: [],
+  vehiculoActual: null,
+  loading: false,
+  error: null,
+
+  fetchVehiculos: async () => {
+    set({ loading: true, error: null });
+    try {
+      const data = await api.get('/vehiculos/');
+      set({ 
+        vehiculos: data.map(convertVehiculoFromBackend),
+        loading: false 
+      });
+    } catch (error: any) {
+      set({ error: error.message, loading: false });
+    }
+  },
+
+  fetchVehiculo: async (id) => {
+    set({ loading: true, error: null });
+    try {
+      const data = await api.get(`/vehiculos/${id}`);
+      set({ 
+        vehiculoActual: convertVehiculoFromBackend(data),
+        loading: false 
+      });
+    } catch (error: any) {
+      set({ error: error.message, loading: false });
+    }
+  },
+
+  createVehiculo: async (data) => {
+    set({ loading: true, error: null });
+    try {
+      const newVehiculo = await api.post('/vehiculos/', convertVehiculoToBackend(data));
+      set((state) => ({
+        vehiculos: [...state.vehiculos, convertVehiculoFromBackend(newVehiculo)],
+        loading: false,
+      }));
+    } catch (error: any) {
+      set({ error: error.message, loading: false });
+      throw error;
+    }
+  },
+
+  updateVehiculo: async (id, data) => {
+    set({ loading: true, error: null });
+    try {
+      const updatedVehiculo = await api.put(`/vehiculos/${id}`, convertVehiculoToBackend(data));
+      set((state) => ({
+        vehiculos: state.vehiculos.map((v) =>
+          v.id === id ? convertVehiculoFromBackend(updatedVehiculo) : v
+        ),
+        vehiculoActual: convertVehiculoFromBackend(updatedVehiculo),
+        loading: false,
+      }));
+    } catch (error: any) {
+      set({ error: error.message, loading: false });
+      throw error;
+    }
+  },
+
+  deleteVehiculo: async (id) => {
+    set({ loading: true, error: null });
+    try {
+      await api.delete(`/vehiculos/${id}`);
+      set((state) => ({
+        vehiculos: state.vehiculos.filter((v) => v.id !== id),
+        loading: false,
+      }));
+    } catch (error: any) {
+      set({ error: error.message, loading: false });
+      throw error;
+    }
+  },
+
+  clearError: () => set({ error: null }),
+}));
+
 // ==================== SERVICIOS STORE ====================
 
 interface ServiciosState {
@@ -466,32 +938,60 @@ const convertServicioFromBackend = (servicio: any): Servicio => ({
   codigo: servicio.codigo,
   clienteId: servicio.cliente_id,
   clienteNombre: servicio.cliente?.nombre || '',
-  tipo: servicio.tipo,
-  descripcion: servicio.descripcion || '',
-  fechaInicio: servicio.fecha_inicio || '',
+  tipo: servicio.tipo || 'lanzadera',
+  estado: servicio.estado || 'solicitud',
+  titulo: servicio.titulo,
+  descripcion: servicio.descripcion,
+  fechaInicio: servicio.fecha_inicio,
   fechaFin: servicio.fecha_fin,
-  estado: servicio.estado,
-  importe: servicio.precio || 0,
-  notas: servicio.notas_cliente || '',
+  horaInicio: servicio.hora_inicio,
+  horaFin: servicio.hora_fin,
+  conductorId: servicio.conductor_id,
+  vehiculoId: servicio.vehiculo_id,
+  numeroVehiculos: servicio.numero_vehiculos || 1,
+  origen: servicio.origen,
+  destino: servicio.destino,
+  ubicacionEvento: servicio.ubicacion_evento,
+  costeEstimado: servicio.coste_estimado || 0,
+  costeReal: servicio.coste_real,
+  precio: servicio.precio || 0,
+  margen: servicio.margen,
+  facturado: servicio.facturado || false,
+  facturaId: servicio.factura_id,
+  notasInternas: servicio.notas_internas,
+  notasCliente: servicio.notas_cliente,
+  fechaCreacion: servicio.fecha_creacion,
 });
 
 const convertServicioToBackend = (data: CreateServicioData | UpdateServicioData) => {
   const backendData: any = {};
   
+  // Campos requeridos y opcionales para crear
   if ('clienteId' in data && data.clienteId !== undefined) {
     backendData.cliente_id = data.clienteId;
   }
   
-  if ('estado' in data && data.estado !== undefined) {
-    backendData.estado = data.estado;
-  }
+  if ('tipo' in data && data.tipo !== undefined) backendData.tipo = data.tipo;
+  if ('estado' in data && data.estado !== undefined) backendData.estado = data.estado;
+  if ('titulo' in data && data.titulo !== undefined) backendData.titulo = data.titulo || null;
+  if ('descripcion' in data && data.descripcion !== undefined) backendData.descripcion = data.descripcion || null;
+  if ('fechaInicio' in data && data.fechaInicio !== undefined) backendData.fecha_inicio = data.fechaInicio || null;
+  if ('fechaFin' in data && data.fechaFin !== undefined) backendData.fecha_fin = data.fechaFin || null;
+  if ('horaInicio' in data && data.horaInicio !== undefined) backendData.hora_inicio = data.horaInicio || null;
+  if ('horaFin' in data && data.horaFin !== undefined) backendData.hora_fin = data.horaFin || null;
+  if ('conductorId' in data && data.conductorId !== undefined) backendData.conductor_id = data.conductorId || null;
+  if ('vehiculoId' in data && data.vehiculoId !== undefined) backendData.vehiculo_id = data.vehiculoId || null;
+  if ('numeroVehiculos' in data && data.numeroVehiculos !== undefined) backendData.numero_vehiculos = data.numeroVehiculos || 1;
+  if ('origen' in data && data.origen !== undefined) backendData.origen = data.origen || null;
+  if ('destino' in data && data.destino !== undefined) backendData.destino = data.destino || null;
+  if ('ubicacionEvento' in data && data.ubicacionEvento !== undefined) backendData.ubicacion_evento = data.ubicacionEvento || null;
+  if ('costeEstimado' in data && data.costeEstimado !== undefined) backendData.coste_estimado = data.costeEstimado || 0;
+  if ('precio' in data && data.precio !== undefined) backendData.precio = data.precio || 0;
+  if ('notasInternas' in data && data.notasInternas !== undefined) backendData.notas_internas = data.notasInternas || null;
+  if ('notasCliente' in data && data.notasCliente !== undefined) backendData.notas_cliente = data.notasCliente || null;
   
-  if (data.tipo !== undefined) backendData.tipo = data.tipo;
-  if (data.descripcion !== undefined) backendData.descripcion = data.descripcion;
-  if (data.fechaInicio !== undefined) backendData.fecha_inicio = data.fechaInicio;
-  if (data.fechaFin !== undefined) backendData.fecha_fin = data.fechaFin || null;
-  if (data.importe !== undefined) backendData.precio = data.importe || 0;
-  if (data.notas !== undefined) backendData.notas_cliente = data.notas || null;
+  // Campos para actualizar
+  if ('costeReal' in data && data.costeReal !== undefined) backendData.coste_real = data.costeReal;
   
   return backendData;
 };

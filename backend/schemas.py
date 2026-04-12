@@ -33,11 +33,10 @@ class LoginResponse(BaseModel):
 # ==================== CONTACTO ====================
 
 class Contacto(BaseModel):
+    nombre: Optional[str] = None
     email: Optional[str] = None
     telefono: Optional[str] = None
-    direccion: Optional[str] = None
-    ciudad: Optional[str] = None
-    codigoPostal: Optional[str] = None
+    cargo: Optional[str] = None
 
 # ==================== CONDUCTORES ====================
 
@@ -154,37 +153,73 @@ class ClienteBase(BaseModel):
     estado: str = "activo"
     notas: Optional[str] = None
 
-class ClienteCreate(ClienteBase):
-    contacto: Optional[Contacto] = None
-
-class ClienteUpdate(ClienteBase):
-    nombre: Optional[str] = None
-    contacto: Optional[Contacto] = None
-
-class ClienteResponse(ClienteBase):
-    id: int
-    codigo: Optional[str] = None
-    fecha_alta: datetime
-    # Contacto como campos individuales que se mapean al objeto
+class ClienteCreate(BaseModel):
+    nombre: str
+    tipo: str = "particular"
+    nif: Optional[str] = None
+    # Contacto como campos planos (no anidado)
     contacto_email: Optional[str] = None
     contacto_telefono: Optional[str] = None
     contacto_direccion: Optional[str] = None
     contacto_ciudad: Optional[str] = None
     contacto_codigo_postal: Optional[str] = None
+    # Persona de contacto
+    persona_contacto_nombre: Optional[str] = None
+    persona_contacto_email: Optional[str] = None
+    persona_contacto_telefono: Optional[str] = None
+    persona_contacto_cargo: Optional[str] = None
+    # Condiciones
+    condiciones_especiales: Optional[str] = None
+    forma_pago: Optional[str] = None
+    dias_pago: int = 30
+    estado: str = "activo"
+    notas: Optional[str] = None
+
+class ClienteUpdate(BaseModel):
+    nombre: Optional[str] = None
+    tipo: Optional[str] = None
+    nif: Optional[str] = None
+    contacto_email: Optional[str] = None
+    contacto_telefono: Optional[str] = None
+    contacto_direccion: Optional[str] = None
+    contacto_ciudad: Optional[str] = None
+    contacto_codigo_postal: Optional[str] = None
+    persona_contacto_nombre: Optional[str] = None
+    persona_contacto_email: Optional[str] = None
+    persona_contacto_telefono: Optional[str] = None
+    persona_contacto_cargo: Optional[str] = None
+    condiciones_especiales: Optional[str] = None
+    forma_pago: Optional[str] = None
+    dias_pago: Optional[int] = None
+    estado: Optional[str] = None
+    notas: Optional[str] = None
+
+class ClienteResponse(BaseModel):
+    id: int
+    codigo: Optional[str] = None
+    nombre: str
+    tipo: str
+    nif: Optional[str] = None
+    condiciones_especiales: Optional[str] = None
+    forma_pago: Optional[str] = None
+    dias_pago: int
+    estado: str
+    notas: Optional[str] = None
+    fecha_alta: datetime
+    # Contacto como campos individuales
+    contacto_email: Optional[str] = None
+    contacto_telefono: Optional[str] = None
+    contacto_direccion: Optional[str] = None
+    contacto_ciudad: Optional[str] = None
+    contacto_codigo_postal: Optional[str] = None
+    # Persona de contacto
+    persona_contacto_nombre: Optional[str] = None
+    persona_contacto_email: Optional[str] = None
+    persona_contacto_telefono: Optional[str] = None
+    persona_contacto_cargo: Optional[str] = None
     
     class Config:
         from_attributes = True
-    
-    # Propiedad para compatibilidad con frontend
-    @property
-    def contacto(self) -> Contacto:
-        return Contacto(
-            email=self.contacto_email,
-            telefono=self.contacto_telefono,
-            direccion=self.contacto_direccion,
-            ciudad=self.contacto_ciudad,
-            codigoPostal=self.contacto_codigo_postal
-        )
 
 class ClienteWithStats(ClienteResponse):
     total_servicios: int = 0
@@ -214,8 +249,26 @@ class ServicioBase(BaseModel):
     notas_internas: Optional[str] = None
     notas_cliente: Optional[str] = None
 
-class ServicioCreate(ServicioBase):
-    pass
+class ServicioCreate(BaseModel):
+    cliente_id: int
+    tipo: str = "lanzadera"
+    estado: str = "solicitud"
+    titulo: Optional[str] = None
+    descripcion: Optional[str] = None
+    fecha_inicio: Optional[str] = None  # Puede venir como string ISO
+    fecha_fin: Optional[str] = None
+    hora_inicio: Optional[str] = None
+    hora_fin: Optional[str] = None
+    conductor_id: Optional[int] = None
+    vehiculo_id: Optional[int] = None
+    numero_vehiculos: int = 1
+    origen: Optional[str] = None
+    destino: Optional[str] = None
+    ubicacion_evento: Optional[str] = None
+    coste_estimado: float = 0.0
+    precio: float = 0.0
+    notas_internas: Optional[str] = None
+    notas_cliente: Optional[str] = None
 
 class ServicioUpdate(BaseModel):
     cliente_id: Optional[int] = None
@@ -225,13 +278,32 @@ class ServicioUpdate(BaseModel):
     precio: Optional[float] = None
     coste_real: Optional[float] = None
 
-class ServicioResponse(ServicioBase):
+class ServicioResponse(BaseModel):
     id: int
     codigo: Optional[str] = None
+    cliente_id: int
+    tipo: str
+    estado: str
+    titulo: Optional[str] = None
+    descripcion: Optional[str] = None
+    fecha_inicio: Optional[datetime] = None
+    fecha_fin: Optional[datetime] = None
+    hora_inicio: Optional[str] = None
+    hora_fin: Optional[str] = None
+    conductor_id: Optional[int] = None
+    vehiculo_id: Optional[int] = None
+    numero_vehiculos: int = 1
+    origen: Optional[str] = None
+    destino: Optional[str] = None
+    ubicacion_evento: Optional[str] = None
+    coste_estimado: float = 0.0
     coste_real: float = 0.0
     margen: float = 0.0
+    precio: float = 0.0
     facturado: bool = False
     factura_id: Optional[int] = None
+    notas_internas: Optional[str] = None
+    notas_cliente: Optional[str] = None
     fecha_creacion: datetime
     creado_por: Optional[str] = None
     
