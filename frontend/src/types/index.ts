@@ -32,13 +32,19 @@ export interface Cliente {
   nombre: string;
   tipo: TipoCliente;
   contacto: Contacto;
-  nif?: string;
+  cif?: string;  // Cambiado de nif a cif
   condicionesEspeciales?: string;
   formaPago?: string;
   diasPago?: number;
   fechaAlta: Date | string;
   estado: 'activo' | 'inactivo';
   notas?: string;
+  // Campos adicionales para CRM
+  email?: string;
+  telefono?: string;
+  direccion?: string;
+  ciudad?: string;
+  codigoPostal?: string;
   // Estadísticas (del backend)
   totalServicios?: number;
   totalFacturado?: number;
@@ -48,28 +54,46 @@ export interface Cliente {
   documentos?: Documento[];
 }
 
-// Tipos para API de clientes
+// Tipos para API de clientes (usados por CRM.tsx)
 export interface CreateClienteData {
   nombre: string;
   tipo?: TipoCliente;
-  contacto?: Contacto;
-  nif?: string;
-  condicionesEspeciales?: string;
+  contacto?: {
+    nombre?: string;
+    email?: string;
+    telefono?: string;
+    cargo?: string;
+  };
+  cif?: string;  // Cambiado de nif a cif
+  email?: string;
+  telefono?: string;
+  direccion?: string;
+  ciudad?: string;
+  codigoPostal?: string;
   formaPago?: string;
   diasPago?: number;
-  estado?: 'activo' | 'inactivo';
+  condicionesEspeciales?: string;
   notas?: string;
 }
 
 export interface UpdateClienteData {
   nombre?: string;
   tipo?: TipoCliente;
-  contacto?: Contacto;  // <-- AÑADIDO
-  nif?: string;
-  condicionesEspeciales?: string;
+  contacto?: {
+    nombre?: string;
+    email?: string;
+    telefono?: string;
+    cargo?: string;
+  };
+  cif?: string;  // Cambiado de nif a cif
+  email?: string;
+  telefono?: string;
+  direccion?: string;
+  ciudad?: string;
+  codigoPostal?: string;
   formaPago?: string;
   diasPago?: number;
-  estado?: 'activo' | 'inactivo';
+  condicionesEspeciales?: string;
   notas?: string;
 }
 
