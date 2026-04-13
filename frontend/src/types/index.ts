@@ -147,9 +147,14 @@ export interface Servicio {
   descripcion: string;
   fechaInicio: string;
   fechaFin?: string;
-  estado: 'pendiente' | 'en_progreso' | 'completado' | 'cancelado' | 'facturado'; // ← añade 'facturado'
+  estado: 'pendiente' | 'en_progreso' | 'completado' | 'cancelado' | 'facturado';
   importe: number;
   notas: string;
+  // NUEVO: rutas
+  rutas?: {
+    vehiculoAsignadoId: string;
+    distanciaKm: number;
+  }[];
 }
 
 export interface CreateServicioData {
