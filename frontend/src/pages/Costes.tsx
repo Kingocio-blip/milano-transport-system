@@ -93,7 +93,7 @@ export default function Costes() {
         return sum + (ruta.distanciaKm * 0.5);
       }, 0);
 
-      const peajes = servicio.rutas.reduce((sum, ruta) => sum + (ruta.distanciaKm * 0.1), 0);
+      const peajes = (servicio.rutas || []).reduce((sum, ruta) => sum + (ruta.distanciaKm * 0.1), 0);
 
       const costeTotal = costeCombustible + costeConductor + costeVehiculo + peajes;
       const beneficio = servicio.precio - costeTotal;
