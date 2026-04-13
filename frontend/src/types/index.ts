@@ -357,7 +357,6 @@ export interface Vehiculo {
   imagenUrl?: string;
   fechaAlta: string;
   notas?: string;
-  // Campos adicionales para el backend
   tipo_vehiculo?: TipoVehiculo;
   estado_vehiculo?: EstadoVehiculo;
   capacidad_kg?: number;
@@ -367,6 +366,7 @@ export interface Vehiculo {
   fecha_vencimiento_seguro?: string;
   num_poliza_seguro?: string;
   fecha_adquisicion?: string;
+  consumoMedio?: number;
 }
 
 export interface CreateVehiculoData {
