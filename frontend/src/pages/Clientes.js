@@ -1,19 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store';
-import { 
-  Plus, Search, Edit2, Trash2, User, Phone, Mail, 
-  X, MapPin, Building2, CreditCard
-} from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Phone, Mail, MapPin, CreditCard, User, X, Building } from 'lucide-react';
 import './Clientes.css';
 
 const API_URL = 'https://milano-backend.onrender.com';
 
 const FORMAS_PAGO = [
-  { value: 'transferencia', label: 'Transferencia' },
-  { value: 'domiciliacion', label: 'Domiciliación' },
-  { value: 'tarjeta', label: 'Tarjeta' },
+  { value: 'transferencia', label: 'Transferencia Bancaria' },
+  { value: 'domiciliacion', label: 'Domiciliación Bancaria' },
+  { value: 'tarjeta', label: 'Tarjeta de Crédito' },
   { value: 'efectivo', label: 'Efectivo' },
   { value: 'cheque', label: 'Cheque' },
+  { value: 'paypal', label: 'PayPal' },
 ];
 
 const Clientes = () => {
@@ -35,7 +33,7 @@ const Clientes = () => {
     ciudad: '',
     codigo_postal: '',
     forma_pago: 'transferencia',
-    dias_pago: 30,
+    dias_pago: '30',
     condiciones_especiales: '',
     notas: '',
     contacto_nombre: '',
@@ -86,26 +84,32 @@ const Clientes = () => {
       
       const method = editingId ? 'PUT' : 'POST';
       
-      // Convertir datos al formato del backend
+      // Preparar datos EXACTAMENTE como los espera el backend
       const dataToSend = {
-        nombre: formData.nombre,
-        cif: formData.cif || null,
-        email: formData.email || null,
-        telefono: formData.telefono || null,
-        direccion: formData.direccion || null,
-        ciudad: formData.ciudad || null,
-        codigo_postal: formData.codigo_postal || null,
+        nombre: formData.nombre.trim(),
+        cif: formData.cif.trim() || null,
+        email: formData.email.trim() || null,
+        telefono: formData.telefono.trim() || null,
+        direccion: formData.direccion.trim() || null,
+        ciudad: formData.ciudad.trim() || null,
+        codigo_postal: formData.codigo_postal.trim() || null,
         forma_pago: formData.forma_pago,
         dias_pago: parseInt(formData.dias_pago) || 30,
-        condiciones_especiales: formData.condiciones_especiales || null,
-        notas: formData.notas || null,
-        contacto: formData.contacto_nombre ? {
-          nombre: formData.contacto_nombre,
-          email: formData.contacto_email || undefined,
-          telefono: formData.contacto_telefono || undefined,
-          cargo: formData.contacto_cargo || undefined
-        } : undefined
+        condiciones_especiales: formData.condiciones_especiales.trim() || null,
+        notas: formData.notas.trim() || null
       };
+
+      // Añadir contacto solo si hay nombre de contacto
+      if (formData.contacto_nombre.trim()) {
+        dataToSend.contacto = {
+          nombre: formData.contacto_nombre.trim(),
+          email: formData.contacto_email.trim() || null,
+          telefono: formData.contacto_telefono.trim() || null,
+          cargo: formData.contacto_cargo.trim() || null
+        };
+      }
+
+      console.log('Enviando datos:', dataToSend); // Para debug
 
       const response = await fetch(url, {
         method,
@@ -116,14 +120,19 @@ const Clientes = () => {
         body: JSON.stringify(dataToSend)
       });
 
+      const responseData = await response.json();
+      
       if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.detail || 'Error al guardar');
+        console.error('Error del servidor:', responseData);
+        throw new Error(responseData.detail || JSON.stringify(responseData) || 'Error al guardar');
       }
 
+      console.log('Respuesta:', responseData); // Para debug
+      
       await cargarClientes();
       closeForm();
     } catch (err) {
+      console.error('Error:', err);
       setError(err.message);
     } finally {
       setSaving(false);
@@ -157,7 +166,7 @@ const Clientes = () => {
       ciudad: c.ciudad || '',
       codigo_postal: c.codigo_postal || '',
       forma_pago: c.forma_pago || 'transferencia',
-      dias_pago: c.dias_pago || 30,
+      dias_pago: String(c.dias_pago || 30),
       condiciones_especiales: c.condiciones_especiales || '',
       notas: c.notas || '',
       contacto_nombre: c.contacto?.nombre || '',
@@ -202,7 +211,7 @@ const Clientes = () => {
       {error && (
         <div style={{
           background: '#fee2e2', color: '#dc2626', padding: 12,
-          borderRadius: 6, marginBottom: 16
+          borderRadius: 6, marginBottom: 16, whiteSpace: 'pre-wrap'
         }}>
           {error}
         </div>
@@ -227,7 +236,7 @@ const Clientes = () => {
       </div>
 
       <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
         gap: 16
       }}>
         {filtered.map(c => (
@@ -254,11 +263,11 @@ const Clientes = () => {
             </div>
             
             <div style={{fontSize: 14, color: '#4b5563', lineHeight: 1.8}}>
-              <p style={{margin: '4px 0'}}><CreditCard size={14} style={{marginRight: 8}}/> {c.cif || '-'}</p>
-              <p style={{margin: '4px 0'}}><Phone size={14} style={{marginRight: 8}}/> {c.telefono || '-'}</p>
-              <p style={{margin: '4px 0'}}><Mail size={14} style={{marginRight: 8}}/> {c.email || '-'}</p>
-              <p style={{margin: '4px 0'}}><MapPin size={14} style={{marginRight: 8}}/> {c.direccion || '-'}</p>
-              {c.contacto && (
+              {c.cif && <p style={{margin: '4px 0'}}><CreditCard size={14} style={{marginRight: 8}}/> {c.cif}</p>}
+              {c.telefono && <p style={{margin: '4px 0'}}><Phone size={14} style={{marginRight: 8}}/> {c.telefono}</p>}
+              {c.email && <p style={{margin: '4px 0'}}><Mail size={14} style={{marginRight: 8}}/> {c.email}</p>}
+              {c.direccion && <p style={{margin: '4px 0'}}><MapPin size={14} style={{marginRight: 8}}/> {c.direccion}, {c.ciudad}</p>}
+              {c.contacto?.nombre && (
                 <p style={{margin: '4px 0'}}><User size={14} style={{marginRight: 8}}/> Contacto: {c.contacto.nombre}</p>
               )}
             </div>
@@ -270,11 +279,12 @@ const Clientes = () => {
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.5)', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', zIndex: 1000
+          alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+          padding: 20
         }}>
           <div style={{
             background: 'white', borderRadius: 12, padding: 24,
-            width: '90%', maxWidth: 600, maxHeight: '90vh',
+            width: '100%', maxWidth: 600, maxHeight: '90vh',
             overflow: 'auto'
           }}>
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20}}>
@@ -285,9 +295,11 @@ const Clientes = () => {
             </div>
 
             <form onSubmit={handleSubmit}>
+              <h4 style={{margin: '0 0 12px', color: '#374151', fontSize: 14, textTransform: 'uppercase'}}>Información Básica</h4>
+              
               <input
                 name="nombre"
-                placeholder="Nombre/Razón Social *"
+                placeholder="Nombre / Razón Social *"
                 value={formData.nombre}
                 onChange={handleChange}
                 required
@@ -297,7 +309,7 @@ const Clientes = () => {
               <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12}}>
                 <input
                   name="cif"
-                  placeholder="CIF/NIF"
+                  placeholder="CIF / NIF"
                   value={formData.cif}
                   onChange={handleChange}
                   style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db'}}
@@ -322,13 +334,13 @@ const Clientes = () => {
 
               <input
                 name="direccion"
-                placeholder="Dirección"
+                placeholder="Dirección (Calle, número, piso...)"
                 value={formData.direccion}
                 onChange={handleChange}
                 style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db', width: '100%', marginBottom: 12, boxSizing: 'border-box'}}
               />
 
-              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12}}>
+              <div style={{display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 16}}>
                 <input
                   name="ciudad"
                   placeholder="Ciudad"
@@ -345,7 +357,9 @@ const Clientes = () => {
                 />
               </div>
 
-              <div style={{display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 12}}>
+              <h4 style={{margin: '16px 0 12px', color: '#374151', fontSize: 14, textTransform: 'uppercase'}}>Condiciones de Pago</h4>
+              
+              <div style={{display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 16}}>
                 <select
                   name="forma_pago"
                   value={formData.forma_pago}
@@ -357,7 +371,7 @@ const Clientes = () => {
                 <input
                   name="dias_pago"
                   type="number"
-                  placeholder="Días pago"
+                  placeholder="Días de pago"
                   value={formData.dias_pago}
                   onChange={handleChange}
                   style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db'}}
@@ -366,55 +380,58 @@ const Clientes = () => {
 
               <textarea
                 name="condiciones_especiales"
-                placeholder="Condiciones especiales"
+                placeholder="Condiciones especiales de pago, descuentos, etc."
                 value={formData.condiciones_especiales}
                 onChange={handleChange}
                 rows={2}
                 style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db', width: '100%', marginBottom: 16, boxSizing: 'border-box', resize: 'vertical'}}
               />
 
-              <h4 style={{margin: '16px 0 8px', color: '#374151'}}>Persona de Contacto</h4>
+              <h4 style={{margin: '16px 0 12px', color: '#374151', fontSize: 14, textTransform: 'uppercase'}}>Persona de Contacto Principal</h4>
+              
               <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12}}>
                 <input
                   name="contacto_nombre"
-                  placeholder="Nombre"
+                  placeholder="Nombre del contacto"
                   value={formData.contacto_nombre}
                   onChange={handleChange}
                   style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db'}}
                 />
                 <input
                   name="contacto_cargo"
-                  placeholder="Cargo"
+                  placeholder="Cargo o departamento"
                   value={formData.contacto_cargo}
                   onChange={handleChange}
                   style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db'}}
                 />
               </div>
-              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12}}>
+              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16}}>
                 <input
-                  name="contacto_telefono"
-                  placeholder="Teléfono"
-                  value={formData.contacto_telefono}
+                  name="contacto_email"
+                  type="email"
+                  placeholder="Email del contacto"
+                  value={formData.contacto_email}
                   onChange={handleChange}
                   style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db'}}
                 />
                 <input
-                  name="contacto_email"
-                  type="email"
-                  placeholder="Email"
-                  value={formData.contacto_email}
+                  name="contacto_telefono"
+                  placeholder="Teléfono del contacto"
+                  value={formData.contacto_telefono}
                   onChange={handleChange}
                   style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db'}}
                 />
               </div>
 
+              <h4 style={{margin: '16px 0 12px', color: '#374151', fontSize: 14, textTransform: 'uppercase'}}>Notas</h4>
+              
               <textarea
                 name="notas"
-                placeholder="Notas generales"
+                placeholder="Notas adicionales sobre el cliente..."
                 value={formData.notas}
                 onChange={handleChange}
-                rows={2}
-                style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db', width: '100%', marginBottom: 16, boxSizing: 'border-box', resize: 'vertical'}}
+                rows={3}
+                style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db', width: '100%', marginBottom: 20, boxSizing: 'border-box', resize: 'vertical'}}
               />
 
               <div style={{display: 'flex', gap: 12, justifyContent: 'flex-end'}}>
