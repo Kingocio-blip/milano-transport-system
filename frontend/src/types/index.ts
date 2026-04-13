@@ -254,6 +254,12 @@ export interface Conductor {
   fecha_vencimiento_adr?: string;
   fecha_vencimiento_medico?: string;
   fecha_contratacion?: string;
+  // NUEVO: disponibilidad
+  disponibilidad?: {
+    dias: number[];
+    horaInicio: string;
+    horaFin: string;
+  };
 }
 
 export interface CreateConductorData {
