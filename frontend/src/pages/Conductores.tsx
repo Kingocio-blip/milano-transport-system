@@ -134,8 +134,7 @@ export default function Conductores() {
   const handleEditarConductor = async () => {
     if (!conductorSeleccionado) return;
     
-    const success = await updateConductor(conductorSeleccionado.id, conductorSeleccionado);
-    if (success) {
+const success = await updateConductor(String(conductorSeleccionado.id), conductorSeleccionado);    if (success) {
       setIsEditarOpen(false);
       showToast('Conductor actualizado correctamente', 'success');
     }
