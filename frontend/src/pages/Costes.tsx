@@ -96,8 +96,8 @@ export default function Costes() {
       const peajes = (servicio.rutas || []).reduce((sum, ruta) => sum + (ruta.distanciaKm * 0.1), 0);
 
       const costeTotal = costeCombustible + costeConductor + costeVehiculo + peajes;
-      const beneficio = servicio.precio - costeTotal;
-      const margen = servicio.precio > 0 ? (beneficio / servicio.precio) * 100 : 0;
+      const beneficio = servicio.importe - costeTotal;
+      const margen = servicio.importe > 0 ? (beneficio / servicio.importe) * 100 : 0;
 
       return {
         ...servicio,
@@ -114,7 +114,7 @@ export default function Costes() {
     });
 
   // Estadísticas globales
-  const totalIngresos = serviciosConCostes.reduce((sum, s) => sum + s.precio, 0);
+  const totalIngresos = serviciosConCostes.reduce((sum, s) => sum + s.importe, 0);
   const totalCostes = serviciosConCostes.reduce((sum, s) => sum + s.costes.total, 0);
   const beneficioTotal = totalIngresos - totalCostes;
   const margenMedio = totalIngresos > 0 ? (beneficioTotal / totalIngresos) * 100 : 0;
@@ -130,7 +130,7 @@ export default function Costes() {
   // Datos para gráfico de rentabilidad
   const datosRentabilidad = serviciosConCostes.slice(0, 10).map(s => ({
     nombre: s.codigo,
-    ingresos: s.precio,
+    ingresos: s.importe,
     costes: s.costes.total,
     beneficio: s.beneficio,
   }));
@@ -311,12 +311,12 @@ export default function Costes() {
                     <TableCell>
                       <div>
                         <p className="font-medium">{servicio.codigo}</p>
-                        <p className="text-sm text-slate-500">{servicio.titulo}</p>
+                        <p className="text-sm text-slate-500">{servicio.descripcion}</p>
                       </div>
                     </TableCell>
                     <TableCell>{servicio.clienteNombre}</TableCell>
                     <TableCell className="font-medium text-green-600">
-                      {servicio.precio.toLocaleString('es-ES')}€
+                      {servicio.importe.toLocaleString('es-ES')}€
                     </TableCell>
                     <TableCell className="text-red-600">
                       {servicio.costes.total.toLocaleString('es-ES')}€
@@ -368,7 +368,7 @@ export default function Costes() {
               <DialogHeader>
                 <DialogTitle>Análisis de Costes - {servicioSeleccionado.codigo}</DialogTitle>
                 <DialogDescription>
-                  {servicioSeleccionado.titulo}
+                  {servicioSeleccionado.descripcion}
                 </DialogDescription>
               </DialogHeader>
               
@@ -378,7 +378,7 @@ export default function Costes() {
                   <div className="rounded-lg bg-green-50 p-4 text-center">
                     <p className="text-sm text-green-600">Ingresos</p>
                     <p className="text-2xl font-bold text-green-700">
-                      {servicioSeleccionado.precio.toLocaleString('es-ES')}€
+                      {servicioSeleccionado.importe.toLocaleString('es-ES')}€
                     </p>
                   </div>
                   <div className="rounded-lg bg-red-50 p-4 text-center">
