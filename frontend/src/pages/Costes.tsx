@@ -72,7 +72,7 @@ export default function Costes() {
     .map(servicio => {
       // Calcular costes reales
       const costeCombustible = (servicio.rutas || []).reduce((sum, ruta) => {
-        const vehiculo = vehiculos.find(v => v.id === ruta.vehiculoAsignadoId);
+        const vehiculo = vehiculos.find(v => v.id === Number(ruta.vehiculoAsignadoId));
         if (vehiculo) {
           return sum + (ruta.distanciaKm * (vehiculo.consumoMedio || 0) / 100 * 1.5); // 1.5€/L
         }
