@@ -88,7 +88,7 @@ export default function Costes() {
         return sum;
       }, 0);
 
-      const costeVehiculo = servicio.rutas.reduce((sum, ruta) => {
+      const costeVehiculo = (servicio.rutas || []).reduce((sum, ruta) => {
         // 0.5€/km amortización
         return sum + (ruta.distanciaKm * 0.5);
       }, 0);
