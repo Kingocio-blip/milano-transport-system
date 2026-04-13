@@ -27,6 +27,7 @@ export type EstadoConductor = 'activo' | 'inactivo' | 'en_ruta' | 'descanso' | '
 export type EstadoVehiculo = 'activo' | 'inactivo' | 'en_mantenimiento' | 'en_ruta';
 export type EstadoCliente = 'activo' | 'inactivo' | 'prospecto';
 export type TipoVehiculo = 'camion' | 'furgoneta' | 'trailer';
+export type TipoCliente = 'empresa' | 'particular';  // ← AÑADIR ESTA LÍNEA
 
 // Tipos de Cliente
 export interface Cliente {
