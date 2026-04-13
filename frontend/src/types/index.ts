@@ -147,7 +147,7 @@ export interface Servicio {
   descripcion: string;
   fechaInicio: string;
   fechaFin?: string;
-  estado: 'pendiente' | 'en_progreso' | 'completado' | 'cancelado';
+  estado: 'pendiente' | 'en_progreso' | 'completado' | 'cancelado' | 'facturado'; // ← añade 'facturado'
   importe: number;
   notas: string;
 }
@@ -160,7 +160,7 @@ export interface CreateServicioData {
   fechaFin?: string;
   importe?: number;
   notas?: string;
-  estado?: string;
+  estado?: 'pendiente' | 'en_progreso' | 'completado' | 'cancelado' | 'facturado';
 }
 
 export interface UpdateServicioData {
@@ -169,7 +169,7 @@ export interface UpdateServicioData {
   descripcion?: string;
   fechaInicio?: string;
   fechaFin?: string;
-  estado?: 'pendiente' | 'en_progreso' | 'completado' | 'cancelado';
+  estado?: 'pendiente' | 'en_progreso' | 'completado' | 'cancelado' | 'facturado';
   importe?: number;
   notas?: string;
 }
