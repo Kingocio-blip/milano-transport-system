@@ -150,11 +150,12 @@ export interface Servicio {
   estado: 'pendiente' | 'en_progreso' | 'completado' | 'cancelado' | 'facturado';
   importe: number;
   notas: string;
-  // NUEVO: rutas
   rutas?: {
     vehiculoAsignadoId: string;
     distanciaKm: number;
   }[];
+  // NUEVO: conductoresAsignados
+  conductoresAsignados?: string[];
 }
 
 export interface CreateServicioData {
