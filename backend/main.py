@@ -5,7 +5,6 @@ FastAPI application for Transport Management System
 
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -22,6 +21,13 @@ from schemas import (
     UsuarioCreate, UsuarioResponse, Token, TokenData
 )
 import models
+
+# Login schema simple
+from pydantic import BaseModel
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
 
 # Crear tablas
 Base.metadata.create_all(bind=engine)
@@ -43,7 +49,6 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 # Dependency
 def get_db():
@@ -69,12 +74,17 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+async def get_current_user(authorization: Optional[str] = None, db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
     )
+    if not authorization:
+        raise credentials_exception
+    
+    # Extraer token de "Bearer <token>"
+    token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
+    
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
@@ -93,13 +103,12 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
 # ============================================
 
 @app.post("/auth/login", response_model=Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(models.Usuario).filter(models.Usuario.username == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.hashed_password):
+def login(login_data: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(models.Usuario).filter(models.Usuario.username == login_data.username).first()
+    if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
         )
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
