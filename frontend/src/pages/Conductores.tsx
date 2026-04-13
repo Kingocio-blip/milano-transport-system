@@ -436,7 +436,7 @@ const success = await updateConductor(String(conductorSeleccionado.id), conducto
                               </DropdownMenuItem>
                               <DropdownMenuItem 
                                 className="text-red-600"
-                                onClick={() => handleEliminarConductor(conductor.id)}
+                                onClick={() => handleEliminarConductor(String(conductor.id))}
                               >
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 Eliminar
