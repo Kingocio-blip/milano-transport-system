@@ -245,7 +245,6 @@ export interface Conductor {
   tarifaHora: number;
   activo: boolean;
   notas?: string;
-  // Campos adicionales para el backend
   estado?: EstadoConductor;
   fecha_nacimiento?: string;
   num_licencia?: string;
@@ -259,8 +258,11 @@ export interface Conductor {
     horaInicio: string;
     horaFin: string;
   };
-  // NUEVO: totalHorasMes
   totalHorasMes?: number;
+  // NUEVO: totalServiciosMes
+  totalServiciosMes?: number;
+  // NUEVO: valoracion
+  valoracion?: number;
 }
 
 export interface CreateConductorData {
