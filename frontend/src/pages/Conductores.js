@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store';
 import { 
-  Plus, Search, Edit2, Trash2, Phone, Mail, CreditCard, Key, 
-  Copy, Check, Calendar, Shield, AlertCircle, User, FileText
+  Plus, Search, Edit2, Trash2, Phone, Mail, CreditCard, Shield, Calendar
 } from 'lucide-react';
 import './Conductores.css';
 
@@ -24,10 +23,6 @@ const Conductores = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingConductor, setEditingConductor] = useState(null);
-  const [credentials, setCredentials] = useState(null);
-  const [showCredentials, setShowCredentials] = useState(false);
-  const [copiedUser, setCopiedUser] = useState(false);
-  const [copiedPass, setCopiedPass] = useState(false);
 
   const [formData, setFormData] = useState({
     nombre: '',

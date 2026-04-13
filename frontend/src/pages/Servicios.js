@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store';
-import { Plus, Search, Edit2, Trash2, Calendar, MapPin, User, Bus, FileText } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Calendar, MapPin, User, Bus } from 'lucide-react';
 import './Servicios.css';
 
 const API_URL = 'https://milano-backend.onrender.com';
