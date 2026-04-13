@@ -71,6 +71,7 @@ export const useAuthStore = create<AuthState>()(
 
         const data: AuthResponse = await response.json();
         
+        localStorage.setItem('milano_token', data.access_token);
         set({
           user: convertUserFromBackend(data.user),
           token: data.access_token,
@@ -79,6 +80,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
+        localStorage.removeItem('milano_token');
         set({ user: null, token: null, isAuthenticated: false });
       },
 
