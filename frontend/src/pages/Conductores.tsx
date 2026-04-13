@@ -65,6 +65,8 @@ const estadoConductorColors: Record<EstadoConductor, string> = {
   baja: 'bg-red-100 text-red-700',
   vacaciones: 'bg-blue-100 text-blue-700',
   descanso: 'bg-amber-100 text-amber-700',
+  inactivo: 'bg-gray-100 text-gray-700',
+  en_ruta: 'bg-purple-100 text-purple-700',
 };
 
 export default function Conductores() {
