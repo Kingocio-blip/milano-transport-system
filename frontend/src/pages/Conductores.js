@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import './Conductores.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_URL = 'https://milano-backend.onrender.com';
 
 // Tipos de carnet válidos
 const TIPOS_CARNET = [

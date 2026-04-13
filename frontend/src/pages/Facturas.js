@@ -3,7 +3,7 @@ import { useAuthStore } from '../store';
 import { Plus, Search, Edit2, Trash2, Calendar, Download } from 'lucide-react';
 import './Facturas.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_URL = 'https://milano-backend.onrender.com';
 
 const Facturas = () => {
   const { token } = useAuthStore();

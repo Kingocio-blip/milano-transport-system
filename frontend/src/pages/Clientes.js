@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import './Clientes.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_URL = 'https://milano-backend.onrender.com';
 
 const Clientes = () => {
   const { token } = useAuthStore();

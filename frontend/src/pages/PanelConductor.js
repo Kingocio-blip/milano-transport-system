@@ -3,7 +3,7 @@ import { useAuthStore } from '../store';
 import { Calendar, MapPin, CheckCircle, User, Bus } from 'lucide-react';
 import './PanelConductor.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_URL = 'https://milano-backend.onrender.com';
 
 const PanelConductor = () => {
   const { token, user } = useAuthStore();
