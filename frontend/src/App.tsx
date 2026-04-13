@@ -1,122 +1,94 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useAuthStore } from './store';
-import Login from './pages/Login';
-import Layout from './components/Layout';
+// ============================================
+// MILANO - Sistema de Gestión de Transporte
+// Main App Component (Con API Backend)
+// ============================================
+
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Layout } from './components/Layout';
+import { useUsuarioStore } from './store';
+
+// Pages
 import Dashboard from './pages/Dashboard';
 import CRM from './pages/CRM';
-import Conductores from './pages/Conductores';
-import Vehiculos from './pages/Vehiculos';
 import Servicios from './pages/Servicios';
-import Facturas from './pages/Facturas';
+import Flota from './pages/Flota';
+import Rutas from './pages/Rutas';
+import Conductores from './pages/Conductores';
+import Facturacion from './pages/Facturacion';
+import Costes from './pages/Costes';
+import Documentacion from './pages/Documentacion';
+import Configuracion from './pages/Configuracion';
+import Login from './pages/Login';
 import PanelConductor from './pages/PanelConductor';
-import './App.css';
 
-// Componente para proteger rutas de admin
-const AdminRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated, user } = useAuthStore();
-  
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-  
-  if (user?.rol === 'conductor') {
-    return <Navigate to="/conductor/mis-servicios" replace />;
-  }
-  
-  return <Layout>{children}</Layout>;
-};
-
-// Componente para proteger rutas de conductor
-const ConductorRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated } = useAuthStore();
+// Componente para proteger rutas
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useUsuarioStore();
   
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
   
   return <>{children}</>;
-};
+}
+
+// Componente para redirigir si ya está autenticado
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useUsuarioStore();
+  
+  if (isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
+  
+  return <>{children}</>;
+}
 
 function App() {
-  const { isAuthenticated, user } = useAuthStore();
-
   return (
-    <Router>
+    <BrowserRouter>
       <Routes>
-        <Route path="/login" element={
-          isAuthenticated ? (
-            user?.rol === 'conductor' ? (
-              <Navigate to="/conductor/mis-servicios" replace />
-            ) : (
-              <Navigate to="/dashboard" replace />
-            )
-          ) : (
-            <Login />
-          )
-        } />
+        {/* Ruta pública - Login */}
+        <Route 
+          path="/login" 
+          element={
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          } 
+        />
         
-        {/* Rutas de Admin */}
-        <Route path="/dashboard" element={
-          <AdminRoute>
-            <Dashboard />
-          </AdminRoute>
-        } />
+        {/* Ruta pública - Panel Conductor */}
+        <Route 
+          path="/panel-conductor" 
+          element={<PanelConductor />} 
+        />
         
-        <Route path="/clientes" element={
-          <AdminRoute>
-            <CRM />
-          </AdminRoute>
-        } />
-        
-        <Route path="/conductores" element={
-          <AdminRoute>
-            <Conductores />
-          </AdminRoute>
-        } />
-        
-        <Route path="/vehiculos" element={
-          <AdminRoute>
-            <Vehiculos />
-          </AdminRoute>
-        } />
-        
-        <Route path="/servicios" element={
-          <AdminRoute>
-            <Servicios />
-          </AdminRoute>
-        } />
-        
-        <Route path="/facturas" element={
-          <AdminRoute>
-            <Facturas />
-          </AdminRoute>
-        } />
-        
-        {/* Ruta de Conductor */}
-        <Route path="/conductor/mis-servicios" element={
-          <ConductorRoute>
-            <PanelConductor />
-          </ConductorRoute>
-        } />
+        {/* Rutas protegidas con Layout */}
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Dashboard />} />
+          <Route path="clientes" element={<CRM />} />
+          <Route path="servicios" element={<Servicios />} />
+          <Route path="flota" element={<Flota />} />
+          <Route path="rutas" element={<Rutas />} />
+          <Route path="conductores" element={<Conductores />} />
+          <Route path="facturacion" element={<Facturacion />} />
+          <Route path="costes" element={<Costes />} />
+          <Route path="documentacion" element={<Documentacion />} />
+          <Route path="configuracion" element={<Configuracion />} />
+        </Route>
         
         {/* Redirección por defecto */}
-        <Route path="/" element={
-          isAuthenticated ? (
-            user?.rol === 'conductor' ? (
-              <Navigate to="/conductor/mis-servicios" replace />
-            ) : (
-              <Navigate to="/dashboard" replace />
-            )
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        } />
-        
-        {/* Ruta 404 */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </Router>
+    </BrowserRouter>
   );
 }
 
