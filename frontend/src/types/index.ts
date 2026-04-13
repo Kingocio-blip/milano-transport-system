@@ -22,6 +22,12 @@ export interface AuthResponse {
   user: User;
 }
 
+// Tipos de Estado
+export type EstadoConductor = 'activo' | 'inactivo' | 'en_ruta' | 'descanso';
+export type EstadoVehiculo = 'activo' | 'inactivo' | 'en_mantenimiento' | 'en_ruta';
+export type EstadoCliente = 'activo' | 'inactivo' | 'prospecto';
+export type TipoVehiculo = 'camion' | 'furgoneta' | 'trailer';
+
 // Tipos de Cliente
 export interface Cliente {
   id: number;
@@ -42,6 +48,18 @@ export interface Cliente {
   totalServicios?: number;
   totalFacturado?: number;
   ultimoServicio?: string;
+  // Campos adicionales para el backend
+  tipo?: 'empresa' | 'particular';
+  razon_social?: string;
+  nif_cif?: string;
+  pais?: string;
+  estado?: EstadoCliente;
+  condiciones_pago?: string;
+  limite_credito?: number;
+  persona_contacto_nombre?: string;
+  persona_contacto_email?: string;
+  persona_contacto_telefono?: string;
+  persona_contacto_cargo?: string;
 }
 
 export interface Contacto {
@@ -72,6 +90,19 @@ export interface CreateClienteData {
     telefono?: string;
     cargo?: string;
   };
+  // Campos snake_case para el backend
+  codigo?: string;
+  tipo?: 'empresa' | 'particular';
+  razon_social?: string;
+  nif_cif?: string;
+  pais?: string;
+  estado?: EstadoCliente;
+  condiciones_pago?: string;
+  limite_credito?: number;
+  persona_contacto_nombre?: string;
+  persona_contacto_email?: string;
+  persona_contacto_telefono?: string;
+  persona_contacto_cargo?: string;
 }
 
 export interface UpdateClienteData {
@@ -92,6 +123,18 @@ export interface UpdateClienteData {
     telefono?: string;
     cargo?: string;
   };
+  // Campos snake_case para el backend
+  tipo?: 'empresa' | 'particular';
+  razon_social?: string;
+  nif_cif?: string;
+  pais?: string;
+  estado?: EstadoCliente;
+  condiciones_pago?: string;
+  limite_credito?: number;
+  persona_contacto_nombre?: string;
+  persona_contacto_email?: string;
+  persona_contacto_telefono?: string;
+  persona_contacto_cargo?: string;
 }
 
 // Tipos de Servicio
@@ -202,6 +245,15 @@ export interface Conductor {
   tarifaHora: number;
   activo: boolean;
   notas?: string;
+  // Campos adicionales para el backend
+  estado?: EstadoConductor;
+  fecha_nacimiento?: string;
+  num_licencia?: string;
+  categoria_licencia?: string;
+  fecha_vencimiento_licencia?: string;
+  fecha_vencimiento_adr?: string;
+  fecha_vencimiento_medico?: string;
+  fecha_contratacion?: string;
 }
 
 export interface CreateConductorData {
@@ -224,6 +276,16 @@ export interface CreateConductorData {
   tarifaHora?: number;
   activo?: boolean;
   notas?: string;
+  // Campos snake_case para el backend
+  codigo?: string;
+  estado?: EstadoConductor;
+  fecha_nacimiento?: string;
+  num_licencia?: string;
+  categoria_licencia?: string;
+  fecha_vencimiento_licencia?: string;
+  fecha_vencimiento_adr?: string;
+  fecha_vencimiento_medico?: string;
+  fecha_contratacion?: string;
 }
 
 export interface UpdateConductorData {
@@ -246,6 +308,15 @@ export interface UpdateConductorData {
   tarifaHora?: number;
   activo?: boolean;
   notas?: string;
+  // Campos snake_case para el backend
+  estado?: EstadoConductor;
+  fecha_nacimiento?: string;
+  num_licencia?: string;
+  categoria_licencia?: string;
+  fecha_vencimiento_licencia?: string;
+  fecha_vencimiento_adr?: string;
+  fecha_vencimiento_medico?: string;
+  fecha_contratacion?: string;
 }
 
 // Tipos de Vehiculo
@@ -272,6 +343,16 @@ export interface Vehiculo {
   imagenUrl?: string;
   fechaAlta: string;
   notas?: string;
+  // Campos adicionales para el backend
+  tipo_vehiculo?: TipoVehiculo;
+  estado_vehiculo?: EstadoVehiculo;
+  capacidad_kg?: number;
+  volumen_m3?: number;
+  longitud_m?: number;
+  fecha_vencimiento_itv?: string;
+  fecha_vencimiento_seguro?: string;
+  num_poliza_seguro?: string;
+  fecha_adquisicion?: string;
 }
 
 export interface CreateVehiculoData {
@@ -294,6 +375,17 @@ export interface CreateVehiculoData {
   };
   imagenUrl?: string;
   notas?: string;
+  // Campos snake_case para el backend
+  codigo?: string;
+  tipo_vehiculo?: TipoVehiculo;
+  estado_vehiculo?: EstadoVehiculo;
+  capacidad_kg?: number;
+  volumen_m3?: number;
+  longitud_m?: number;
+  fecha_vencimiento_itv?: string;
+  fecha_vencimiento_seguro?: string;
+  num_poliza_seguro?: string;
+  fecha_adquisicion?: string;
 }
 
 export interface UpdateVehiculoData {
@@ -316,6 +408,16 @@ export interface UpdateVehiculoData {
   };
   imagenUrl?: string;
   notas?: string;
+  // Campos snake_case para el backend
+  tipo_vehiculo?: TipoVehiculo;
+  estado_vehiculo?: EstadoVehiculo;
+  capacidad_kg?: number;
+  volumen_m3?: number;
+  longitud_m?: number;
+  fecha_vencimiento_itv?: string;
+  fecha_vencimiento_seguro?: string;
+  num_poliza_seguro?: string;
+  fecha_adquisicion?: string;
 }
 
 // Tipos de API
