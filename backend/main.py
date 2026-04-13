@@ -1,912 +1,743 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Query
+"""
+MILANO - Backend API
+FastAPI application for Transport Management System
+"""
+
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from typing import List, Optional
 from datetime import datetime, timedelta
-from typing import Optional, List
-import jwt
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 import os
 
+from database import SessionLocal, engine, Base
+from schemas import (
+    ClienteCreate, ClienteResponse, ClienteUpdate,
+    ConductorCreate, ConductorResponse, ConductorUpdate,
+    VehiculoCreate, VehiculoResponse, VehiculoUpdate,
+    ServicioCreate, ServicioResponse, ServicioUpdate,
+    UsuarioCreate, UsuarioResponse, Token, TokenData
+)
 import models
-import schemas
-from models import get_db, init_db, SessionLocal
 
-# JWT Configuration
-SECRET_KEY = os.getenv("SECRET_KEY", "milano-secret-key-2024")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_DAYS = 7
+# Crear tablas
+Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="MILANO Transport API", version="2.0.0")
+app = FastAPI(title="MILANO API", version="2.0.0")
 
-# CORS Configuration
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # En producción, especificar dominios
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-security = HTTPBearer()
+# Security
+SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-# ==================== AUTH FUNCTIONS ====================
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS))
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    token = credentials.credentials
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expirado")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Token inválido")
-
-def get_current_user(payload: dict = Depends(verify_token), db: Session = Depends(get_db)):
-    username = payload.get("sub")
-    user = db.query(models.Usuario).filter(models.Usuario.username == username).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    return user
-
-def require_admin(current_user: models.Usuario = Depends(get_current_user)):
-    if current_user.rol != "admin":
-        raise HTTPException(status_code=403, detail="Se requiere rol de administrador")
-    return current_user
-
-# ==================== DEFAULT ADMIN ====================
-
-def create_default_admin():
-    """Crea usuario admin por defecto si no existe ninguno"""
+# Dependency
+def get_db():
     db = SessionLocal()
     try:
-        existing = db.query(models.Usuario).first()
-        if not existing:
-            admin = models.Usuario(
-                username="admin",
-                password="admin123",
-                nombre="Administrador",
-                rol="admin",
-                activo=True
-            )
-            db.add(admin)
-            db.commit()
-            print("=" * 50)
-            print("✅ ADMIN CREADO AUTOMÁTICAMENTE")
-            print("=" * 50)
-            print("Usuario: admin")
-            print("Contraseña: admin123")
-            print("=" * 50)
-        else:
-            print("✅ Usuarios ya existen en la base de datos")
-    except Exception as e:
-        print(f"⚠️ Error creando admin: {e}")
+        yield db
     finally:
         db.close()
 
-# ==================== AUTH ENDPOINTS ====================
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
 
-@app.post("/auth/login", response_model=schemas.LoginResponse)
-def login(credentials: schemas.LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(models.Usuario).filter(
-        models.Usuario.username == credentials.username
-    ).first()
-    
-    if not user or user.password != credentials.password:
-        raise HTTPException(status_code=401, detail="Credenciales incorrectas")
-    
-    if not user.activo:
-        raise HTTPException(status_code=403, detail="Usuario desactivado")
-    
-    user.ultimo_acceso = datetime.utcnow()
-    db.commit()
-    
-    token = create_access_token({"sub": user.username, "rol": user.rol})
-    
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "user": user
-    }
+def get_password_hash(password):
+    return pwd_context.hash(password)
 
-@app.get("/auth/me", response_model=schemas.UsuarioResponse)
-def get_me(current_user: models.Usuario = Depends(get_current_user)):
-    return current_user
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
-# ==================== USUARIOS ====================
+async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+        token_data = TokenData(username=username)
+    except JWTError:
+        raise credentials_exception
+    user = db.query(models.Usuario).filter(models.Usuario.username == token_data.username).first()
+    if user is None:
+        raise credentials_exception
+    return user
 
-@app.get("/usuarios/", response_model=List[schemas.UsuarioResponse])
-def get_usuarios(
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(require_admin)
-):
-    return db.query(models.Usuario).all()
+# ============================================
+# AUTH ENDPOINTS
+# ============================================
 
-@app.post("/usuarios/", response_model=schemas.UsuarioResponse)
-def create_usuario(
-    usuario: schemas.UsuarioCreate,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(require_admin)
-):
-    if db.query(models.Usuario).filter(models.Usuario.username == usuario.username).first():
-        raise HTTPException(status_code=400, detail="Username ya existe")
-    
-    db_usuario = models.Usuario(**usuario.dict())
-    db.add(db_usuario)
-    db.commit()
-    db.refresh(db_usuario)
-    return db_usuario
-
-@app.put("/usuarios/{usuario_id}", response_model=schemas.UsuarioResponse)
-def update_usuario(
-    usuario_id: int,
-    usuario: schemas.UsuarioCreate,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(require_admin)
-):
-    db_usuario = db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
-    if not db_usuario:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    
-    for key, value in usuario.dict().items():
-        setattr(db_usuario, key, value)
-    
-    db.commit()
-    db.refresh(db_usuario)
-    return db_usuario
-
-@app.delete("/usuarios/{usuario_id}")
-def delete_usuario(
-    usuario_id: int,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(require_admin)
-):
-    db_usuario = db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
-    if not db_usuario:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    
-    db.delete(db_usuario)
-    db.commit()
-    return {"message": "Usuario eliminado"}
-
-# ==================== CONDUCTORES ====================
-
-def generar_codigo_conductor(db: Session):
-    """Genera código tipo CON-001, CON-002..."""
-    ultimo = db.query(models.Conductor).order_by(models.Conductor.id.desc()).first()
-    numero = ultimo.id + 1 if ultimo else 1
-    return f"CON-{numero:03d}"
-
-@app.get("/conductores/", response_model=List[schemas.ConductorResponse])
-def get_conductores(
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user),
-    estado: Optional[str] = None,
-    buscar: Optional[str] = None
-):
-    query = db.query(models.Conductor)
-    
-    if estado:
-        query = query.filter(models.Conductor.estado == estado)
-    
-    if buscar:
-        search = f"%{buscar}%"
-        query = query.filter(
-            (models.Conductor.nombre.ilike(search)) |
-            (models.Conductor.apellidos.ilike(search)) |
-            (models.Conductor.dni.ilike(search)) |
-            (models.Conductor.telefono.ilike(search))
+@app.post("/auth/login", response_model=Token)
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(models.Usuario).filter(models.Usuario.username == form_data.username).first()
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-    
-    return query.order_by(models.Conductor.apellidos).all()
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
 
-@app.get("/conductores/{conductor_id}", response_model=schemas.ConductorResponse)
-def get_conductor(
-    conductor_id: int,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user)
-):
-    conductor = db.query(models.Conductor).filter(models.Conductor.id == conductor_id).first()
-    if not conductor:
-        raise HTTPException(status_code=404, detail="Conductor no encontrado")
-    return conductor
+# ============================================
+# CLIENTES ENDPOINTS
+# ============================================
 
-@app.post("/conductores/", response_model=schemas.ConductorResponse)
-def create_conductor(
-    conductor: schemas.ConductorCreate,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(require_admin)
-):
-    if conductor.dni and db.query(models.Conductor).filter(models.Conductor.dni == conductor.dni).first():
-        raise HTTPException(status_code=400, detail="DNI ya registrado")
-    
-    db_conductor = models.Conductor(**conductor.dict())
-    db.add(db_conductor)
-    db.commit()
-    db.refresh(db_conductor)
-    
-    db_conductor.codigo = generar_codigo_conductor(db)
-    db.commit()
-    db.refresh(db_conductor)
-    
-    return db_conductor
-
-@app.put("/conductores/{conductor_id}", response_model=schemas.ConductorResponse)
-def update_conductor(
-    conductor_id: int,
-    conductor: schemas.ConductorUpdate,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(require_admin)
-):
-    db_conductor = db.query(models.Conductor).filter(models.Conductor.id == conductor_id).first()
-    if not db_conductor:
-        raise HTTPException(status_code=404, detail="Conductor no encontrado")
-    
-    update_data = conductor.dict(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(db_conductor, key, value)
-    
-    db.commit()
-    db.refresh(db_conductor)
-    return db_conductor
-
-@app.delete("/conductores/{conductor_id}")
-def delete_conductor(
-    conductor_id: int,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(require_admin)
-):
-    db_conductor = db.query(models.Conductor).filter(models.Conductor.id == conductor_id).first()
-    if not db_conductor:
-        raise HTTPException(status_code=404, detail="Conductor no encontrado")
-    
-    db.delete(db_conductor)
-    db.commit()
-    return {"message": "Conductor eliminado"}
-
-# ==================== VEHICULOS ====================
-
-@app.get("/vehiculos/", response_model=List[schemas.VehiculoResponse])
-def get_vehiculos(
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user),
-    estado: Optional[str] = None,
-    buscar: Optional[str] = None
-):
-    query = db.query(models.Vehiculo)
-    
-    if estado:
-        query = query.filter(models.Vehiculo.estado == estado)
-    
-    if buscar:
-        search = f"%{buscar}%"
-        query = query.filter(
-            (models.Vehiculo.matricula.ilike(search)) |
-            (models.Vehiculo.marca.ilike(search)) |
-            (models.Vehiculo.modelo.ilike(search))
-        )
-    
-    return query.order_by(models.Vehiculo.matricula).all()
-
-@app.get("/vehiculos/{vehiculo_id}", response_model=schemas.VehiculoResponse)
-def get_vehiculo(
-    vehiculo_id: int,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user)
-):
-    vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
-    if not vehiculo:
-        raise HTTPException(status_code=404, detail="Vehículo no encontrado")
-    return vehiculo
-
-@app.post("/vehiculos/", response_model=schemas.VehiculoResponse)
-def create_vehiculo(
-    vehiculo: schemas.VehiculoCreate,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(require_admin)
-):
-    if db.query(models.Vehiculo).filter(models.Vehiculo.matricula == vehiculo.matricula).first():
-        raise HTTPException(status_code=400, detail="Matrícula ya registrada")
-    
-    db_vehiculo = models.Vehiculo(**vehiculo.dict())
-    db.add(db_vehiculo)
-    db.commit()
-    db.refresh(db_vehiculo)
-    return db_vehiculo
-
-@app.put("/vehiculos/{vehiculo_id}", response_model=schemas.VehiculoResponse)
-def update_vehiculo(
-    vehiculo_id: int,
-    vehiculo: schemas.VehiculoUpdate,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(require_admin)
-):
-    db_vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
-    if not db_vehiculo:
-        raise HTTPException(status_code=404, detail="Vehículo no encontrado")
-    
-    update_data = vehiculo.dict(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(db_vehiculo, key, value)
-    
-    db.commit()
-    db.refresh(db_vehiculo)
-    return db_vehiculo
-
-@app.delete("/vehiculos/{vehiculo_id}")
-def delete_vehiculo(
-    vehiculo_id: int,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(require_admin)
-):
-    db_vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
-    if not db_vehiculo:
-        raise HTTPException(status_code=404, detail="Vehículo no encontrado")
-    
-    db.delete(db_vehiculo)
-    db.commit()
-    return {"message": "Vehículo eliminado"}
-
-# ==================== CLIENTES ====================
-
-def generar_codigo_cliente(db: Session):
-    """Genera código tipo CLI-001, CLI-002..."""
-    ultimo = db.query(models.Cliente).order_by(models.Cliente.id.desc()).first()
-    numero = ultimo.id + 1 if ultimo else 1
-    return f"CLI-{numero:03d}"
-
-def cliente_to_dict(cliente: models.Cliente) -> dict:
-    """Convierte un cliente a diccionario con estructura de contacto anidada"""
-    return {
-        "id": cliente.id,
-        "codigo": cliente.codigo,
-        "nombre": cliente.nombre,
-        "tipo": cliente.tipo,
-        "nif": cliente.nif,
-        "condiciones_especiales": cliente.condiciones_especiales,
-        "forma_pago": cliente.forma_pago,
-        "dias_pago": cliente.dias_pago,
-        "estado": cliente.estado,
-        "notas": cliente.notas,
-        "fecha_alta": cliente.fecha_alta.isoformat() if cliente.fecha_alta else None,
-        "contacto": {
-            "email": cliente.contacto_email or '',
-            "telefono": cliente.contacto_telefono or '',
-            "direccion": cliente.contacto_direccion or '',
-            "ciudad": cliente.contacto_ciudad or '',
-            "codigoPostal": cliente.contacto_codigo_postal or ''
-        },
-        # Campos individuales para compatibilidad
-        "contacto_email": cliente.contacto_email,
-        "contacto_telefono": cliente.contacto_telefono,
-        "contacto_direccion": cliente.contacto_direccion,
-        "contacto_ciudad": cliente.contacto_ciudad,
-        "contacto_codigo_postal": cliente.contacto_codigo_postal
-    }
-
-@app.get("/clientes/", response_model=List[dict])
+@app.get("/clientes", response_model=List[ClienteResponse])
 def get_clientes(
+    skip: int = 0, 
+    limit: int = 100, 
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user),
-    buscar: Optional[str] = None,
-    tipo: Optional[str] = None
+    current_user: models.Usuario = Depends(get_current_user)
 ):
-    query = db.query(models.Cliente)
-    
-    if tipo:
-        query = query.filter(models.Cliente.tipo == tipo)
-    
-    if buscar:
-        search = f"%{buscar}%"
-        query = query.filter(
-            (models.Cliente.nombre.ilike(search)) |
-            (models.Cliente.codigo.ilike(search)) |
-            (models.Cliente.nif.ilike(search)) |
-            (models.Cliente.contacto_email.ilike(search)) |
-            (models.Cliente.contacto_telefono.ilike(search))
-        )
-    
-    clientes = query.order_by(models.Cliente.nombre).all()
-    resultado = []
-    for cliente in clientes:
-        servicios = db.query(models.Servicio).filter(models.Servicio.cliente_id == cliente.id).all()
-        facturas = db.query(models.Factura).filter(
-            models.Factura.cliente_id == cliente.id,
-            models.Factura.estado == "pagada"
-        ).all()
-        
-        total_servicios = len(servicios)
-        total_facturado = sum(f.total for f in facturas)
-        ultimo_servicio = max((s.fecha_inicio for s in servicios if s.fecha_inicio), default=None)
-        
-        cliente_dict = cliente_to_dict(cliente)
-        cliente_dict.update({
-            "total_servicios": total_servicios,
-            "total_facturado": total_facturado or 0,
-            "ultimo_servicio": ultimo_servicio.isoformat() if ultimo_servicio else None
-        })
-        resultado.append(cliente_dict)
-    
-    return resultado
+    clientes = db.query(models.Cliente).offset(skip).limit(limit).all()
+    return clientes
 
-@app.get("/clientes/{cliente_id}")
+@app.get("/clientes/{cliente_id}", response_model=ClienteResponse)
 def get_cliente(
-    cliente_id: int,
+    cliente_id: int, 
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
     cliente = db.query(models.Cliente).filter(models.Cliente.id == cliente_id).first()
-    if not cliente:
-        raise HTTPException(status_code=404, detail="Cliente no encontrado")
-    
-    servicios = db.query(models.Servicio).filter(models.Servicio.cliente_id == cliente_id).all()
-    facturas = db.query(models.Factura).filter(
-        models.Factura.cliente_id == cliente_id,
-        models.Factura.estado == "pagada"
-    ).all()
-    
-    total_servicios = len(servicios)
-    total_facturado = sum(f.total for f in facturas)
-    ultimo_servicio = max((s.fecha_inicio for s in servicios if s.fecha_inicio), default=None)
-    
-    result = cliente_to_dict(cliente)
-    result.update({
-        "total_servicios": total_servicios,
-        "total_facturado": total_facturado or 0,
-        "ultimo_servicio": ultimo_servicio.isoformat() if ultimo_servicio else None
-    })
-    return result
+    if cliente is None:
+        raise HTTPException(status_code=404, detail="Cliente not found")
+    return cliente
 
-@app.post("/clientes/")
+@app.post("/clientes", response_model=ClienteResponse)
 def create_cliente(
     cliente_data: dict,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    # Extraer contacto del objeto anidado
+    # Extraer contacto del objeto anidado (para compatibilidad)
     contacto = cliente_data.get("contacto", {}) if cliente_data.get("contacto") else {}
     
-    # Verificar NIF único si se proporciona
-    nif = cliente_data.get("nif")
-    if nif and db.query(models.Cliente).filter(models.Cliente.nif == nif).first():
-        raise HTTPException(status_code=400, detail="NIF ya registrado")
+    # Extraer NIF
+    nif = cliente_data.get("nif", "")
     
     db_cliente = models.Cliente(
         nombre=cliente_data.get("nombre", ""),
         tipo=cliente_data.get("tipo", "particular"),
         nif=nif if nif else None,
-        condiciones_especiales=cliente_data.get("condiciones_especiales") if cliente_data.get("condiciones_especiales") else None,
-        forma_pago=cliente_data.get("forma_pago") if cliente_data.get("forma_pago") else None,
+        
+        # Contacto de la empresa (desde objeto contacto o campos planos)
+        contacto_email=contacto.get("email") if contacto.get("email") else cliente_data.get("contacto_email"),
+        contacto_telefono=contacto.get("telefono") if contacto.get("telefono") else cliente_data.get("contacto_telefono"),
+        contacto_direccion=contacto.get("direccion") if contacto.get("direccion") else cliente_data.get("contacto_direccion"),
+        contacto_ciudad=contacto.get("ciudad") if contacto.get("ciudad") else cliente_data.get("contacto_ciudad"),
+        contacto_codigo_postal=contacto.get("codigoPostal") if contacto.get("codigoPostal") else cliente_data.get("contacto_codigo_postal"),
+        
+        # Persona de contacto principal (NUEVO - campos planos)
+        persona_contacto_nombre=cliente_data.get("persona_contacto_nombre") if cliente_data.get("persona_contacto_nombre") else None,
+        persona_contacto_email=cliente_data.get("persona_contacto_email") if cliente_data.get("persona_contacto_email") else None,
+        persona_contacto_telefono=cliente_data.get("persona_contacto_telefono") if cliente_data.get("persona_contacto_telefono") else None,
+        persona_contacto_cargo=cliente_data.get("persona_contacto_cargo") if cliente_data.get("persona_contacto_cargo") else None,
+        
+        # Información adicional
+        web=cliente_data.get("web") if cliente_data.get("web") else None,
+        observaciones=cliente_data.get("observaciones") if cliente_data.get("observaciones") else None,
+        forma_pago=cliente_data.get("forma_pago", "transferencia"),
         dias_pago=cliente_data.get("dias_pago", 30),
+        condiciones_especiales=cliente_data.get("condiciones_especiales") if cliente_data.get("condiciones_especiales") else None,
+        
         estado=cliente_data.get("estado", "activo"),
-        notas=cliente_data.get("notas") if cliente_data.get("notas") else None,
-        contacto_email=contacto.get("email") if contacto.get("email") else None,
-        contacto_telefono=contacto.get("telefono") if contacto.get("telefono") else None,
-        contacto_direccion=contacto.get("direccion") if contacto.get("direccion") else None,
-        contacto_ciudad=contacto.get("ciudad") if contacto.get("ciudad") else None,
-        contacto_codigo_postal=contacto.get("codigoPostal") if contacto.get("codigoPostal") else None
+        fecha_alta=datetime.utcnow(),
+        creado_por=current_user.id
     )
     
     db.add(db_cliente)
     db.commit()
     db.refresh(db_cliente)
-    
-    # Generar código
-    db_cliente.codigo = generar_codigo_cliente(db)
-    db.commit()
-    db.refresh(db_cliente)
-    
-    # Calcular estadísticas (para devolver igual que en get)
-    servicios = db.query(models.Servicio).filter(models.Servicio.cliente_id == db_cliente.id).all()
-    facturas = db.query(models.Factura).filter(
-        models.Factura.cliente_id == db_cliente.id,
-        models.Factura.estado == "pagada"
-    ).all()
-    
-    total_servicios = len(servicios)
-    total_facturado = sum(f.total for f in facturas)
-    ultimo_servicio = max((s.fecha_inicio for s in servicios if s.fecha_inicio), default=None)
-    
-    result = cliente_to_dict(db_cliente)
-    result.update({
-        "total_servicios": total_servicios,
-        "total_facturado": total_facturado or 0,
-        "ultimo_servicio": ultimo_servicio.isoformat() if ultimo_servicio else None
-    })
-    return result
+    return db_cliente
 
-@app.put("/clientes/{cliente_id}")
+@app.put("/clientes/{cliente_id}", response_model=ClienteResponse)
 def update_cliente(
     cliente_id: int,
     cliente_data: dict,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    db_cliente = db.query(models.Cliente).filter(models.Cliente.id == cliente_id).first()
-    if not db_cliente:
-        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    cliente = db.query(models.Cliente).filter(models.Cliente.id == cliente_id).first()
+    if cliente is None:
+        raise HTTPException(status_code=404, detail="Cliente not found")
     
-    # Extraer contacto del objeto anidado
+    # Extraer contacto del objeto anidado (para compatibilidad)
     contacto = cliente_data.get("contacto", {}) if cliente_data.get("contacto") else {}
     
-    # Actualizar campos simples
+    # Actualizar campos si existen en los datos
     if "nombre" in cliente_data:
-        db_cliente.nombre = cliente_data["nombre"]
+        cliente.nombre = cliente_data["nombre"]
     if "tipo" in cliente_data:
-        db_cliente.tipo = cliente_data["tipo"]
+        cliente.tipo = cliente_data["tipo"]
     if "nif" in cliente_data:
-        db_cliente.nif = cliente_data["nif"] if cliente_data["nif"] else None
-    if "condiciones_especiales" in cliente_data:
-        db_cliente.condiciones_especiales = cliente_data["condiciones_especiales"] if cliente_data["condiciones_especiales"] else None
-    if "forma_pago" in cliente_data:
-        db_cliente.forma_pago = cliente_data["forma_pago"] if cliente_data["forma_pago"] else None
-    if "dias_pago" in cliente_data:
-        db_cliente.dias_pago = cliente_data["dias_pago"]
-    if "estado" in cliente_data:
-        db_cliente.estado = cliente_data["estado"]
-    if "notas" in cliente_data:
-        db_cliente.notas = cliente_data["notas"] if cliente_data["notas"] else None
+        cliente.nif = cliente_data["nif"] if cliente_data["nif"] else None
     
-    # Actualizar campos de contacto
-    if "email" in contacto:
-        db_cliente.contacto_email = contacto["email"] if contacto["email"] else None
-    if "telefono" in contacto:
-        db_cliente.contacto_telefono = contacto["telefono"] if contacto["telefono"] else None
-    if "direccion" in contacto:
-        db_cliente.contacto_direccion = contacto["direccion"] if contacto["direccion"] else None
-    if "ciudad" in contacto:
-        db_cliente.contacto_ciudad = contacto["ciudad"] if contacto["ciudad"] else None
-    if "codigoPostal" in contacto:
-        db_cliente.contacto_codigo_postal = contacto["codigoPostal"] if contacto["codigoPostal"] else None
+    # Contacto de la empresa
+    if "contacto_email" in cliente_data or contacto.get("email"):
+        cliente.contacto_email = contacto.get("email") if contacto.get("email") else cliente_data.get("contacto_email")
+    if "contacto_telefono" in cliente_data or contacto.get("telefono"):
+        cliente.contacto_telefono = contacto.get("telefono") if contacto.get("telefono") else cliente_data.get("contacto_telefono")
+    if "contacto_direccion" in cliente_data or contacto.get("direccion"):
+        cliente.contacto_direccion = contacto.get("direccion") if contacto.get("direccion") else cliente_data.get("contacto_direccion")
+    if "contacto_ciudad" in cliente_data or contacto.get("ciudad"):
+        cliente.contacto_ciudad = contacto.get("ciudad") if contacto.get("ciudad") else cliente_data.get("contacto_ciudad")
+    if "contacto_codigo_postal" in cliente_data or contacto.get("codigoPostal"):
+        cliente.contacto_codigo_postal = contacto.get("codigoPostal") if contacto.get("codigoPostal") else cliente_data.get("contacto_codigo_postal")
+    
+    # Persona de contacto principal (NUEVO)
+    if "persona_contacto_nombre" in cliente_data:
+        cliente.persona_contacto_nombre = cliente_data["persona_contacto_nombre"] if cliente_data["persona_contacto_nombre"] else None
+    if "persona_contacto_email" in cliente_data:
+        cliente.persona_contacto_email = cliente_data["persona_contacto_email"] if cliente_data["persona_contacto_email"] else None
+    if "persona_contacto_telefono" in cliente_data:
+        cliente.persona_contacto_telefono = cliente_data["persona_contacto_telefono"] if cliente_data["persona_contacto_telefono"] else None
+    if "persona_contacto_cargo" in cliente_data:
+        cliente.persona_contacto_cargo = cliente_data["persona_contacto_cargo"] if cliente_data["persona_contacto_cargo"] else None
+    
+    # Información adicional
+    if "web" in cliente_data:
+        cliente.web = cliente_data["web"] if cliente_data["web"] else None
+    if "observaciones" in cliente_data:
+        cliente.observaciones = cliente_data["observaciones"] if cliente_data["observaciones"] else None
+    if "forma_pago" in cliente_data:
+        cliente.forma_pago = cliente_data["forma_pago"]
+    if "dias_pago" in cliente_data:
+        cliente.dias_pago = cliente_data["dias_pago"]
+    if "condiciones_especiales" in cliente_data:
+        cliente.condiciones_especiales = cliente_data["condiciones_especiales"] if cliente_data["condiciones_especiales"] else None
+    if "estado" in cliente_data:
+        cliente.estado = cliente_data["estado"]
+    
+    cliente.fecha_modificacion = datetime.utcnow()
     
     db.commit()
-    db.refresh(db_cliente)
-    
-    # Calcular estadísticas
-    servicios = db.query(models.Servicio).filter(models.Servicio.cliente_id == cliente_id).all()
-    facturas = db.query(models.Factura).filter(
-        models.Factura.cliente_id == cliente_id,
-        models.Factura.estado == "pagada"
-    ).all()
-    
-    total_servicios = len(servicios)
-    total_facturado = sum(f.total for f in facturas)
-    ultimo_servicio = max((s.fecha_inicio for s in servicios if s.fecha_inicio), default=None)
-    
-    result = cliente_to_dict(db_cliente)
-    result.update({
-        "total_servicios": total_servicios,
-        "total_facturado": total_facturado or 0,
-        "ultimo_servicio": ultimo_servicio.isoformat() if ultimo_servicio else None
-    })
-    return result
+    db.refresh(cliente)
+    return cliente
 
 @app.delete("/clientes/{cliente_id}")
 def delete_cliente(
     cliente_id: int,
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(require_admin)
+    current_user: models.Usuario = Depends(get_current_user)
 ):
-    db_cliente = db.query(models.Cliente).filter(models.Cliente.id == cliente_id).first()
-    if not db_cliente:
-        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    cliente = db.query(models.Cliente).filter(models.Cliente.id == cliente_id).first()
+    if cliente is None:
+        raise HTTPException(status_code=404, detail="Cliente not found")
     
-    servicios = db.query(models.Servicio).filter(models.Servicio.cliente_id == cliente_id).count()
-    if servicios > 0:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"No se puede eliminar: el cliente tiene {servicios} servicios asociados"
-        )
-    
-    db.delete(db_cliente)
+    db.delete(cliente)
     db.commit()
-    return {"message": "Cliente eliminado"}
+    return {"message": "Cliente deleted successfully"}
 
-# ==================== SERVICIOS ====================
+# ============================================
+# CONDUCTORES ENDPOINTS
+# ============================================
 
-def generar_codigo_servicio(db: Session):
-    """Genera código tipo SER-001, SER-002..."""
-    ultimo = db.query(models.Servicio).order_by(models.Servicio.id.desc()).first()
-    numero = ultimo.id + 1 if ultimo else 1
-    return f"SER-{numero:03d}"
-
-@app.get("/servicios/", response_model=List[schemas.ServicioResponse])
-def get_servicios(
+@app.get("/conductores", response_model=List[ConductorResponse])
+def get_conductores(
+    skip: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user),
-    estado: Optional[str] = None,
-    cliente_id: Optional[int] = None,
-    conductor_id: Optional[int] = None,
-    fecha_desde: Optional[datetime] = None,
-    fecha_hasta: Optional[datetime] = None,
-    buscar: Optional[str] = None
+    current_user: models.Usuario = Depends(get_current_user)
 ):
-    query = db.query(models.Servicio)
-    
-    if estado:
-        query = query.filter(models.Servicio.estado == estado)
-    if cliente_id:
-        query = query.filter(models.Servicio.cliente_id == cliente_id)
-    if conductor_id:
-        query = query.filter(models.Servicio.conductor_id == conductor_id)
-    if fecha_desde:
-        query = query.filter(models.Servicio.fecha_inicio >= fecha_desde)
-    if fecha_hasta:
-        query = query.filter(models.Servicio.fecha_inicio <= fecha_hasta)
-    
-    if buscar:
-        search = f"%{buscar}%"
-        query = query.join(models.Cliente).filter(
-            (models.Cliente.nombre.ilike(search)) |
-            (models.Servicio.origen.ilike(search)) |
-            (models.Servicio.destino.ilike(search))
-        )
-    
-    return query.order_by(models.Servicio.fecha_inicio.desc()).all()
+    conductores = db.query(models.Conductor).offset(skip).limit(limit).all()
+    return conductores
 
-@app.get("/servicios/{servicio_id}", response_model=schemas.ServicioResponse)
+@app.get("/conductores/{conductor_id}", response_model=ConductorResponse)
+def get_conductor(
+    conductor_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    conductor = db.query(models.Conductor).filter(models.Conductor.id == conductor_id).first()
+    if conductor is None:
+        raise HTTPException(status_code=404, detail="Conductor not found")
+    return conductor
+
+@app.post("/conductores", response_model=ConductorResponse)
+def create_conductor(
+    conductor_data: dict,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    db_conductor = models.Conductor(
+        nombre=conductor_data.get("nombre", ""),
+        apellidos=conductor_data.get("apellidos", ""),
+        dni=conductor_data.get("dni", ""),
+        fecha_nacimiento=conductor_data.get("fecha_nacimiento"),
+        telefono=conductor_data.get("telefono", ""),
+        email=conductor_data.get("email", ""),
+        direccion=conductor_data.get("direccion"),
+        
+        # Licencia
+        licencia_tipo=conductor_data.get("licencia_tipo", "D"),
+        licencia_numero=conductor_data.get("licencia_numero"),
+        licencia_fecha_expedicion=conductor_data.get("licencia_fecha_expedicion"),
+        licencia_fecha_caducidad=conductor_data.get("licencia_fecha_caducidad"),
+        licencia_permisos=conductor_data.get("licencia_permisos"),
+        
+        # Tarifas
+        tarifa_hora=conductor_data.get("tarifa_hora", 18.0),
+        tarifa_servicio=conductor_data.get("tarifa_servicio"),
+        
+        # Disponibilidad
+        disponibilidad_dias=conductor_data.get("disponibilidad_dias", [0, 1, 2, 3, 4]),
+        disponibilidad_hora_inicio=conductor_data.get("disponibilidad_hora_inicio", "08:00"),
+        disponibilidad_hora_fin=conductor_data.get("disponibilidad_hora_fin", "18:00"),
+        disponibilidad_observaciones=conductor_data.get("disponibilidad_observaciones"),
+        
+        estado=conductor_data.get("estado", "activo"),
+        notas=conductor_data.get("notas"),
+        
+        fecha_alta=datetime.utcnow(),
+        creado_por=current_user.id
+    )
+    
+    db.add(db_conductor)
+    db.commit()
+    db.refresh(db_conductor)
+    return db_conductor
+
+@app.put("/conductores/{conductor_id}", response_model=ConductorResponse)
+def update_conductor(
+    conductor_id: int,
+    conductor_data: dict,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    conductor = db.query(models.Conductor).filter(models.Conductor.id == conductor_id).first()
+    if conductor is None:
+        raise HTTPException(status_code=404, detail="Conductor not found")
+    
+    # Actualizar campos básicos
+    for field in ["nombre", "apellidos", "dni", "fecha_nacimiento", "telefono", "email", "direccion"]:
+        if field in conductor_data:
+            setattr(conductor, field, conductor_data[field])
+    
+    # Licencia
+    for field in ["licencia_tipo", "licencia_numero", "licencia_fecha_expedicion", "licencia_fecha_caducidad", "licencia_permisos"]:
+        if field in conductor_data:
+            setattr(conductor, field, conductor_data[field])
+    
+    # Tarifas
+    for field in ["tarifa_hora", "tarifa_servicio"]:
+        if field in conductor_data:
+            setattr(conductor, field, conductor_data[field])
+    
+    # Disponibilidad
+    for field in ["disponibilidad_dias", "disponibilidad_hora_inicio", "disponibilidad_hora_fin", "disponibilidad_observaciones"]:
+        if field in conductor_data:
+            setattr(conductor, field, conductor_data[field])
+    
+    # Otros campos
+    for field in ["estado", "notas"]:
+        if field in conductor_data:
+            setattr(conductor, field, conductor_data[field])
+    
+    conductor.fecha_modificacion = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(conductor)
+    return conductor
+
+@app.delete("/conductores/{conductor_id}")
+def delete_conductor(
+    conductor_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    conductor = db.query(models.Conductor).filter(models.Conductor.id == conductor_id).first()
+    if conductor is None:
+        raise HTTPException(status_code=404, detail="Conductor not found")
+    
+    db.delete(conductor)
+    db.commit()
+    return {"message": "Conductor deleted successfully"}
+
+# ============================================
+# VEHICULOS ENDPOINTS
+# ============================================
+
+@app.get("/vehiculos", response_model=List[VehiculoResponse])
+def get_vehiculos(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    vehiculos = db.query(models.Vehiculo).offset(skip).limit(limit).all()
+    return vehiculos
+
+@app.get("/vehiculos/{vehiculo_id}", response_model=VehiculoResponse)
+def get_vehiculo(
+    vehiculo_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
+    if vehiculo is None:
+        raise HTTPException(status_code=404, detail="Vehiculo not found")
+    return vehiculo
+
+@app.post("/vehiculos", response_model=VehiculoResponse)
+def create_vehiculo(
+    vehiculo_data: dict,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    db_vehiculo = models.Vehiculo(
+        matricula=vehiculo_data.get("matricula", ""),
+        bastidor=vehiculo_data.get("bastidor"),
+        marca=vehiculo_data.get("marca", ""),
+        modelo=vehiculo_data.get("modelo", ""),
+        tipo=vehiculo_data.get("tipo", "autobus"),
+        plazas=vehiculo_data.get("plazas", 50),
+        año_fabricacion=vehiculo_data.get("año_fabricacion"),
+        kilometraje=vehiculo_data.get("kilometraje", 0),
+        kilometraje_ultima_revision=vehiculo_data.get("kilometraje_ultima_revision"),
+        consumo_medio=vehiculo_data.get("consumo_medio"),
+        combustible=vehiculo_data.get("combustible", "diesel"),
+        estado=vehiculo_data.get("estado", "operativo"),
+        ubicacion=vehiculo_data.get("ubicacion"),
+        notas=vehiculo_data.get("notas"),
+        imagen_url=vehiculo_data.get("imagen_url"),
+        
+        # ITV
+        itv_fecha_ultima=vehiculo_data.get("itv_fecha_ultima"),
+        itv_fecha_proxima=vehiculo_data.get("itv_fecha_proxima"),
+        itv_resultado=vehiculo_data.get("itv_resultado"),
+        itv_observaciones=vehiculo_data.get("itv_observaciones"),
+        
+        # Seguro
+        seguro_compania=vehiculo_data.get("seguro_compania"),
+        seguro_poliza=vehiculo_data.get("seguro_poliza"),
+        seguro_tipo_cobertura=vehiculo_data.get("seguro_tipo_cobertura"),
+        seguro_fecha_inicio=vehiculo_data.get("seguro_fecha_inicio"),
+        seguro_fecha_vencimiento=vehiculo_data.get("seguro_fecha_vencimiento"),
+        seguro_prima=vehiculo_data.get("seguro_prima"),
+        
+        fecha_creacion=datetime.utcnow(),
+        creado_por=current_user.id
+    )
+    
+    db.add(db_vehiculo)
+    db.commit()
+    db.refresh(db_vehiculo)
+    return db_vehiculo
+
+@app.put("/vehiculos/{vehiculo_id}", response_model=VehiculoResponse)
+def update_vehiculo(
+    vehiculo_id: int,
+    vehiculo_data: dict,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
+    if vehiculo is None:
+        raise HTTPException(status_code=404, detail="Vehiculo not found")
+    
+    # Campos básicos
+    basic_fields = ["matricula", "bastidor", "marca", "modelo", "tipo", "plazas", 
+                    "año_fabricacion", "kilometraje", "kilometraje_ultima_revision",
+                    "consumo_medio", "combustible", "estado", "ubicacion", "notas", "imagen_url"]
+    for field in basic_fields:
+        if field in vehiculo_data:
+            setattr(vehiculo, field, vehiculo_data[field])
+    
+    # ITV
+    itv_fields = ["itv_fecha_ultima", "itv_fecha_proxima", "itv_resultado", "itv_observaciones"]
+    for field in itv_fields:
+        if field in vehiculo_data:
+            setattr(vehiculo, field, vehiculo_data[field])
+    
+    # Seguro
+    seguro_fields = ["seguro_compania", "seguro_poliza", "seguro_tipo_cobertura",
+                     "seguro_fecha_inicio", "seguro_fecha_vencimiento", "seguro_prima"]
+    for field in seguro_fields:
+        if field in vehiculo_data:
+            setattr(vehiculo, field, vehiculo_data[field])
+    
+    vehiculo.fecha_modificacion = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(vehiculo)
+    return vehiculo
+
+@app.delete("/vehiculos/{vehiculo_id}")
+def delete_vehiculo(
+    vehiculo_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
+    if vehiculo is None:
+        raise HTTPException(status_code=404, detail="Vehiculo not found")
+    
+    db.delete(vehiculo)
+    db.commit()
+    return {"message": "Vehiculo deleted successfully"}
+
+# ============================================
+# SERVICIOS ENDPOINTS
+# ============================================
+
+@app.get("/servicios", response_model=List[ServicioResponse])
+def get_servicios(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    servicios = db.query(models.Servicio).offset(skip).limit(limit).all()
+    return servicios
+
+@app.get("/servicios/{servicio_id}", response_model=ServicioResponse)
 def get_servicio(
     servicio_id: int,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
     servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
-    if not servicio:
-        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    if servicio is None:
+        raise HTTPException(status_code=404, detail="Servicio not found")
     return servicio
 
-@app.post("/servicios/", response_model=schemas.ServicioResponse)
+@app.post("/servicios", response_model=ServicioResponse)
 def create_servicio(
-    servicio: schemas.ServicioCreate,
+    servicio_data: dict,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    margen = servicio.precio - servicio.coste_estimado
+    # Generar código único
+    last_servicio = db.query(models.Servicio).order_by(models.Servicio.id.desc()).first()
+    new_id = (last_servicio.id + 1) if last_servicio else 1
+    codigo = f"SRV{new_id:04d}"
     
-    db_servicio = models.Servicio(**servicio.dict(), margen=margen, creado_por=current_user.username)
+    db_servicio = models.Servicio(
+        codigo=codigo,
+        cliente_id=servicio_data.get("cliente_id"),
+        tipo=servicio_data.get("tipo", "traslado"),
+        estado=servicio_data.get("estado", "planificado"),
+        
+        fecha_inicio=servicio_data.get("fecha_inicio"),
+        fecha_fin=servicio_data.get("fecha_fin"),
+        hora_inicio=servicio_data.get("hora_inicio"),
+        hora_fin=servicio_data.get("hora_fin"),
+        
+        titulo=servicio_data.get("titulo", ""),
+        descripcion=servicio_data.get("descripcion"),
+        
+        numero_vehiculos=servicio_data.get("numero_vehiculos", 1),
+        vehiculos_asignados=servicio_data.get("vehiculos_asignados", []),
+        conductores_asignados=servicio_data.get("conductores_asignados", []),
+        
+        origen=servicio_data.get("origen"),
+        destino=servicio_data.get("destino"),
+        ubicacion_evento=servicio_data.get("ubicacion_evento"),
+        
+        coste_estimado=servicio_data.get("coste_estimado", 0),
+        coste_real=servicio_data.get("coste_real"),
+        precio=servicio_data.get("precio", 0),
+        
+        facturado=servicio_data.get("facturado", False),
+        factura_id=servicio_data.get("factura_id"),
+        
+        notas_internas=servicio_data.get("notas_internas"),
+        notas_cliente=servicio_data.get("notas_cliente"),
+        
+        rutas=servicio_data.get("rutas", []),
+        tareas=servicio_data.get("tareas", []),
+        incidencias=servicio_data.get("incidencias", []),
+        documentos=servicio_data.get("documentos", []),
+        
+        fecha_creacion=datetime.utcnow(),
+        creado_por=current_user.id
+    )
+    
     db.add(db_servicio)
     db.commit()
     db.refresh(db_servicio)
-    
-    db_servicio.codigo = generar_codigo_servicio(db)
-    db.commit()
-    db.refresh(db_servicio)
-    
     return db_servicio
 
-@app.put("/servicios/{servicio_id}", response_model=schemas.ServicioResponse)
+@app.put("/servicios/{servicio_id}", response_model=ServicioResponse)
 def update_servicio(
     servicio_id: int,
-    servicio: schemas.ServicioUpdate,
+    servicio_data: dict,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    db_servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
-    if not db_servicio:
-        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
+    if servicio is None:
+        raise HTTPException(status_code=404, detail="Servicio not found")
     
-    update_data = servicio.dict(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(db_servicio, key, value)
+    # Lista de campos actualizables
+    fields = [
+        "cliente_id", "tipo", "estado",
+        "fecha_inicio", "fecha_fin", "hora_inicio", "hora_fin",
+        "titulo", "descripcion",
+        "numero_vehiculos", "vehiculos_asignados", "conductores_asignados",
+        "origen", "destino", "ubicacion_evento",
+        "coste_estimado", "coste_real", "precio",
+        "facturado", "factura_id",
+        "notas_internas", "notas_cliente",
+        "rutas", "tareas", "incidencias", "documentos"
+    ]
     
-    if "precio" in update_data or "coste_real" in update_data:
-        db_servicio.margen = db_servicio.precio - (db_servicio.coste_real or db_servicio.coste_estimado)
+    for field in fields:
+        if field in servicio_data:
+            setattr(servicio, field, servicio_data[field])
+    
+    servicio.fecha_modificacion = datetime.utcnow()
     
     db.commit()
-    db.refresh(db_servicio)
-    return db_servicio
+    db.refresh(servicio)
+    return servicio
 
 @app.delete("/servicios/{servicio_id}")
 def delete_servicio(
     servicio_id: int,
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(require_admin)
-):
-    db_servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
-    if not db_servicio:
-        raise HTTPException(status_code=404, detail="Servicio no encontrado")
-    
-    db.delete(db_servicio)
-    db.commit()
-    return {"message": "Servicio eliminado"}
-
-# ==================== FACTURAS ====================
-
-def generar_numero_factura(db: Session):
-    """Genera número tipo FAC-2024-001"""
-    year = datetime.utcnow().year
-    count = db.query(models.Factura).filter(
-        models.Factura.fecha_emision >= datetime(year, 1, 1)
-    ).count()
-    return f"FAC-{year}-{count + 1:03d}"
-
-@app.get("/facturas/", response_model=List[schemas.FacturaResponse])
-def get_facturas(
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user),
-    estado: Optional[str] = None,
-    cliente_id: Optional[int] = None,
-    fecha_desde: Optional[datetime] = None,
-    fecha_hasta: Optional[datetime] = None
-):
-    query = db.query(models.Factura)
-    
-    if estado:
-        query = query.filter(models.Factura.estado == estado)
-    if cliente_id:
-        query = query.filter(models.Factura.cliente_id == cliente_id)
-    if fecha_desde:
-        query = query.filter(models.Factura.fecha_emision >= fecha_desde)
-    if fecha_hasta:
-        query = query.filter(models.Factura.fecha_emision <= fecha_hasta)
-    
-    return query.order_by(models.Factura.fecha_emision.desc()).all()
-
-@app.get("/facturas/{factura_id}", response_model=schemas.FacturaResponse)
-def get_factura(
-    factura_id: int,
-    db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    factura = db.query(models.Factura).filter(models.Factura.id == factura_id).first()
-    if not factura:
-        raise HTTPException(status_code=404, detail="Factura no encontrada")
-    return factura
-
-@app.post("/facturas/", response_model=schemas.FacturaResponse)
-def create_factura(
-    factura: schemas.FacturaCreate,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user)
-):
-    db_factura = models.Factura(**factura.dict(exclude={"conceptos"}))
-    db.add(db_factura)
+    servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
+    if servicio is None:
+        raise HTTPException(status_code=404, detail="Servicio not found")
+    
+    db.delete(servicio)
     db.commit()
-    db.refresh(db_factura)
-    
-    db_factura.numero = generar_numero_factura(db)
-    db.commit()
-    db.refresh(db_factura)
-    
-    return db_factura
+    return {"message": "Servicio deleted successfully"}
 
-@app.put("/facturas/{factura_id}", response_model=schemas.FacturaResponse)
-def update_factura(
-    factura_id: int,
-    factura: schemas.FacturaUpdate,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user)
-):
-    db_factura = db.query(models.Factura).filter(models.Factura.id == factura_id).first()
-    if not db_factura:
-        raise HTTPException(status_code=404, detail="Factura no encontrada")
-    
-    update_data = factura.dict(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(db_factura, key, value)
-    
-    db.commit()
-    db.refresh(db_factura)
-    return db_factura
-
-@app.delete("/facturas/{factura_id}")
-def delete_factura(
-    factura_id: int,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(require_admin)
-):
-    db_factura = db.query(models.Factura).filter(models.Factura.id == factura_id).first()
-    if not db_factura:
-        raise HTTPException(status_code=404, detail="Factura no encontrada")
-    
-    db.delete(db_factura)
-    db.commit()
-    return {"message": "Factura eliminada"}
-
-# ==================== DASHBOARD ====================
+# ============================================
+# DASHBOARD ENDPOINTS
+# ============================================
 
 @app.get("/dashboard/stats")
 def get_dashboard_stats(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    today = datetime.utcnow().date()
-    first_day_of_month = today.replace(day=1)
+    hoy = datetime.utcnow()
+    treinta_dias = hoy + timedelta(days=30)
     
-    servicios_hoy = db.query(models.Servicio).filter(
-        models.Servicio.fecha_inicio >= datetime.combine(today, datetime.min.time()),
-        models.Servicio.fecha_inicio < datetime.combine(today + timedelta(days=1), datetime.min.time())
-    ).count()
-    
-    servicios_mes = db.query(models.Servicio).filter(
-        models.Servicio.fecha_inicio >= datetime.combine(first_day_of_month, datetime.min.time())
-    ).count()
-    
-    servicios_pendientes = db.query(models.Servicio).filter(
-        ~models.Servicio.estado.in_(["completado", "cancelado", "facturado"])
-    ).count()
-    
-    facturado_mes = db.query(models.Factura).filter(
-        models.Factura.fecha_emision >= datetime.combine(first_day_of_month, datetime.min.time()),
-        models.Factura.estado == "pagada"
-    ).all()
-    total_facturado_mes = sum(f.total for f in facturado_mes)
-    
-    pendiente_cobro = db.query(models.Factura).filter(
-        models.Factura.estado.in_(["pendiente", "enviada", "vencida"])
-    ).all()
-    total_pendiente = sum(f.total for f in pendiente_cobro)
-    
-    conductores_activos = db.query(models.Conductor).filter(
-        models.Conductor.estado == "activo"
-    ).count()
-    
-    vehiculos_operativos = db.query(models.Vehiculo).filter(
-        models.Vehiculo.estado == "operativo"
-    ).count()
-    
+    # Conteos básicos
     total_clientes = db.query(models.Cliente).count()
+    total_conductores = db.query(models.Conductor).count()
+    total_vehiculos = db.query(models.Vehiculo).count()
+    total_servicios = db.query(models.Servicio).count()
+    
+    # Servicios por estado
+    servicios_pendientes = db.query(models.Servicio).filter(models.Servicio.estado == "pendiente").count()
+    servicios_en_curso = db.query(models.Servicio).filter(models.Servicio.estado == "en_curso").count()
+    servicios_completados = db.query(models.Servicio).filter(models.Servicio.estado == "completado").count()
+    
+    # Vehículos por estado
+    vehiculos_operativos = db.query(models.Vehiculo).filter(models.Vehiculo.estado == "operativo").count()
+    vehiculos_mantenimiento = db.query(models.Vehiculo).filter(models.Vehiculo.estado == "mantenimiento").count()
+    
+    # Conductores por estado
+    conductores_activos = db.query(models.Conductor).filter(models.Conductor.estado == "activo").count()
+    conductores_ocupados = db.query(models.Conductor).filter(models.Conductor.estado == "ocupado").count()
+    
+    # Alertas
+    alertas = []
+    
+    # Alertas de ITV (próximas a vencer)
+    vehiculos = db.query(models.Vehiculo).all()
+    for v in vehiculos:
+        if v.itv_fecha_proxima:
+            fecha_itv = datetime.fromisoformat(str(v.itv_fecha_proxima)) if isinstance(v.itv_fecha_proxima, str) else v.itv_fecha_proxima
+            if fecha_itv <= treinta_dias and fecha_itv >= hoy:
+                alertas.append({
+                    "tipo": "itv",
+                    "mensaje": f"ITV de {v.matricula} vence el {v.itv_fecha_proxima}",
+                    "fecha": v.itv_fecha_proxima,
+                    "vehiculo_id": v.id
+                })
+    
+    # Alertas de seguros
+    for v in vehiculos:
+        if v.seguro_fecha_vencimiento:
+            fecha_seguro = datetime.fromisoformat(str(v.seguro_fecha_vencimiento)) if isinstance(v.seguro_fecha_vencimiento, str) else v.seguro_fecha_vencimiento
+            if fecha_seguro <= treinta_dias and fecha_seguro >= hoy:
+                alertas.append({
+                    "tipo": "seguro",
+                    "mensaje": f"Seguro de {v.matricula} vence el {v.seguro_fecha_vencimiento}",
+                    "fecha": v.seguro_fecha_vencimiento,
+                    "vehiculo_id": v.id
+                })
+    
+    # Alertas de licencias
+    conductores = db.query(models.Conductor).all()
+    for c in conductores:
+        if c.licencia_fecha_caducidad:
+            fecha_lic = datetime.fromisoformat(str(c.licencia_fecha_caducidad)) if isinstance(c.licencia_fecha_caducidad, str) else c.licencia_fecha_caducidad
+            if fecha_lic <= treinta_dias and fecha_lic >= hoy:
+                alertas.append({
+                    "tipo": "licencia",
+                    "mensaje": f"Licencia de {c.nombre} {c.apellidos} vence el {c.licencia_fecha_caducidad}",
+                    "fecha": c.licencia_fecha_caducidad,
+                    "conductor_id": c.id
+                })
     
     return {
-        "serviciosActivos": servicios_pendientes,
-        "serviciosHoy": servicios_hoy,
-        "serviciosMes": servicios_mes,
-        "conductoresDisponibles": conductores_activos,
-        "conductoresOcupados": 0,
-        "vehiculosOperativos": vehiculos_operativos,
-        "vehiculosTaller": db.query(models.Vehiculo).filter(models.Vehiculo.estado == "taller").count(),
-        "facturacionMes": total_facturado_mes,
-        "facturacionPendiente": total_pendiente,
-        "serviciosPendientesFacturar": db.query(models.Servicio).filter_by(facturado=False).count()
+        "conteos": {
+            "clientes": total_clientes,
+            "conductores": total_conductores,
+            "vehiculos": total_vehiculos,
+            "servicios": total_servicios
+        },
+        "servicios": {
+            "pendientes": servicios_pendientes,
+            "en_curso": servicios_en_curso,
+            "completados": servicios_completados
+        },
+        "vehiculos": {
+            "operativos": vehiculos_operativos,
+            "mantenimiento": vehiculos_mantenimiento
+        },
+        "conductores": {
+            "activos": conductores_activos,
+            "ocupados": conductores_ocupados
+        },
+        "alertas": alertas
     }
 
-@app.get("/dashboard/servicios-recientes")
-def get_servicios_recientes(
-    limit: int = 5,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user)
-):
-    servicios = db.query(models.Servicio).order_by(
-        models.Servicio.fecha_creacion.desc()
-    ).limit(limit).all()
-    
-    resultado = []
-    for s in servicios:
-        cliente = db.query(models.Cliente).filter(models.Cliente.id == s.cliente_id).first()
-        resultado.append({
-            "id": s.id,
-            "codigo": s.codigo or f"SER-{s.id:03d}",
-            "cliente_nombre": cliente.nombre if cliente else "Desconocido",
-            "origen": s.origen or "",
-            "destino": s.destino or "",
-            "fecha_servicio": s.fecha_inicio or s.fecha_creacion,
-            "estado": s.estado,
-            "total": s.precio
-        })
-    
-    return resultado
-
-# ==================== INIT ====================
-
-@app.on_event("startup")
-def startup_event():
-    init_db()
-    create_default_admin()
-    print("✅ Database initialized")
-
-@app.get("/")
-def root():
-    return {
-        "message": "MILANO Transport Management API",
-        "version": "2.0.0",
-        "status": "running"
-    }
+# ============================================
+# HEALTH CHECK
+# ============================================
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "timestamp": datetime.utcnow()}
+    return {"status": "ok", "version": "2.0.0"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
