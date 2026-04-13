@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store';
-import { Plus, Search, Edit2, Trash2, Calendar, MapPin, User, Bus, X } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Calendar, User, Bus, X } from 'lucide-react';
 import './Servicios.css';
 
 const API_URL = 'https://milano-backend.onrender.com';
@@ -171,12 +171,11 @@ const Servicios = () => {
     setError(null);
   };
 
-  const getClienteNombre = (id) => clientes.find(c => c.id == id)?.nombre || 'N/A';
+  const getClienteNombre = (id) => clientes.find(c => c.id === id)?.nombre || 'N/A';
   const getConductorNombre = (id) => {
-    const c = conductores.find(c => c.id == id);
+    const c = conductores.find(c => c.id === id);
     return c ? `${c.nombre} ${c.apellidos}` : 'N/A';
   };
-  const getVehiculoMatricula = (id) => vehiculos.find(v => v.id == id)?.matricula || 'N/A';
 
   const filtered = servicios.filter(s => 
     s.descripcion?.toLowerCase().includes(searchTerm.toLowerCase())
