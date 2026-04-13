@@ -414,7 +414,7 @@ const success = await updateConductor(String(conductorSeleccionado.id), conducto
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge className={estadoConductorColors[conductor.estado]}>
+                          <Badge className={estadoConductorColors[conductor.estado || 'activo']}>
                             {conductor.estado}
                           </Badge>
                         </TableCell>
