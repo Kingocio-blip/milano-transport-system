@@ -79,7 +79,7 @@ export default function Costes() {
         return sum;
       }, 0);
 
-      const costeConductor = servicio.conductoresAsignados.reduce((sum, conductorId) => {
+      const costeConductor = (servicio.conductoresAsignados || []).reduce((sum, conductorId) => {
         const conductor = conductores.find(c => c.id === conductorId);
         if (conductor) {
           // Estimar 8 horas por servicio
