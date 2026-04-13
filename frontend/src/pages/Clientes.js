@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store';
-import { Plus, Search, Edit2, Trash2, Phone, Mail, MapPin, CreditCard, User, X } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Phone, Mail, MapPin, CreditCard, User, X, Building } from 'lucide-react';
 import './Clientes.css';
 
 const API_URL = 'https://milano-backend.onrender.com';
@@ -36,11 +36,18 @@ const Clientes = () => {
     nombre: '',
     tipo: 'particular',
     nif: '',
-    email: '',
-    telefono: '',
-    direccion: '',
-    ciudad: '',
-    codigo_postal: '',
+    // Contacto de la empresa (dirección, etc.)
+    contacto_email: '',
+    contacto_telefono: '',
+    contacto_direccion: '',
+    contacto_ciudad: '',
+    contacto_codigo_postal: '',
+    // Persona de contacto principal
+    persona_contacto_nombre: '',
+    persona_contacto_email: '',
+    persona_contacto_telefono: '',
+    persona_contacto_cargo: '',
+    // Condiciones
     forma_pago: 'transferencia',
     dias_pago: '30',
     condiciones_especiales: '',
@@ -90,24 +97,28 @@ const Clientes = () => {
       
       const method = editingId ? 'PUT' : 'POST';
       
-      // Datos con contacto ANIDADO (como espera el backend)
+      // Enviar TODO como campos planos (como espera el schema ClienteCreate)
       const dataToSend = {
         nombre: formData.nombre.trim(),
         tipo: formData.tipo,
         nif: formData.nif.trim() || null,
-        condiciones_especiales: formData.condiciones_especiales.trim() || null,
+        // Contacto de la empresa (campos planos)
+        contacto_email: formData.contacto_email.trim() || null,
+        contacto_telefono: formData.contacto_telefono.trim() || null,
+        contacto_direccion: formData.contacto_direccion.trim() || null,
+        contacto_ciudad: formData.contacto_ciudad.trim() || null,
+        contacto_codigo_postal: formData.contacto_codigo_postal.trim() || null,
+        // Persona de contacto principal (campos planos)
+        persona_contacto_nombre: formData.persona_contacto_nombre.trim() || null,
+        persona_contacto_email: formData.persona_contacto_email.trim() || null,
+        persona_contacto_telefono: formData.persona_contacto_telefono.trim() || null,
+        persona_contacto_cargo: formData.persona_contacto_cargo.trim() || null,
+        // Condiciones
         forma_pago: formData.forma_pago,
         dias_pago: parseInt(formData.dias_pago) || 30,
+        condiciones_especiales: formData.condiciones_especiales.trim() || null,
         estado: formData.estado,
-        notas: formData.notas.trim() || null,
-        // Contacto ANIDADO (objeto)
-        contacto: {
-          email: formData.email.trim() || null,
-          telefono: formData.telefono.trim() || null,
-          direccion: formData.direccion.trim() || null,
-          ciudad: formData.ciudad.trim() || null,
-          codigoPostal: formData.codigo_postal.trim() || null
-        }
+        notas: formData.notas.trim() || null
       };
 
       console.log('Enviando:', dataToSend);
@@ -160,11 +171,18 @@ const Clientes = () => {
       nombre: c.nombre || '',
       tipo: c.tipo || 'particular',
       nif: c.nif || '',
-      email: c.contacto?.email || c.contacto_email || '',
-      telefono: c.contacto?.telefono || c.contacto_telefono || '',
-      direccion: c.contacto?.direccion || c.contacto_direccion || '',
-      ciudad: c.contacto?.ciudad || c.contacto_ciudad || '',
-      codigo_postal: c.contacto?.codigoPostal || c.contacto_codigo_postal || '',
+      // Contacto de la empresa
+      contacto_email: c.contacto_email || c.contacto?.email || '',
+      contacto_telefono: c.contacto_telefono || c.contacto?.telefono || '',
+      contacto_direccion: c.contacto_direccion || c.contacto?.direccion || '',
+      contacto_ciudad: c.contacto_ciudad || c.contacto?.ciudad || '',
+      contacto_codigo_postal: c.contacto_codigo_postal || c.contacto?.codigoPostal || '',
+      // Persona de contacto
+      persona_contacto_nombre: c.persona_contacto_nombre || '',
+      persona_contacto_email: c.persona_contacto_email || '',
+      persona_contacto_telefono: c.persona_contacto_telefono || '',
+      persona_contacto_cargo: c.persona_contacto_cargo || '',
+      // Condiciones
       forma_pago: c.forma_pago || 'transferencia',
       dias_pago: String(c.dias_pago || 30),
       condiciones_especiales: c.condiciones_especiales || '',
@@ -238,9 +256,10 @@ const Clientes = () => {
             
             <div style={{fontSize: 14, color: '#4b5563', lineHeight: 1.8}}>
               {c.nif && <p style={{margin: '4px 0'}}><CreditCard size={14} style={{marginRight: 8}}/> {c.nif}</p>}
-              {(c.contacto?.telefono || c.contacto_telefono) && <p style={{margin: '4px 0'}}><Phone size={14} style={{marginRight: 8}}/> {c.contacto?.telefono || c.contacto_telefono}</p>}
-              {(c.contacto?.email || c.contacto_email) && <p style={{margin: '4px 0'}}><Mail size={14} style={{marginRight: 8}}/> {c.contacto?.email || c.contacto_email}</p>}
-              {(c.contacto?.direccion || c.contacto_direccion) && <p style={{margin: '4px 0'}}><MapPin size={14} style={{marginRight: 8}}/> {c.contacto?.direccion || c.contacto_direccion}</p>}
+              {(c.contacto_telefono || c.contacto?.telefono) && <p style={{margin: '4px 0'}}><Phone size={14} style={{marginRight: 8}}/> {c.contacto_telefono || c.contacto?.telefono}</p>}
+              {(c.contacto_email || c.contacto?.email) && <p style={{margin: '4px 0'}}><Mail size={14} style={{marginRight: 8}}/> {c.contacto_email || c.contacto?.email}</p>}
+              {(c.contacto_direccion || c.contacto?.direccion) && <p style={{margin: '4px 0'}}><MapPin size={14} style={{marginRight: 8}}/> {c.contacto_direccion || c.contacto?.direccion}, {c.contacto_ciudad || c.contacto?.ciudad}</p>}
+              {c.persona_contacto_nombre && <p style={{margin: '4px 0'}}><User size={14} style={{marginRight: 8}}/> {c.persona_contacto_nombre} {c.persona_contacto_cargo && `(${c.persona_contacto_cargo})`}</p>}
             </div>
           </div>
         ))}
@@ -248,7 +267,7 @@ const Clientes = () => {
 
       {showForm && (
         <div style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20}}>
-          <div style={{background: 'white', borderRadius: 12, padding: 24, width: '100%', maxWidth: 500, maxHeight: '90vh', overflow: 'auto'}}>
+          <div style={{background: 'white', borderRadius: 12, padding: 24, width: '100%', maxWidth: 600, maxHeight: '90vh', overflow: 'auto'}}>
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20}}>
               <h2 style={{margin: 0}}>{editingId ? 'Editar' : 'Nuevo'} Cliente</h2>
               <button onClick={closeForm} style={{background: 'none', border: 'none', cursor: 'pointer'}}><X size={24} /></button>
@@ -263,19 +282,29 @@ const Clientes = () => {
 
               <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12}}>
                 <input name="nif" placeholder="NIF/CIF" value={formData.nif} onChange={handleChange} style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db'}} />
-                <input name="telefono" placeholder="Teléfono" value={formData.telefono} onChange={handleChange} style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db'}} />
+                <input name="contacto_telefono" placeholder="Teléfono" value={formData.contacto_telefono} onChange={handleChange} style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db'}} />
               </div>
 
-              <input name="email" type="email" placeholder="Email" value={formData.email} onChange={handleChange} style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db', width: '100%', marginBottom: 12}} />
+              <input name="contacto_email" type="email" placeholder="Email" value={formData.contacto_email} onChange={handleChange} style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db', width: '100%', marginBottom: 12}} />
 
-              <input name="direccion" placeholder="Dirección" value={formData.direccion} onChange={handleChange} style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db', width: '100%', marginBottom: 12}} />
-
+              <h4 style={{margin: '16px 0 8px', color: '#374151', fontSize: 14}}>Dirección</h4>
+              <input name="contacto_direccion" placeholder="Dirección" value={formData.contacto_direccion} onChange={handleChange} style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db', width: '100%', marginBottom: 12}} />
               <div style={{display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 16}}>
-                <input name="ciudad" placeholder="Ciudad" value={formData.ciudad} onChange={handleChange} style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db'}} />
-                <input name="codigo_postal" placeholder="CP" value={formData.codigo_postal} onChange={handleChange} style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db'}} />
+                <input name="contacto_ciudad" placeholder="Ciudad" value={formData.contacto_ciudad} onChange={handleChange} style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db'}} />
+                <input name="contacto_codigo_postal" placeholder="CP" value={formData.contacto_codigo_postal} onChange={handleChange} style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db'}} />
               </div>
 
-              <h4 style={{margin: '16px 0 12px', color: '#374151', fontSize: 14}}>Condiciones de Pago</h4>
+              <h4 style={{margin: '16px 0 8px', color: '#374151', fontSize: 14}}>Persona de Contacto Principal</h4>
+              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12}}>
+                <input name="persona_contacto_nombre" placeholder="Nombre" value={formData.persona_contacto_nombre} onChange={handleChange} style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db'}} />
+                <input name="persona_contacto_cargo" placeholder="Cargo" value={formData.persona_contacto_cargo} onChange={handleChange} style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db'}} />
+              </div>
+              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16}}>
+                <input name="persona_contacto_telefono" placeholder="Teléfono" value={formData.persona_contacto_telefono} onChange={handleChange} style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db'}} />
+                <input name="persona_contacto_email" type="email" placeholder="Email" value={formData.persona_contacto_email} onChange={handleChange} style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db'}} />
+              </div>
+
+              <h4 style={{margin: '16px 0 8px', color: '#374151', fontSize: 14}}>Condiciones de Pago</h4>
               <div style={{display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 12}}>
                 <select name="forma_pago" value={formData.forma_pago} onChange={handleChange} style={{padding: 10, borderRadius: 6, border: '1px solid #d1d5db'}}>
                   {FORMAS_PAGO.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
