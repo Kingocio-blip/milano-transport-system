@@ -57,8 +57,8 @@ export const useAuthStore = create<AuthState>()(
       login: async (credentials) => {
         const response = await fetch(`${API_URL}/auth/login`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
             username: credentials.username,
             password: credentials.password,
           }),
@@ -132,7 +132,6 @@ const convertClienteFromBackend = (cliente: any): Cliente => ({
     cargo: cliente.contacto.cargo || '',
     principal: cliente.contacto.principal,
   } : undefined,
-  // Campos de estadísticas
   totalServicios: cliente.total_servicios || 0,
   totalFacturado: cliente.total_facturado || 0,
   ultimoServicio: cliente.ultimo_servicio,
