@@ -1,24 +1,10 @@
-# MILANO Backend Requirements
-# FastAPI + SQLAlchemy + Authentication
-
-# Pydantic (v1 para compatibilidad con OAuth2)
 pydantic==1.10.13
-
-# Web Framework
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
-
-# Database
 sqlalchemy==2.0.23
-psycopg2-binary==2.9.9  # PostgreSQL driver for Render
-
-# Authentication
+psycopg2-binary==2.9.9
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
-
-# Environment
 python-dotenv==1.0.0
-
-# Production Server
 gunicorn==21.2.0
