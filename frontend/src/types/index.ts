@@ -26,8 +26,9 @@ export interface AuthResponse {
 export type EstadoConductor = 'activo' | 'inactivo' | 'en_ruta' | 'descanso' | 'baja' | 'vacaciones';
 export type EstadoVehiculo = 'activo' | 'inactivo' | 'en_mantenimiento' | 'en_ruta' | 'reservado' | 'taller' | 'baja';
 export type EstadoCliente = 'activo' | 'inactivo' | 'prospecto';
+export type EstadoFactura = 'pendiente' | 'pagada' | 'vencida' | 'anulada' | 'enviada';  // ← AÑADIR ESTA LÍNEA
 export type TipoVehiculo = 'camion' | 'furgoneta' | 'trailer';
-export type TipoCliente = 'empresa' | 'particular';  // ← AÑADIR ESTA LÍNEA
+export type TipoCliente = 'empresa' | 'particular';
 
 // Tipos de Cliente
 export interface Cliente {
@@ -210,6 +211,13 @@ export interface CreateFacturaData {
   concepto: string;
   subtotal: number;
   iva?: number;
+}
+
+export interface ConceptoFactura {
+  descripcion: string;
+  cantidad: number;
+  precioUnitario: number;
+  importe: number;
 }
 
 // Tipos de Dashboard
