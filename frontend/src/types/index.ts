@@ -200,7 +200,8 @@ export interface Factura {
   fecha: string;
   fechaEmision?: string;
   fechaVencimiento: string;
-  fechaPago?: string;  // ← Añadir esta línea
+  fechaPago?: string;
+  referenciaPago?: string;  // ← Añadir esta línea
   subtotal: number;
   baseImponible?: number;
   iva: number;
