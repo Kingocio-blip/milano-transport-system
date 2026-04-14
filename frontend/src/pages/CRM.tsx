@@ -61,7 +61,7 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toDateString } from '../lib/utils';
 
-const tipoClienteLabels: Record<TipoCliente, string> = {
+const tipoClienteLabels: Record<string, string> = {
   festival: 'Festival',
   promotor: 'Promotor',
   colegio: 'Colegio',
