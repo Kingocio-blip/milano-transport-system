@@ -137,7 +137,7 @@ export default function Flota() {
  }
  };
 
- const handleEliminarVehiculo = async (id: number) => {
+ const handleEliminarVehiculo = async (id: string | number) => {
  if (window.confirm('¿Está seguro de eliminar este vehículo?')) {
  const success = await deleteVehiculo(String(id));
  if (success) {
