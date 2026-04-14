@@ -185,7 +185,7 @@ export default function CRM() {
       }
     };
     
-    const success = await updateCliente(clienteSeleccionado.id, clienteData);
+    const success = await updateCliente(String(clienteSeleccionado.id), clienteData);
     if (success) {
       setIsEditarOpen(false);
       showToast('Cliente actualizado correctamente', 'success');
