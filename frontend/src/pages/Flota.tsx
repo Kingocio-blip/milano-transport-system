@@ -125,7 +125,7 @@ export default function Flota() {
     const success = await addVehiculo(nuevoVehiculo as Omit<Vehiculo, 'id' | 'mantenimientos'>);
     if (success) {
       setIsNuevoVehiculoOpen(false);
-      setNuevoVehiculo({ tipo: 'autobus', estado: 'operativo', plazas: 55, combustible: 'diesel' });
+      setNuevoVehiculo({ tipo: 'autobus', estado: 'activo', plazas: 55, combustible: 'diesel' });
       showToast('Vehículo creado correctamente', 'success');
     }
   };
@@ -140,9 +140,9 @@ export default function Flota() {
     }
   };
 
-  const handleEliminarVehiculo = async (id: string) => {
+  const handleEliminarVehiculo = async (id: number) => {
     if (window.confirm('¿Está seguro de eliminar este vehículo?')) {
-      const success = await deleteVehiculo(id);
+      const success = await deleteVehiculo(String(id));
       if (success) {
         showToast('Vehículo eliminado', 'success');
       }
@@ -394,7 +394,7 @@ export default function Flota() {
                         <TableCell>
                           <div className="flex items-center gap-1">
                             <Gauge className="h-4 w-4 text-slate-400" />
-                            {vehiculo.kilometraje?.toLocaleString('es-ES')} km
+                            {(vehiculo.kilometraje || 0).toLocaleString('es-ES')} km
                           </div>
                         </TableCell>
                         <TableCell>
@@ -510,7 +510,7 @@ export default function Flota() {
                   </div>
                   <div>
                     <Label className="text-slate-500">Año Fabricación</Label>
-                    <p>{vehiculoSeleccionado.añoFabricacion || '-'}</p>
+                    <p>{vehiculoSeleccionado.annoFabricacion || vehiculoSeleccionado.añoFabricacion || '-'}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
@@ -525,14 +525,14 @@ export default function Flota() {
                     <Label className="text-slate-500">Kilometraje</Label>
                     <p className="flex items-center gap-2">
                       <Gauge className="h-4 w-4" />
-                      {vehiculoSeleccionado.kilometraje?.toLocaleString('es-ES')} km
+                      {(vehiculoSeleccionado.kilometraje || 0).toLocaleString('es-ES')} km
                     </p>
                   </div>
                   <div>
                     <Label className="text-slate-500">Consumo</Label>
                     <p className="flex items-center gap-2">
                       <Fuel className="h-4 w-4" />
-                      {vehiculoSeleccionado.consumoMedio} L/100km
+                      {vehiculoSeleccionado.consumoMedio || 0} L/100km
                     </p>
                   </div>
                 </div>

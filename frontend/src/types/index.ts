@@ -26,9 +26,10 @@ export interface AuthResponse {
 export type EstadoConductor = 'activo' | 'inactivo' | 'en_ruta' | 'descanso' | 'baja' | 'vacaciones';
 export type EstadoVehiculo = 'activo' | 'inactivo' | 'en_mantenimiento' | 'en_ruta' | 'reservado' | 'taller' | 'baja';
 export type EstadoCliente = 'activo' | 'inactivo' | 'prospecto';
-export type EstadoFactura = 'pendiente' | 'pagada' | 'vencida' | 'anulada' | 'enviada';  // ← AÑADIR ESTA LÍNEA
+export type EstadoFactura = 'pendiente' | 'pagada' | 'vencida' | 'anulada' | 'enviada';
 export type TipoVehiculo = 'minibus' | 'autobus' | 'furgoneta' | 'coche';
 export type TipoCliente = 'empresa' | 'particular';
+export type TipoCombustible = 'diesel' | 'gasolina' | 'electrico' | 'hibrido';
 
 // Tipos de Cliente
 export interface Cliente {
@@ -36,7 +37,7 @@ export interface Cliente {
   codigo: string;
   nombre: string;
   cif: string;
-  nif?: string;  // ← AÑADIR ESTA LÍNEA
+  nif?: string;
   email: string;
   telefono: string;
   direccion: string;
@@ -51,7 +52,6 @@ export interface Cliente {
   totalServicios?: number;
   totalFacturado?: number;
   ultimoServicio?: string;
-  // Campos adicionales para el backend
   tipo?: 'empresa' | 'particular';
   razon_social?: string;
   nif_cif?: string;
@@ -65,7 +65,7 @@ export interface Cliente {
   persona_contacto_cargo?: string;
 }
 
-xport interface Contacto {
+export interface Contacto {
   id?: number;
   clienteId?: number;
   nombre?: string;
@@ -73,7 +73,6 @@ xport interface Contacto {
   telefono?: string;
   cargo?: string;
   principal?: boolean;
-  // NUEVOS CAMPOS:
   direccion?: string;
   ciudad?: string;
   codigoPostal?: string;
@@ -97,7 +96,6 @@ export interface CreateClienteData {
     telefono?: string;
     cargo?: string;
   };
-  // Campos snake_case para el backend
   codigo?: string;
   tipo?: 'empresa' | 'particular';
   razon_social?: string;
@@ -130,7 +128,6 @@ export interface UpdateClienteData {
     telefono?: string;
     cargo?: string;
   };
-  // Campos snake_case para el backend
   tipo?: 'empresa' | 'particular';
   razon_social?: string;
   nif_cif?: string;
@@ -165,7 +162,7 @@ export interface Servicio {
   }[];
   conductoresAsignados?: string[];
   facturado?: boolean;
-  facturaId?: string | number;  // ← Añadir esta línea
+  facturaId?: string | number;
 }
 
 export interface CreateServicioData {
@@ -201,7 +198,7 @@ export interface Factura {
   fechaEmision?: string;
   fechaVencimiento: string;
   fechaPago?: string;
-  referenciaPago?: string;  // ← Añadir esta línea
+  referenciaPago?: string;
   subtotal: number;
   baseImponible?: number;
   iva: number;
@@ -225,10 +222,10 @@ export interface CreateFacturaData {
 
 export interface ConceptoFactura {
   id?: string | number;
-  descripcion?: string;  // ← Cambiar a opcional
+  descripcion?: string;
   cantidad: number;
   precioUnitario: number;
-  importe?: number;  // ← Cambiar a opcional
+  importe?: number;
   total?: number;
   concepto?: string;
   impuesto?: number;
@@ -295,9 +292,7 @@ export interface Conductor {
     horaFin: string;
   };
   totalHorasMes?: number;
-  // NUEVO: totalServiciosMes
   totalServiciosMes?: number;
-  // NUEVO: valoracion
   valoracion?: number;
 }
 
@@ -321,7 +316,6 @@ export interface CreateConductorData {
   tarifaHora?: number;
   activo?: boolean;
   notas?: string;
-  // Campos snake_case para el backend
   codigo?: string;
   estado?: EstadoConductor;
   fecha_nacimiento?: string;
@@ -353,7 +347,6 @@ export interface UpdateConductorData {
   tarifaHora?: number;
   activo?: boolean;
   notas?: string;
-  // Campos snake_case para el backend
   estado?: EstadoConductor;
   fecha_nacimiento?: string;
   num_licencia?: string;
@@ -372,9 +365,13 @@ export interface Vehiculo {
   marca: string;
   modelo: string;
   annoFabricacion?: number;
+  añoFabricacion?: number;
   plazas: number;
-  tipo: 'minibus' | 'autobus' | 'furgoneta' | 'coche';
-  estado: EstadoVehiculo;  // ← Cambiar de 'activo' | 'inactivo' | 'taller' | 'baja' a EstadoVehiculo
+  tipo: TipoVehiculo;
+  estado: EstadoVehiculo;
+  combustible?: TipoCombustible;
+  bastidor?: string;
+  kilometraje?: number;
   itv?: {
     fechaUltima: string;
     fechaProxima: string;
@@ -406,8 +403,11 @@ export interface CreateVehiculoData {
   modelo: string;
   annoFabricacion?: number;
   plazas?: number;
-  tipo?: 'minibus' | 'autobus' | 'furgoneta' | 'coche';
-  estado?: string;
+  tipo?: TipoVehiculo;
+  estado?: EstadoVehiculo;
+  combustible?: TipoCombustible;
+  bastidor?: string;
+  kilometraje?: number;
   itv?: {
     fechaUltima: string;
     fechaProxima: string;
@@ -420,7 +420,6 @@ export interface CreateVehiculoData {
   };
   imagenUrl?: string;
   notas?: string;
-  // Campos snake_case para el backend
   codigo?: string;
   tipo_vehiculo?: TipoVehiculo;
   estado_vehiculo?: EstadoVehiculo;
@@ -439,8 +438,11 @@ export interface UpdateVehiculoData {
   modelo?: string;
   annoFabricacion?: number;
   plazas?: number;
-  tipo?: 'minibus' | 'autobus' | 'furgoneta' | 'coche';
-  estado?: 'activo' | 'inactivo' | 'taller' | 'baja';
+  tipo?: TipoVehiculo;
+  estado?: EstadoVehiculo;
+  combustible?: TipoCombustible;
+  bastidor?: string;
+  kilometraje?: number;
   itv?: {
     fechaUltima: string;
     fechaProxima: string;
@@ -453,7 +455,6 @@ export interface UpdateVehiculoData {
   };
   imagenUrl?: string;
   notas?: string;
-  // Campos snake_case para el backend
   tipo_vehiculo?: TipoVehiculo;
   estado_vehiculo?: EstadoVehiculo;
   capacidad_kg?: number;
