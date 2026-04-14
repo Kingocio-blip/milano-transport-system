@@ -568,7 +568,7 @@ export default function CRM() {
               <DialogHeader>
                 <DialogTitle>{clienteSeleccionado.nombre}</DialogTitle>
                 <DialogDescription>
-                  {clienteSeleccionado.codigo} • {tipoClienteLabels[clienteSeleccionado.tipo]}
+                  {clienteSeleccionado.codigo} • {tipoClienteLabels[clienteSeleccionado.tipo || 'empresa']}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
