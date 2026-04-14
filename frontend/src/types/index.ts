@@ -27,7 +27,7 @@ export type EstadoConductor = 'activo' | 'inactivo' | 'en_ruta' | 'descanso' | '
 export type EstadoVehiculo = 'activo' | 'inactivo' | 'en_mantenimiento' | 'en_ruta' | 'reservado' | 'taller' | 'baja';
 export type EstadoCliente = 'activo' | 'inactivo' | 'prospecto';
 export type EstadoFactura = 'pendiente' | 'pagada' | 'vencida' | 'anulada' | 'enviada';  // ← AÑADIR ESTA LÍNEA
-export type TipoVehiculo = 'camion' | 'furgoneta' | 'trailer';
+export type TipoVehiculo = 'minibus' | 'autobus' | 'furgoneta' | 'coche';
 export type TipoCliente = 'empresa' | 'particular';
 
 // Tipos de Cliente
@@ -373,7 +373,7 @@ export interface Vehiculo {
   modelo: string;
   annoFabricacion?: number;
   plazas: number;
-  tipo: 'minibus' | 'bus' | 'furgoneta' | 'coche';
+  tipo: 'minibus' | 'autobus' | 'furgoneta' | 'coche';
   estado: EstadoVehiculo;  // ← Cambiar de 'activo' | 'inactivo' | 'taller' | 'baja' a EstadoVehiculo
   itv?: {
     fechaUltima: string;
@@ -406,7 +406,7 @@ export interface CreateVehiculoData {
   modelo: string;
   annoFabricacion?: number;
   plazas?: number;
-  tipo?: 'minibus' | 'bus' | 'furgoneta' | 'coche';
+  tipo?: 'minibus' | 'autobus' | 'furgoneta' | 'coche';
   estado?: string;
   itv?: {
     fechaUltima: string;
@@ -439,7 +439,7 @@ export interface UpdateVehiculoData {
   modelo?: string;
   annoFabricacion?: number;
   plazas?: number;
-  tipo?: 'minibus' | 'bus' | 'furgoneta' | 'coche';
+  tipo?: 'minibus' | 'autobus' | 'furgoneta' | 'coche';
   estado?: 'activo' | 'inactivo' | 'taller' | 'baja';
   itv?: {
     fechaUltima: string;

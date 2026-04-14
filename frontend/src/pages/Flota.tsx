@@ -57,7 +57,7 @@ import { es } from 'date-fns/locale';
 import { toDateString } from '../lib/utils';
 
 const tipoVehiculoLabels: Record<TipoVehiculo, string> = {
-  bus: 'Autobús',
+  autobus: 'Autobús',
   minibus: 'Minibús',
   furgoneta: 'Furgoneta',
   coche: 'Coche',
