@@ -2,7 +2,16 @@
 // MILANO - LocalStorage Service (Modo Offline)
 // ============================================
 
-import type { Cliente, Vehiculo, Conductor, Servicio, Factura, Usuario } from '@/types';
+import type { 
+  Cliente, 
+  Vehiculo, 
+  Conductor, 
+  Servicio, 
+  Factura, 
+  Usuario,
+  Mantenimiento,
+  KPIDashboard 
+} from '../types';
 
 const STORAGE_KEYS = {
   CLIENTES: 'milano_clientes',
@@ -11,6 +20,8 @@ const STORAGE_KEYS = {
   SERVICIOS: 'milano_servicios',
   FACTURAS: 'milano_facturas',
   USUARIO: 'milano_usuario',
+  MANTENIMIENTO: 'milano_mantenimiento',
+  KPIDashboard: 'milano_kpidashboard',
   INITIALIZED: 'milano_initialized',
 };
 
@@ -580,7 +591,7 @@ export const localStorageService = {
       const vehiculos = localStorageService.vehiculos.getAll();
       return vehiculos.find(v => v.id === id);
     },
-    create: (vehiculo: Omit<Vehiculo, 'id' | 'mantenimientos'> & { mantenimientos?: import('@/types').Mantenimiento[] }): Vehiculo => {
+    create: (vehiculo: Omit<Vehiculo, 'id' | 'mantenimientos'> & { mantenimientos?: Mantenimiento[] }): Vehiculo => {
       const vehiculos = localStorageService.vehiculos.getAll();
       const nuevo: Vehiculo = {
         ...vehiculo,
@@ -728,7 +739,7 @@ export const localStorageService = {
 
   // Dashboard stats
   dashboard: {
-    getStats: (): import('@/types').KPIDashboard => {
+    getStats: (): KPIDashboard => {
       const clientes = localStorageService.clientes.getAll();
       const vehiculos = localStorageService.vehiculos.getAll();
       const conductores = localStorageService.conductores.getAll();
