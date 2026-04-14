@@ -64,7 +64,7 @@ const tipoVehiculoLabels: Record<TipoVehiculo, string> = {
 };
 
 const estadoVehiculoColors: Record<EstadoVehiculo, string> = {
-  operativo: 'bg-green-100 text-green-700',
+  activo: 'bg-green-100 text-green-700',
   taller: 'bg-amber-100 text-amber-700',
   baja: 'bg-red-100 text-red-700',
   reservado: 'bg-blue-100 text-blue-700',
@@ -81,7 +81,7 @@ export default function Flota() {
   const [isEditarOpen, setIsEditarOpen] = useState(false);
   const [nuevoVehiculo, setNuevoVehiculo] = useState<Partial<Vehiculo>>({
     tipo: 'autobus',
-    estado: 'operativo',
+    estado: 'activo',
     plazas: 55,
     combustible: 'diesel',
   });
@@ -103,9 +103,9 @@ export default function Flota() {
   });
 
   // Estadísticas
-  const vehiculosOperativos = vehiculos.filter(v => v.estado === 'operativo').length;
+  const vehiculosOperativos = vehiculos.filter(v => v.estado === 'activo').length;
   const vehiculosTaller = vehiculos.filter(v => v.estado === 'taller').length;
-  const totalPlazas = vehiculos.filter(v => v.estado === 'operativo').reduce((sum, v) => sum + (v.plazas || 0), 0);
+  const totalPlazas = vehiculos.filter(v => v.estado === 'activo').reduce((sum, v) => sum + (v.plazas || 0), 0);
 
   // Vehículos con ITV próxima
   const vehiculosITVProxima = vehiculos.filter(v => {
@@ -343,7 +343,7 @@ export default function Flota() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos los estados</SelectItem>
-                <SelectItem value="operativo">Operativo</SelectItem>
+                <SelectItem value="activo">Operativo</SelectItem>
                 <SelectItem value="taller">En Taller</SelectItem>
                 <SelectItem value="reservado">Reservado</SelectItem>
                 <SelectItem value="baja">De Baja</SelectItem>
