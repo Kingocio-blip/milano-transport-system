@@ -352,7 +352,7 @@ export interface Vehiculo {
   annoFabricacion?: number;
   plazas: number;
   tipo: 'minibus' | 'bus' | 'furgoneta' | 'coche';
-  estado: 'activo' | 'inactivo' | 'taller' | 'baja';
+  estado: EstadoVehiculo;  // ← Cambiar de 'activo' | 'inactivo' | 'taller' | 'baja' a EstadoVehiculo
   itv?: {
     fechaUltima: string;
     fechaProxima: string;
