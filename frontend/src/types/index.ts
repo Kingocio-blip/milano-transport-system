@@ -157,7 +157,7 @@ export interface Servicio {
   fechaFin?: string;
   estado: 'pendiente' | 'en_progreso' | 'completado' | 'cancelado' | 'facturado';
   importe: number;
-  precio?: number;  // ← AÑADIR ESTA LÍNEA (alias de importe)
+  precio?: number;
   notas: string;
   rutas?: {
     vehiculoAsignadoId: string;
@@ -165,6 +165,7 @@ export interface Servicio {
   }[];
   conductoresAsignados?: string[];
   facturado?: boolean;
+  facturaId?: string | number;  // ← Añadir esta línea
 }
 
 export interface CreateServicioData {
