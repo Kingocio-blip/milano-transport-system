@@ -97,7 +97,7 @@ export default function Facturacion() {
   const totalPendiente = getTotalPendiente();
   const totalFacturadoMes = getTotalFacturadoMes();
 
-    const handleNuevaFactura = () => {
+  const handleNuevaFactura = () => {
     if (!nuevaFactura.clienteId || nuevaFactura.conceptos?.length === 0) {
       showToast('Por favor complete los campos obligatorios', 'error');
       return;
@@ -186,7 +186,7 @@ export default function Facturacion() {
     setNuevaFactura({ ...nuevaFactura, conceptos });
   };
 
-    const calcularTotal = () => {
+  const calcularTotal = () => {
     const subtotal = nuevaFactura.conceptos?.reduce((sum, c) => sum + (c.total || 0), 0) || 0;
     const impuestos = subtotal * 0.21;
     return { subtotal, impuestos, total: subtotal + impuestos };
@@ -475,20 +475,20 @@ export default function Facturacion() {
                         <TableCell className="font-medium">{factura.numero}</TableCell>
                         <TableCell>{factura.clienteNombre}</TableCell>
                         <TableCell>
-                          {format(new Date(factura.fechaEmision), 'dd/MM/yyyy')}
+                          {format(new Date(factura.fechaEmision || new Date()), 'dd/MM/yyyy')}
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col">
-                            <span>{format(new Date(factura.fechaVencimiento), 'dd/MM/yyyy')}</span>
-                            {factura.estado !== 'pagada' && isAfter(new Date(), new Date(factura.fechaVencimiento)) && (
+                            <span>{format(new Date(factura.fechaVencimiento || new Date()), 'dd/MM/yyyy')}</span>
+                            {factura.estado !== 'pagada' && isAfter(new Date(), new Date(factura.fechaVencimiento || new Date())) && (
                               <span className="text-xs text-red-600">
-                                Vencida hace {Math.abs(differenceInDays(new Date(), new Date(factura.fechaVencimiento)))} días
+                                Vencida hace {Math.abs(differenceInDays(new Date(), new Date(factura.fechaVencimiento || new Date())))} días
                               </span>
                             )}
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="font-medium">{factura.total.toLocaleString('es-ES')}€</span>
+                          <span className="font-medium">{(factura.total || 0).toLocaleString('es-ES')}€</span>
                         </TableCell>
                         <TableCell>
                           <Badge className={estadoFacturaColors[factura.estado]}>
@@ -564,12 +564,12 @@ export default function Facturacion() {
                         <p className="font-medium">{factura.numero}</p>
                         <p className="text-sm text-slate-600">{factura.clienteNombre}</p>
                         <p className="text-xs text-red-600">
-                          Vencida hace {Math.abs(differenceInDays(new Date(), new Date(factura.fechaVencimiento)))} días
+                          Vencida hace {Math.abs(differenceInDays(new Date(), new Date(factura.fechaVencimiento || new Date())))} días
                         </p>
                       </div>
                       <div className="text-right">
                         <p className="text-lg font-bold text-red-700">
-                          {factura.total.toLocaleString('es-ES')}€
+                          {(factura.total || 0).toLocaleString('es-ES')}€
                         </p>
                         <Button size="sm" variant="outline" onClick={() => handleMarcarPagada(factura)}>
                           <CheckCircle2 className="mr-1 h-4 w-4" />
@@ -602,11 +602,11 @@ export default function Facturacion() {
                 <div className="grid grid-cols-3 gap-4 rounded-lg bg-slate-50 p-4">
                   <div>
                     <Label className="text-slate-500">Fecha Emisión</Label>
-                    <p>{format(new Date(factura.fechaEmision || new Date()), 'dd/MM/yyyy')}</p>
+                    <p>{format(new Date(facturaSeleccionada.fechaEmision || new Date()), 'dd/MM/yyyy')}</p>
                   </div>
                   <div>
                     <Label className="text-slate-500">Fecha Vencimiento</Label>
-                    <p>{format(new Date(facturaSeleccionada.fechaVencimiento), 'dd/MM/yyyy')}</p>
+                    <p>{format(new Date(facturaSeleccionada.fechaVencimiento || new Date()), 'dd/MM/yyyy')}</p>
                   </div>
                   <div>
                     <Label className="text-slate-500">Estado</Label>
@@ -635,8 +635,8 @@ export default function Facturacion() {
                         <TableRow key={concepto.id}>
                           <TableCell>{concepto.concepto}</TableCell>
                           <TableCell className="text-right">{concepto.cantidad}</TableCell>
-                          <TableCell className="text-right">{concepto.precioUnitario.toLocaleString('es-ES')}€</TableCell>
-                          <TableCell className="text-right">{concepto.total.toLocaleString('es-ES')}€</TableCell>
+                          <TableCell className="text-right">{(concepto.precioUnitario || 0).toLocaleString('es-ES')}€</TableCell>
+                          <TableCell className="text-right">{(concepto.total || 0).toLocaleString('es-ES')}€</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -647,15 +647,15 @@ export default function Facturacion() {
                 <div className="rounded-lg bg-slate-50 p-4 space-y-2">
                   <div className="flex justify-between">
                     <span className="text-slate-600">Subtotal:</span>
-                    <span>{facturaSeleccionada.subtotal.toLocaleString('es-ES')}€</span>
+                    <span>{(facturaSeleccionada.subtotal || 0).toLocaleString('es-ES')}€</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-600">IVA (21%):</span>
-                    <span>{facturaSeleccionada.impuestos.toLocaleString('es-ES')}€</span>
+                    <span>{(facturaSeleccionada.impuestos || 0).toLocaleString('es-ES')}€</span>
                   </div>
                   <div className="flex justify-between text-lg font-bold">
                     <span>Total:</span>
-                    <span>{facturaSeleccionada.total.toLocaleString('es-ES')}€</span>
+                    <span>{(facturaSeleccionada.total || 0).toLocaleString('es-ES')}€</span>
                   </div>
                 </div>
 
@@ -663,7 +663,7 @@ export default function Facturacion() {
                   <div className="rounded-lg bg-green-50 p-4">
                     <Label className="text-green-700">Pagada el</Label>
                     <p className="text-green-700 font-medium">
-                      {format(new Date(facturaSeleccionada.fechaPago), 'dd/MM/yyyy')}
+                      {format(new Date(facturaSeleccionada.fechaPago || new Date()), 'dd/MM/yyyy')}
                     </p>
                     {facturaSeleccionada.referenciaPago && (
                       <p className="text-sm text-green-600">
