@@ -113,7 +113,7 @@ export default function Facturacion() {
       numero: `F${new Date().getFullYear()}-${String(facturas.length + 1).padStart(3, '0')}`,
       serie: String(new Date().getFullYear()),
       clienteId: nuevaFactura.clienteId || '',
-      clienteNombre: cliente?.nombre,
+      clienteNombre: cliente?.nombre || '',
       fechaEmision: new Date(),
       fechaVencimiento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       conceptos: nuevaFactura.conceptos || [],
