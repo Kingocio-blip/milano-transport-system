@@ -227,7 +227,7 @@ export default function Facturacion() {
                     </SelectTrigger>
                     <SelectContent>
                       {clientes.filter(c => c.estado === 'activo').map(cliente => (
-                        <SelectItem key={cliente.id} value={cliente.id}>
+                        <SelectItem key={cliente.id} value={String(cliente.id)}>
                           {cliente.nombre}
                         </SelectItem>
                       ))}
@@ -237,7 +237,7 @@ export default function Facturacion() {
                 <div className="space-y-2">
                   <Label htmlFor="servicio">Servicio (opcional)</Label>
                   <Select 
-                    value={nuevaFactura.servicioId} 
+                    value={String(nuevaFactura.servicioId || '')} 
                     onValueChange={(v) => {
                       const servicio = servicios.find(s => s.id === v);
                       if (servicio) {
@@ -262,7 +262,7 @@ export default function Facturacion() {
                     </SelectTrigger>
                     <SelectContent>
                       {servicios.filter(s => s.estado === 'completado' && !s.facturado).map(servicio => (
-                        <SelectItem key={servicio.id} value={servicio.id}>
+                        <SelectItem key={servicio.id} value={String(servicio.id)}>
                           {servicio.codigo} - {servicio.titulo}
                         </SelectItem>
                       ))}
