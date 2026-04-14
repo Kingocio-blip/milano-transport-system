@@ -147,6 +147,7 @@ export interface UpdateClienteData {
 export interface Servicio {
   id: number;
   codigo: string;
+  titulo?: string;  // ← AÑADIR ESTA LÍNEA
   clienteId: number;
   clienteNombre: string;
   tipo: string;
@@ -161,7 +162,6 @@ export interface Servicio {
     distanciaKm: number;
   }[];
   conductoresAsignados?: string[];
-  // NUEVO: facturado
   facturado?: boolean;
 }
 
