@@ -104,7 +104,7 @@ export default function Facturacion() {
     }
 
     // Buscar el cliente para obtener el nombre
-    const cliente = clientes.find(c => c.id === nuevaFactura.clienteId);
+    const cliente = clientes.find(c => String(c.id) === String(nuevaFactura.clienteId));
     
     // Calcular totales
     const subtotal = nuevaFactura.conceptos?.reduce((sum, c) => sum + (c.total || 0), 0) || 0;
@@ -239,7 +239,7 @@ export default function Facturacion() {
                   <Select 
                     value={String(nuevaFactura.servicioId || '')} 
                     onValueChange={(v) => {
-                      const servicio = servicios.find(s => s.id === v);
+                      const servicio = servicios.find(s => String(s.id) === v);
                       if (servicio) {
                         setNuevaFactura({
                           ...nuevaFactura,
