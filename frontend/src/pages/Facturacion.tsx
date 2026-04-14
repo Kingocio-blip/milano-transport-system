@@ -104,7 +104,7 @@ export default function Facturacion() {
     }
 
     const cliente = clientes.find(c => c.id === nuevaFactura.clienteId);
-    const subtotal = nuevaFactura.conceptos?.reduce((sum, c) => sum + c.total, 0) || 0;
+    const subtotal = nuevaFactura.conceptos?.reduce((sum, c) => sum + (c.cantidad * c.precioUnitario), 0) || 0;
     const impuestos = subtotal * 0.21;
     const total = subtotal + impuestos;
 
