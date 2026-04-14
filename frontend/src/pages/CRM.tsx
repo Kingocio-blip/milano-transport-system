@@ -574,7 +574,7 @@ export default function CRM() {
               <div className="space-y-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-slate-500">{getDocumentoLabel(clienteSeleccionado.tipo)}</Label>
+                    <Label className="text-slate-500">{getDocumentoLabel(clienteSeleccionado.tipo || 'empresa')}</Label>
                     <p>{clienteSeleccionado.nif || '-'}</p>
                   </div>
                   <div>
