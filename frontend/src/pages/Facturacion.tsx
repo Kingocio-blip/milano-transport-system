@@ -97,17 +97,19 @@ export default function Facturacion() {
   const totalPendiente = getTotalPendiente();
   const totalFacturadoMes = getTotalFacturadoMes();
 
-  const handleNuevaFactura = () => {
+    const handleNuevaFactura = () => {
     if (!nuevaFactura.clienteId || nuevaFactura.conceptos?.length === 0) {
       showToast('Por favor complete los campos obligatorios', 'error');
       return;
     }
 
-      const calcularTotal = () => {
+    // Buscar el cliente para obtener el nombre
+    const cliente = clientes.find(c => c.id === nuevaFactura.clienteId);
+    
+    // Calcular totales
     const subtotal = nuevaFactura.conceptos?.reduce((sum, c) => sum + (c.total || 0), 0) || 0;
     const impuestos = subtotal * 0.21;
-    return { subtotal, impuestos, total: subtotal + impuestos };
-  };
+    const total = subtotal + impuestos;
 
     const factura: Factura = {
        id: `f${Date.now()}`,
@@ -121,8 +123,8 @@ export default function Facturacion() {
        subtotal,
        baseImponible: subtotal,
        impuestos,
-       iva: impuestos,  // ← Añadir esta línea
-       concepto: 'Factura de servicios',  // ← Añadir esta línea
+       iva: impuestos,
+       concepto: 'Factura de servicios',
        total,
        estado: 'pendiente',
     };
