@@ -91,7 +91,7 @@ export default function Dashboard() {
   }));
 
   // KPIs calculados
-  const vehiculosOperativos = vehiculos.filter(v => v.estado === 'operativo').length;
+  const vehiculosOperativos = vehiculos.filter(v => v.estado === 'activo').length;
   const conductoresActivos = conductores.filter(c => c.estado === 'activo').length;
   const serviciosHoy = servicios.filter(s => {
     const fechaInicio = s.fechaInicio ? parseISO(toDateString(s.fechaInicio)) : null;
