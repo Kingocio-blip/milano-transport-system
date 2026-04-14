@@ -249,9 +249,9 @@ export default function Facturacion() {
                             id: `cf${Date.now()}`,
                             concepto: servicio.titulo,
                             cantidad: 1,
-                            precioUnitario: servicio.precio,
+                            precioUnitario: servicio.precio || 0,
                             impuesto: 21,
-                            total: servicio.precio,
+                            total: servicio.precio || 0,
                           }],
                         });
                       }
