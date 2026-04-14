@@ -186,8 +186,8 @@ export default function Facturacion() {
     setNuevaFactura({ ...nuevaFactura, conceptos });
   };
 
-  const calcularTotal = () => {
-    const subtotal = nuevaFactura.conceptos?.reduce((sum, c) => sum + c.total, 0) || 0;
+    const calcularTotal = () => {
+    const subtotal = nuevaFactura.conceptos?.reduce((sum, c) => sum + (c.total || 0), 0) || 0;
     const impuestos = subtotal * 0.21;
     return { subtotal, impuestos, total: subtotal + impuestos };
   };
