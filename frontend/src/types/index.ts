@@ -24,7 +24,7 @@ export interface AuthResponse {
 
 // Tipos de Estado
 export type EstadoConductor = 'activo' | 'inactivo' | 'en_ruta' | 'descanso' | 'baja' | 'vacaciones';
-export type EstadoVehiculo = 'activo' | 'inactivo' | 'en_mantenimiento' | 'en_ruta' | 'reservado';
+export type EstadoVehiculo = 'activo' | 'inactivo' | 'en_mantenimiento' | 'en_ruta' | 'reservado' | 'taller' | 'baja';
 export type EstadoCliente = 'activo' | 'inactivo' | 'prospecto';
 export type TipoVehiculo = 'camion' | 'furgoneta' | 'trailer';
 export type TipoCliente = 'empresa' | 'particular';  // ← AÑADIR ESTA LÍNEA
