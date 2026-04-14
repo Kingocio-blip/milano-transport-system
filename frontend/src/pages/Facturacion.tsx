@@ -147,7 +147,7 @@ export default function Facturacion() {
   };
 
   const handleEnviarFactura = (factura: Factura) => {
-    updateFactura(factura.id, { estado: 'enviada' });
+    updateFactura(String(factura.id), { estado: 'enviada' });
     showToast('Factura enviada al cliente', 'success');
   };
 
