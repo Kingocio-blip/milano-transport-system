@@ -78,7 +78,7 @@ const tipoClienteColors: Record<string, string> = {
 };
 
 // Tipo de documento según el tipo de cliente
-const getDocumentoLabel = (tipo: TipoCliente): string => {
+const getDocumentoLabel = (tipo: string): string => {
   switch (tipo) {
     case 'particular':
       return 'DNI';
