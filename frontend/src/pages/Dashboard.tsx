@@ -91,8 +91,8 @@ export default function Dashboard() {
   }));
 
   // KPIs calculados
-  const vehiculosOperativos = vehiculos.filter(v => v.estado === 'activo').length;
-  const conductoresActivos = conductores.filter(c => c.estado === 'activo').length;
+  const vehiculosOperativos = vehiculos.filter(v => v.estado === 'operativo').length;
+  const conductoresActivos = conductores.filter(c => c.estado === 'activo' || c.estado === 'en_ruta').length;
   const serviciosHoy = servicios.filter(s => {
     const fechaInicio = s.fechaInicio ? parseISO(toDateString(s.fechaInicio)) : null;
     return fechaInicio && isSameDay(fechaInicio, hoy);
@@ -331,7 +331,7 @@ export default function Dashboard() {
                 <CheckCircle2 className="h-5 w-5 text-green-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{vehiculos.filter(v => v.estado === 'activo').length}</p>
+                <p className="text-2xl font-bold">{vehiculos.filter(v => v.estado === 'operativo').length}</p>
                 <p className="text-sm text-slate-500">Operativos</p>
               </div>
             </div>
