@@ -547,6 +547,21 @@ export interface Alerta {
   enlace?: string;
 }
 
+export interface KPIDashboard {
+  totalServicios: number;
+  serviciosActivos: number;
+  serviciosPendientes: number;
+  totalClientes: number;
+  clientesNuevos: number;
+  totalFacturado: number;
+  facturasPendientes: number;
+  totalConductores: number;
+  conductoresDisponibles: number;
+  totalVehiculos: number;
+  vehiculosOperativos: number;
+  margenMedio: number;
+}
+
 // Tipos de API
 export interface ApiError {
   detail: string;
