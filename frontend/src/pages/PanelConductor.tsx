@@ -49,10 +49,10 @@ export default function PanelConductor() {
     navigate('/login');
   };
 
-  // Servicios asignados al conductor
+  // Servicios asignados al conductor (estados válidos: pendiente o en_progreso)
   const misServicios = servicios.filter(s => 
     s.conductoresAsignados?.includes(conductorActual?.id) &&
-    (s.estado === 'asignado' || s.estado === 'en_curso')
+    (s.estado === 'pendiente' || s.estado === 'en_progreso')
   );
 
   // Servicios de hoy
@@ -158,29 +158,25 @@ export default function PanelConductor() {
                     <div className="flex items-start justify-between">
                       <div>
                         <h3 className="font-bold text-lg">{servicio.codigo}</h3>
-                        <p className="text-slate-600">{servicio.titulo}</p>
+                        <p className="text-slate-600">{servicio.titulo || servicio.descripcion}</p>
                         <p className="text-sm text-slate-500">{servicio.clienteNombre}</p>
                       </div>
                       <Badge className={
-                        servicio.estado === 'en_curso' 
+                        servicio.estado === 'en_progreso' 
                           ? 'bg-green-100 text-green-700' 
                           : 'bg-blue-100 text-blue-700'
                       }>
-                        {servicio.estado === 'en_curso' ? 'En Curso' : 'Asignado'}
+                        {servicio.estado === 'en_progreso' ? 'En Curso' : 'Pendiente'}
                       </Badge>
                     </div>
-                    <div className="mt-4 grid gap-2 md:grid-cols-3 text-sm">
+                    <div className="mt-4 grid gap-2 md:grid-cols-2 text-sm">
                       <div className="flex items-center gap-2">
                         <Clock className="h-4 w-4 text-slate-400" />
-                        <span>{servicio.horaInicio || '--:--'} - {servicio.horaFin || '--:--'}</span>
+                        <span>{servicio.tipo}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <MapPin className="h-4 w-4 text-slate-400" />
-                        <span>{servicio.origen || 'No especificado'}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-slate-400" />
-                        <span>{servicio.destino || 'No especificado'}</span>
+                        <span>{servicio.descripcion || 'No especificado'}</span>
                       </div>
                     </div>
                   </div>
@@ -211,14 +207,14 @@ export default function PanelConductor() {
                   .map(servicio => (
                     <div key={servicio.id} className="flex items-center justify-between border-b pb-3 last:border-0">
                       <div>
-                        <p className="font-medium">{servicio.codigo} - {servicio.titulo}</p>
+                        <p className="font-medium">{servicio.codigo} - {servicio.titulo || servicio.descripcion}</p>
                         <p className="text-sm text-slate-500">
                           {servicio.fechaInicio 
                             ? format(parseISO(toDateString(servicio.fechaInicio)), 'dd/MM/yyyy', { locale: es })
                             : '-'}
                         </p>
                       </div>
-                      <Badge variant="outline">{servicio.horaInicio || '--:--'}</Badge>
+                      <Badge variant="outline">{servicio.tipo}</Badge>
                     </div>
                   ))}
               </div>
