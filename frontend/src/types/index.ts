@@ -63,14 +63,18 @@ export interface Cliente {
   persona_contacto_cargo?: string;
 }
 
-export interface Contacto {
-  id: number;
-  clienteId: number;
-  nombre: string;
-  email: string;
-  telefono: string;
-  cargo: string;
-  principal: boolean;
+xport interface Contacto {
+  id?: number;
+  clienteId?: number;
+  nombre?: string;
+  email?: string;
+  telefono?: string;
+  cargo?: string;
+  principal?: boolean;
+  // NUEVOS CAMPOS:
+  direccion?: string;
+  ciudad?: string;
+  codigoPostal?: string;
 }
 
 export interface CreateClienteData {
