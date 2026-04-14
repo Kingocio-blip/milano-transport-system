@@ -35,6 +35,7 @@ export interface Cliente {
   codigo: string;
   nombre: string;
   cif: string;
+  nif?: string;  // ← AÑADIR ESTA LÍNEA
   email: string;
   telefono: string;
   direccion: string;
