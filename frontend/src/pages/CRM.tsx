@@ -505,9 +505,9 @@ export default function CRM() {
                     <TableCell className="font-medium">{cliente.codigo}</TableCell>
                     <TableCell>{cliente.nombre}</TableCell>
                     <TableCell>
-                      <Badge className={tipoClienteColors[cliente.tipo]}>
-                        {tipoClienteLabels[cliente.tipo]}
-                      </Badge>
+                      <Badge className={tipoClienteColors[cliente.tipo || 'empresa']}>
+ 			 {tipoClienteLabels[cliente.tipo || 'empresa']}
+			</Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-1">
