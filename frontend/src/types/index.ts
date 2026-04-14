@@ -1,589 +1,547 @@
-// Tipos de Usuario
-export interface User {
-  id: number;
-  username: string;
-  email: string;
-  nombre: string;
-  apellidos: string;
-  rol: 'admin' | 'vendedor' | 'conductor';
-  activo: boolean;
-  fechaAlta: string;
-  ultimoAcceso?: string;
-}
+// ============================================
+// MILANO - Sistema de Gestión de Transporte
+// Tipos TypeScript
+// ============================================
 
-export type Usuario = User;  // ← Añadir esta línea
-
-export interface LoginCredentials {
-  username: string;
-  password: string;
-}
-
-export interface AuthResponse {
-  access_token: string;
-  token_type: string;
-  user: User;
-}
-
-// Tipos de Estado
-export type EstadoConductor = 'activo' | 'inactivo' | 'en_ruta' | 'descanso' | 'baja' | 'vacaciones';
-export type EstadoVehiculo = 'activo' | 'inactivo' | 'en_mantenimiento' | 'en_ruta' | 'reservado' | 'taller' | 'baja';
-export type EstadoCliente = 'activo' | 'inactivo' | 'prospecto';
-export type EstadoFactura = 'pendiente' | 'pagada' | 'vencida' | 'anulada' | 'enviada';
-export type TipoVehiculo = 'minibus' | 'autobus' | 'furgoneta' | 'coche';
-export type TipoCliente = 'empresa' | 'particular';
-export type TipoCombustible = 'diesel' | 'gasolina' | 'electrico' | 'hibrido';
-export type EstadoRuta = 'activa' | 'inactiva' | 'pendiente';
-
-// Tipos de Servicio
+// Tipos base
+export type TipoCliente = 'festival' | 'promotor' | 'colegio' | 'empresa' | 'particular';
 export type TipoServicio = 'lanzadera' | 'discrecional' | 'staff' | 'ruta_programada';
 export type EstadoServicio = 'solicitud' | 'presupuesto' | 'negociacion' | 'confirmado' | 'planificando' | 'asignado' | 'en_curso' | 'completado' | 'facturado' | 'cancelado';
+export type TipoVehiculo = 'autobus' | 'minibus' | 'furgoneta' | 'coche';
+export type EstadoVehiculo = 'operativo' | 'taller' | 'baja' | 'reservado';
+export type EstadoConductor = 'activo' | 'baja' | 'vacaciones' | 'descanso';
+export type EstadoFactura = 'pendiente' | 'enviada' | 'pagada' | 'vencida' | 'anulada';
+export type EstadoOportunidad = 'nueva' | 'contactado' | 'presupuesto_enviado' | 'negociacion' | 'ganada' | 'perdida';
 
-// Tipos de Parada y Horario para Rutas
+// ============================================
+// CLIENTE
+// ============================================
+export interface Contacto {
+  email?: string;
+  telefono?: string;
+  direccion?: string;
+  ciudad?: string;
+  codigoPostal?: string;
+}
+
+export interface Cliente {
+  id: string;
+  codigo: string;
+  nombre: string;
+  tipo: TipoCliente;
+  contacto: Contacto;
+  nif?: string;
+  condicionesEspeciales?: string;
+  formaPago?: string;
+  diasPago?: number;
+  fechaAlta: Date | string;
+  estado: 'activo' | 'inactivo';
+  notas?: string;
+  // Estadísticas (del backend)
+  totalServicios?: number;
+  totalFacturado?: number;
+  ultimoServicio?: Date | string;
+  // Relaciones
+  historialServicios?: string[];
+  documentos?: Documento[];
+}
+
+// Tipos para crear/actualizar clientes (usados en API)
+export interface CreateClienteData {
+  nombre: string;
+  tipo?: TipoCliente;
+  contacto?: Contacto;
+  nif?: string;
+  condicionesEspeciales?: string;
+  formaPago?: string;
+  diasPago?: number;
+  estado?: 'activo' | 'inactivo';
+  notas?: string;
+}
+
+export interface UpdateClienteData {
+  nombre?: string;
+  tipo?: TipoCliente;
+  contacto?: Contacto;
+  nif?: string;
+  condicionesEspeciales?: string;
+  formaPago?: string;
+  diasPago?: number;
+  estado?: 'activo' | 'inactivo';
+  notas?: string;
+}
+
+// ============================================
+// OPORTUNIDAD / CRM
+// ============================================
+export interface Oportunidad {
+  id: string;
+  codigo: string;
+  titulo: string;
+  clienteId: string;
+  clienteNombre?: string;
+  tipoServicio: TipoServicio;
+  descripcion: string;
+  fechaEvento: Date | string;
+  ubicacion?: string;
+  presupuestoEstimado: number;
+  estado: EstadoOportunidad;
+  probabilidad: number; // 0-100
+  fechaCreacion: Date | string;
+  fechaCierreEstimada?: Date | string;
+  fechaCierreReal?: Date | string;
+  motivoPerdida?: string;
+  asignadoA?: string;
+  notas?: string;
+}
+
+// ============================================
+// VEHÍCULO / FLOTA
+// ============================================
+export interface ITV {
+  fechaUltima: Date | string;
+  fechaProxima: Date | string;
+  resultado?: 'favorable' | 'desfavorable' | 'negativo';
+  observaciones?: string;
+}
+
+export interface Seguro {
+  compania: string;
+  poliza: string;
+  tipoCobertura?: string;
+  fechaInicio: Date | string;
+  fechaVencimiento: Date | string;
+  prima?: number;
+}
+
+export interface Mantenimiento {
+  id: string;
+  fecha: Date | string;
+  tipo: 'preventivo' | 'correctivo' | 'itv' | 'otro';
+  descripcion: string;
+  kilometraje: number;
+  coste: number;
+  taller?: string;
+  piezasCambiadas?: string[];
+  proximoMantenimiento?: Date | string;
+  observaciones?: string;
+}
+
+export interface Vehiculo {
+  id: string;
+  matricula: string;
+  bastidor: string;
+  marca: string;
+  modelo: string;
+  tipo: TipoVehiculo;
+  plazas: number;
+  añoFabricacion?: number;
+  // Kilometraje y consumo
+  kilometraje: number;
+  kilometrajeUltimaRevision?: number;
+  consumoMedio?: number; // L/100km
+  combustible?: 'diesel' | 'gasolina' | 'electric' | 'hibrido';
+  // Documentación
+  itv: ITV;
+  seguro: Seguro;
+  mantenimientos: Mantenimiento[];
+  // Estado
+  estado: EstadoVehiculo;
+  ubicacion?: string;
+  notas?: string;
+  // Imagen
+  imagenUrl?: string;
+}
+
+// ============================================
+// CONDUCTOR / RRHH
+// ============================================
+export interface Licencia {
+  tipo: string;
+  numero: string;
+  fechaExpedicion?: Date | string;
+  fechaCaducidad: Date | string;
+  permisos?: string[];
+}
+
+export interface Disponibilidad {
+  dias: number[]; // 0=Lunes, 6=Domingo
+  horaInicio: string;
+  horaFin: string;
+  observaciones?: string;
+}
+
+export interface Conductor {
+  id: string;
+  codigo: string;
+  nombre: string;
+  apellidos: string;
+  dni: string;
+  fechaNacimiento?: Date | string;
+  fechaAlta: Date | string;
+  // Contacto
+  telefono: string;
+  email: string;
+  direccion?: string;
+  // Profesional
+  licencia: Licencia;
+  tarifaHora: number;
+  tarifaServicio?: number;
+  disponibilidad: Disponibilidad;
+  // Documentación
+  documentos?: Documento[];
+  // Estado
+  estado: EstadoConductor;
+  // Estadísticas
+  totalHorasMes?: number;
+  totalServiciosMes?: number;
+  valoracion?: number;
+  notas?: string;
+}
+
+export interface Fichaje {
+  id: string;
+  conductorId: string;
+  servicioId: string;
+  fecha: Date | string;
+  horaInicio: Date | string;
+  horaFin?: Date | string;
+  horasTrabajadas?: number;
+  incidencias?: string;
+  estado: 'pendiente' | 'completado' | 'validado';
+}
+
+// ============================================
+// RUTAS
+// ============================================
 export interface Parada {
   id: string;
   nombre: string;
   direccion: string;
-  latitud?: number;
-  longitud?: number;
+  coordenadas?: { lat: number; lng: number };
   horaLlegada?: string;
-  orden?: number;
+  tiempoEspera?: number; // minutos
+  notas?: string;
 }
 
 export interface Horario {
   id: string;
   horaSalida: string;
   horaLlegada: string;
-  diasSemana: number[]; // 0=Lunes, 6=Domingo
+  diasSemana: number[];
+  fechaInicio?: Date | string;
+  fechaFin?: Date | string;
+  activo: boolean;
 }
 
 export interface Ruta {
   id: string;
   nombre: string;
+  codigo?: string;
+  servicioId: string;
   descripcion?: string;
+  // Origen y destino
   origen: string;
   destino: string;
+  paradas: Parada[];
+  // Distancia y tiempo
   distanciaKm: number;
-  duracionEstimada: number;
-  estado: EstadoRuta;
+  duracionEstimada: number; // minutos
+  // Asignaciones
   vehiculoAsignadoId?: string;
   conductorAsignadoId?: string;
-  paradas: Parada[];
+  // Horarios
   horarios: Horario[];
+  // Documentos
+  planoRecogidaUrl?: string;
   notasConductor?: string;
+  // Estado
+  estado: 'activa' | 'inactiva' | 'completada';
 }
 
-// Tipos de Tarea e Incidencia para Servicios
-export interface Tarea {
-  id: string;
-  nombre: string;
-  completada: boolean;
-}
-
+// ============================================
+// SERVICIOS
+// ============================================
 export interface Incidencia {
   id: string;
-  tipo: string;
+  fecha: Date | string;
+  tipo: 'retraso' | 'averia' | 'accidente' | 'conductor' | 'cliente' | 'trafico' | 'meteorologia' | 'otro';
+  severidad: 'baja' | 'media' | 'alta' | 'critica';
   descripcion: string;
-  fecha: string;
+  reportadoPor: string;
+  resuelta: boolean;
+  fechaResolucion?: Date | string;
+  solucion?: string;
+  costeAdicional?: number;
 }
 
+export interface TareaServicio {
+  id: string;
+  nombre: string;
+  descripcion?: string;
+  completada: boolean;
+  asignadaA?: string;
+  fechaLimite?: Date | string;
+  fechaCompletada?: Date | string;
+}
+
+export interface Servicio {
+  id: string;
+  codigo: string;
+  // Cliente
+  clienteId: string;
+  clienteNombre?: string;
+  contactoCliente?: Contacto;
+  // Tipo y estado
+  tipo: TipoServicio;
+  estado: EstadoServicio;
+  // Fechas
+  fechaInicio: Date | string;
+  fechaFin: Date | string;
+  horaInicio?: string;
+  horaFin?: string;
+  // Descripción
+  titulo: string;
+  descripcion?: string;
+  // Vehículos y conductores
+  numeroVehiculos: number;
+  vehiculosAsignados: string[];
+  conductoresAsignados: string[];
+  // Rutas
+  rutas: Ruta[];
+  // Ubicación
+  origen?: string;
+  destino?: string;
+  ubicacionEvento?: string;
+  // Financiero
+  costeEstimado: number;
+  costeReal?: number;
+  precio: number;
+  margen?: number;
+  // Facturación
+  facturado: boolean;
+  facturaId?: string;
+  // Pipeline de tareas
+  tareas: TareaServicio[];
+  // Incidencias
+  incidencias: Incidencia[];
+  // Documentos
+  contratoUrl?: string;
+  documentos: Documento[];
+  // Notas
+  notasInternas?: string;
+  notasCliente?: string;
+  // Metadatos
+  fechaCreacion: Date | string;
+  creadoPor: string;
+  fechaModificacion?: Date | string;
+}
+
+// ============================================
+// FACTURACIÓN
+// ============================================
+export interface ConceptoFactura {
+  id: string;
+  concepto: string;
+  descripcion?: string;
+  cantidad: number;
+  unidad?: string;
+  precioUnitario: number;
+  descuento?: number;
+  impuesto: number;
+  total: number;
+}
+
+export interface Factura {
+  id: string;
+  numero: string;
+  serie?: string;
+  // Relaciones
+  clienteId: string;
+  clienteNombre?: string;
+  servicioId?: string;
+  servicioCodigo?: string;
+  // Fechas
+  fechaEmision: Date | string;
+  fechaVencimiento: Date | string;
+  fechaPago?: Date | string;
+  // Conceptos
+  conceptos: ConceptoFactura[];
+  // Totales
+  subtotal: number;
+  descuentoTotal?: number;
+  baseImponible: number;
+  impuestos: number;
+  total: number;
+  // Estado
+  estado: EstadoFactura;
+  metodoPago?: string;
+  referenciaPago?: string;
+  // Notas
+  notas?: string;
+  condiciones?: string;
+  // Documentos
+  pdfUrl?: string;
+}
+
+// ============================================
+// COSTES
+// ============================================
+export interface DesgloseCostes {
+  combustible: number;
+  peajes: number;
+  conductor: number;
+  vehiculo: number;
+  otros: number;
+  total: number;
+}
+
+export interface InformeCostes {
+  servicioId: string;
+  servicioCodigo: string;
+  clienteNombre: string;
+  // Ingresos
+  precioVenta: number;
+  // Costes
+  costes: DesgloseCostes;
+  // Rentabilidad
+  beneficio: number;
+  margenPorcentaje: number;
+  // Comparación
+  estimadoVsReal?: {
+    estimado: number;
+    real: number;
+    diferencia: number;
+  };
+}
+
+// ============================================
+// DOCUMENTOS
+// ============================================
 export interface Documento {
   id: string;
   nombre: string;
+  tipo: 'contrato' | 'factura' | 'plano' | 'seguro' | 'licencia' | 'itv' | 'otro';
+  categoria?: string;
   url: string;
-  tipo: string;
-  fechaSubida: string;
-}
-
-// Tipos de Cliente
-export interface Cliente {
-  id: number;
-  codigo: string;
-  nombre: string;
-  cif: string;
-  nif?: string;
-  email: string;
-  telefono: string;
-  direccion: string;
-  ciudad: string;
-  codigoPostal: string;
-  formaPago: string;
-  diasPago: number;
-  condicionesEspeciales: string;
-  notas: string;
-  fechaAlta: string;
-  contacto?: Contacto;
-  totalServicios?: number;
-  totalFacturado?: number;
-  ultimoServicio?: string;
-  tipo?: 'empresa' | 'particular';
-  razon_social?: string;
-  nif_cif?: string;
-  pais?: string;
-  estado?: EstadoCliente;
-  condiciones_pago?: string;
-  limite_credito?: number;
-  persona_contacto_nombre?: string;
-  persona_contacto_email?: string;
-  persona_contacto_telefono?: string;
-  persona_contacto_cargo?: string;
-}
-
-export interface Contacto {
-  id?: number;
-  clienteId?: number;
-  nombre?: string;
-  email?: string;
-  telefono?: string;
-  cargo?: string;
-  principal?: boolean;
-  direccion?: string;
-  ciudad?: string;
-  codigoPostal?: string;
-}
-
-export interface CreateClienteData {
-  nombre: string;
-  cif?: string;
-  email?: string;
-  telefono?: string;
-  direccion?: string;
-  ciudad?: string;
-  codigoPostal?: string;
-  formaPago?: string;
-  diasPago?: number;
-  condicionesEspeciales?: string;
-  notas?: string;
-  contacto?: {
-    nombre: string;
-    email?: string;
-    telefono?: string;
-    cargo?: string;
-  };
-  codigo?: string;
-  tipo?: 'empresa' | 'particular';
-  razon_social?: string;
-  nif_cif?: string;
-  pais?: string;
-  estado?: EstadoCliente;
-  condiciones_pago?: string;
-  limite_credito?: number;
-  persona_contacto_nombre?: string;
-  persona_contacto_email?: string;
-  persona_contacto_telefono?: string;
-  persona_contacto_cargo?: string;
-}
-
-export interface UpdateClienteData {
-  nombre?: string;
-  cif?: string;
-  email?: string;
-  telefono?: string;
-  direccion?: string;
-  ciudad?: string;
-  codigoPostal?: string;
-  formaPago?: string;
-  diasPago?: number;
-  condicionesEspeciales?: string;
-  notas?: string;
-  contacto?: {
-    nombre: string;
-    email?: string;
-    telefono?: string;
-    cargo?: string;
-  };
-  tipo?: 'empresa' | 'particular';
-  razon_social?: string;
-  nif_cif?: string;
-  pais?: string;
-  estado?: EstadoCliente;
-  condiciones_pago?: string;
-  limite_credito?: number;
-  persona_contacto_nombre?: string;
-  persona_contacto_email?: string;
-  persona_contacto_telefono?: string;
-  persona_contacto_cargo?: string;
-}
-
-// Tipos de Servicio
-export interface Servicio {
-  id: string | number;
-  codigo: string;
-  titulo: string;
-  clienteId: string | number;
-  clienteNombre?: string;
-  tipo: TipoServicio;
-  descripcion?: string;
-  fechaInicio: string | Date;
-  fechaFin?: string | Date;
-  horaInicio?: string;
-  horaFin?: string;
-  estado: EstadoServicio;
-  importe?: number;
-  precio: number;
-  costeEstimado?: number;
-  margen?: number;
-  notas?: string;
-  numeroVehiculos?: number;
-  rutas?: Ruta[];
-  conductoresAsignados?: string[];
-  vehiculosAsignados?: string[];
-  facturado: boolean;
-  facturaId?: string | number;
-  tareas: Tarea[];
-  incidencias: Incidencia[];
-  documentos: Documento[];
-  fechaCreacion?: string | Date;
-  creadoPor?: string;
-}
-
-export interface CreateServicioData {
-  clienteId: number;
-  tipo: string;
-  descripcion: string;
-  fechaInicio: string;
-  fechaFin?: string;
-  importe?: number;
-  notas?: string;
-  estado?: 'pendiente' | 'en_progreso' | 'completado' | 'cancelado' | 'facturado';
-}
-
-export interface UpdateServicioData {
-  clienteId?: number;
-  tipo?: string;
-  descripcion?: string;
-  fechaInicio?: string;
-  fechaFin?: string;
-  estado?: 'pendiente' | 'en_progreso' | 'completado' | 'cancelado' | 'facturado';
-  importe?: number;
+  tamaño?: number;
+  fechaSubida: Date | string;
+  subidoPor: string;
+  entidadId?: string; // clienteId, vehiculoId, etc.
+  entidadTipo?: string;
   notas?: string;
 }
 
-// Tipos de Factura
-export interface Factura {
-  id: string | number;
-  numero: string;
-  serie?: string;
-  clienteId: string | number;
-  clienteNombre: string;
-  fecha: string;
-  fechaEmision?: string;
-  fechaVencimiento: string;
-  fechaPago?: string;
-  referenciaPago?: string;
-  subtotal: number;
-  baseImponible?: number;
-  iva: number;
-  impuestos?: number;
-  total: number;
-  estado: EstadoFactura;
-  concepto: string;
-  conceptos?: ConceptoFactura[];
-  servicioId?: string | number;
-  facturaId?: string | number;
-}
-
-export interface CreateFacturaData {
-  clienteId: number;
-  fecha: string;
-  fechaVencimiento: string;
-  concepto: string;
-  subtotal: number;
-  iva?: number;
-}
-
-export interface ConceptoFactura {
-  id?: string | number;
-  descripcion?: string;
-  cantidad: number;
-  precioUnitario: number;
-  importe?: number;
-  total?: number;
-  concepto?: string;
-  impuesto?: number;
-}
-
-// Tipos de Dashboard
-export interface DashboardStats {
-  totalClientes: number;
-  totalServicios: number;
-  totalFacturado: number;
-  facturasPendientes: number;
-  serviciosPendientes: number;
-  serviciosEsteMes: number;
-}
-
-export interface MonthlyData {
-  mes: string;
-  servicios: number;
-  facturacion: number;
-}
-
-export interface DashboardData {
-  stats: DashboardStats;
-  monthlyData: MonthlyData[];
-  ultimosServicios: Servicio[];
-  facturasPendientes: Factura[];
-}
-
-// Tipos de Conductor
-export interface Conductor {
-  id: number;
-  codigo: string;
-  nombre: string;
-  apellidos: string;
-  dni: string;
-  email: string;
-  telefono: string;
-  direccion: string;
-  fechaNacimiento?: string;
-  fechaAlta: string;
-  licencia?: {
-    tipo: string;
-    numero: string;
-    fechaCaducidad: string;
-  };
-  tieneCap: boolean;
-  capCaducidad?: string;
-  numeroSeguridadSocial?: string;
-  tipoContrato: 'indefinido' | 'temporal' | 'autonomo';
-  tarifaHora: number;
-  activo: boolean;
-  notas?: string;
-  estado?: EstadoConductor;
-  fecha_nacimiento?: string;
-  num_licencia?: string;
-  categoria_licencia?: string;
-  fecha_vencimiento_licencia?: string;
-  fecha_vencimiento_adr?: string;
-  fecha_vencimiento_medico?: string;
-  fecha_contratacion?: string;
-  disponibilidad?: {
-    dias: number[];
-    horaInicio: string;
-    horaFin: string;
-  };
-  totalHorasMes?: number;
-  totalServiciosMes?: number;
-  valoracion?: number;
-}
-
-export interface CreateConductorData {
-  nombre: string;
-  apellidos: string;
-  dni?: string;
-  email?: string;
-  telefono?: string;
-  direccion?: string;
-  fechaNacimiento?: string;
-  licencia?: {
-    tipo: string;
-    numero: string;
-    fechaCaducidad: string;
-  };
-  tieneCap?: boolean;
-  capCaducidad?: string;
-  numeroSeguridadSocial?: string;
-  tipoContrato?: 'indefinido' | 'temporal' | 'autonomo';
-  tarifaHora?: number;
-  activo?: boolean;
-  notas?: string;
-  codigo?: string;
-  estado?: EstadoConductor;
-  fecha_nacimiento?: string;
-  num_licencia?: string;
-  categoria_licencia?: string;
-  fecha_vencimiento_licencia?: string;
-  fecha_vencimiento_adr?: string;
-  fecha_vencimiento_medico?: string;
-  fecha_contratacion?: string;
-}
-
-export interface UpdateConductorData {
-  nombre?: string;
-  apellidos?: string;
-  dni?: string;
-  email?: string;
-  telefono?: string;
-  direccion?: string;
-  fechaNacimiento?: string;
-  licencia?: {
-    tipo: string;
-    numero: string;
-    fechaCaducidad: string;
-  };
-  tieneCap?: boolean;
-  capCaducidad?: string;
-  numeroSeguridadSocial?: string;
-  tipoContrato?: 'indefinido' | 'temporal' | 'autonomo';
-  tarifaHora?: number;
-  activo?: boolean;
-  notas?: string;
-  estado?: EstadoConductor;
-  fecha_nacimiento?: string;
-  num_licencia?: string;
-  categoria_licencia?: string;
-  fecha_vencimiento_licencia?: string;
-  fecha_vencimiento_adr?: string;
-  fecha_vencimiento_medico?: string;
-  fecha_contratacion?: string;
-}
-
-// Tipos de Vehiculo
-export interface Vehiculo {
-  id: number;
-  codigo: string;
-  matricula: string;
-  marca: string;
-  modelo: string;
-  annoFabricacion?: number;
-  añoFabricacion?: number;
-  plazas: number;
-  tipo: TipoVehiculo;
-  estado: EstadoVehiculo;
-  combustible?: TipoCombustible;
-  bastidor?: string;
-  kilometraje?: number;
-  itv?: {
-    fechaUltima: string;
-    fechaProxima: string;
-    resultado: 'favorable' | 'desfavorable' | 'negativo';
-  };
-  seguro?: {
-    compania: string;
-    poliza: string;
-    fechaVencimiento: string;
-  };
-  imagenUrl?: string;
-  fechaAlta: string;
-  notas?: string;
-  tipo_vehiculo?: TipoVehiculo;
-  estado_vehiculo?: EstadoVehiculo;
-  capacidad_kg?: number;
-  volumen_m3?: number;
-  longitud_m?: number;
-  fecha_vencimiento_itv?: string;
-  fecha_vencimiento_seguro?: string;
-  num_poliza_seguro?: string;
-  fecha_adquisicion?: string;
-  consumoMedio?: number;
-}
-
-export interface CreateVehiculoData {
-  matricula: string;
-  marca: string;
-  modelo: string;
-  annoFabricacion?: number;
-  plazas?: number;
-  tipo?: TipoVehiculo;
-  estado?: EstadoVehiculo;
-  combustible?: TipoCombustible;
-  bastidor?: string;
-  kilometraje?: number;
-  itv?: {
-    fechaUltima: string;
-    fechaProxima: string;
-    resultado: 'favorable' | 'desfavorable' | 'negativo';
-  };
-  seguro?: {
-    compania: string;
-    poliza: string;
-    fechaVencimiento: string;
-  };
-  imagenUrl?: string;
-  notas?: string;
-  codigo?: string;
-  tipo_vehiculo?: TipoVehiculo;
-  estado_vehiculo?: EstadoVehiculo;
-  capacidad_kg?: number;
-  volumen_m3?: number;
-  longitud_m?: number;
-  fecha_vencimiento_itv?: string;
-  fecha_vencimiento_seguro?: string;
-  num_poliza_seguro?: string;
-  fecha_adquisicion?: string;
-}
-
-export interface UpdateVehiculoData {
-  matricula?: string;
-  marca?: string;
-  modelo?: string;
-  annoFabricacion?: number;
-  plazas?: number;
-  tipo?: TipoVehiculo;
-  estado?: EstadoVehiculo;
-  combustible?: TipoCombustible;
-  bastidor?: string;
-  kilometraje?: number;
-  itv?: {
-    fechaUltima: string;
-    fechaProxima: string;
-    resultado: 'favorable' | 'desfavorable' | 'negativo';
-  };
-  seguro?: {
-    compania: string;
-    poliza: string;
-    fechaVencimiento: string;
-  };
-  imagenUrl?: string;
-  notas?: string;
-  tipo_vehiculo?: TipoVehiculo;
-  estado_vehiculo?: EstadoVehiculo;
-  capacidad_kg?: number;
-  volumen_m3?: number;
-  longitud_m?: number;
-  fecha_vencimiento_itv?: string;
-  fecha_vencimiento_seguro?: string;
-  num_poliza_seguro?: string;
-  fecha_adquisicion?: string;
-}
-
-export interface Mantenimiento {
+// ============================================
+// COMUNICACIONES
+// ============================================
+export interface Mensaje {
   id: string;
-  vehiculoId: number;
-  tipo: 'preventivo' | 'correctivo' | 'itv' | 'reparacion' | 'otros';
-  fecha: string;
-  kilometraje?: number;
-  descripcion: string;
-  coste?: number;
-  taller?: string;
-  estado: 'pendiente' | 'en_curso' | 'completado';
-  proximoMantenimiento?: string;
-  notas?: string;
+  canal: 'email' | 'whatsapp' | 'telefono' | 'interno';
+  direccion: 'entrada' | 'salida';
+  remitente: string;
+  destinatario: string;
+  asunto?: string;
+  contenido: string;
+  fecha: Date | string;
+  leido: boolean;
+  servicioId?: string;
+  clienteId?: string;
+  adjuntos?: string[];
 }
 
+// ============================================
+// ALERTAS Y NOTIFICACIONES
+// ============================================
 export interface Alerta {
   id: string;
-  tipo: 'info' | 'warning' | 'error' | 'success';
+  tipo: 'itv' | 'seguro' | 'licencia' | 'mantenimiento' | 'servicio' | 'factura' | 'sistema';
+  severidad: 'info' | 'warning' | 'error' | 'critical';
   titulo: string;
   mensaje: string;
-  fecha: string;
-  leida?: boolean;
-  enlace?: string;
+  entidadId?: string;
+  entidadTipo?: string;
+  fechaCreacion: Date | string;
+  fechaVencimiento?: Date | string;
+  leida: boolean;
+  accion?: string;
+  accionUrl?: string;
 }
 
+// ============================================
+// USUARIO Y CONFIGURACIÓN
+// ============================================
+export interface Usuario {
+  id: string;
+  nombre: string;
+  email: string;
+  rol: 'admin' | 'coordinador' | 'conductor' | 'cliente' | 'viewer';
+  avatar?: string;
+  telefono?: string;
+  activo: boolean;
+  ultimoAcceso?: Date | string;
+  preferencias?: {
+    tema?: 'light' | 'dark' | 'system';
+    notificaciones?: boolean;
+    idioma?: string;
+  };
+}
+
+export interface ConfiguracionEmpresa {
+  nombre: string;
+  nif: string;
+  direccion: string;
+  telefono: string;
+  email: string;
+  logo?: string;
+  // Configuración de facturación
+  serieFactura: string;
+  numeroFacturaActual: number;
+  ivaDefault: number;
+  // Configuración de conductores
+  maxHorasSemana: number;
+  maxHorasDia: number;
+  // Precios combustible
+  precioCombustible: number;
+}
+
+// ============================================
+// DASHBOARD
+// ============================================
 export interface KPIDashboard {
-  totalServicios: number;
   serviciosActivos: number;
-  serviciosPendientes: number;
-  totalClientes: number;
-  clientesNuevos: number;
-  totalFacturado: number;
-  facturasPendientes: number;
-  totalConductores: number;
+  serviciosHoy: number;
+  serviciosMes: number;
   conductoresDisponibles: number;
-  totalVehiculos: number;
+  conductoresOcupados: number;
   vehiculosOperativos: number;
-  margenMedio: number;
+  vehiculosTaller: number;
+  facturacionMes: number;
+  facturacionPendiente: number;
+  serviciosPendientesFacturar: number;
 }
 
-// Tipos de API
-export interface ApiError {
-  detail: string;
+export interface DatoGrafico {
+  label: string;
+  value: number;
+  color?: string;
 }
 
-export interface PaginatedResponse<T> {
-  items: T[];
+// ============================================
+// FILTROS Y PAGINACIÓN
+// ============================================
+export interface FiltrosBusqueda {
+  texto?: string;
+  fechaDesde?: Date | string;
+  fechaHasta?: Date | string;
+  estado?: string;
+  tipo?: string;
+  entidadId?: string;
+}
+
+export interface Paginacion {
+  pagina: number;
+  porPagina: number;
   total: number;
-  page: number;
-  pages: number;
+  totalPaginas: number;
 }

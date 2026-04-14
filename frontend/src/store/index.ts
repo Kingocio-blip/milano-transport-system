@@ -4,8 +4,8 @@
 // ============================================
 
 import { create } from 'zustand';
-import { localStorageService } from '../lib/localStorage';
-import { clientesApi, vehiculosApi, conductoresApi, serviciosApi, facturasApi, dashboardApi } from '../lib/api';
+import { localStorageService } from '@/lib/localStorage';
+import { clientesApi, vehiculosApi, conductoresApi, serviciosApi, facturasApi, dashboardApi } from '@/lib/api';
 import type {
   Cliente,
   Vehiculo,
@@ -20,7 +20,7 @@ import type {
   EstadoConductor,
   EstadoFactura,
   Mantenimiento,
-} from '../types';
+} from '@/types';
 
 // ============================================
 // STORE DE CLIENTES
@@ -161,7 +161,7 @@ export const useClientesStore = create<ClientesState>((set, get) => ({
           }
         };
         set((state) => ({
-          clientes: state.clientes.map(c => String(c.id) === String(id) ? clienteFormateado : c),
+          clientes: state.clientes.map(c => c.id === id ? clienteFormateado : c),
           isLoading: false,
         }));
       }
