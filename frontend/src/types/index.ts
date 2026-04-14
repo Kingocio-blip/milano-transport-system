@@ -191,9 +191,10 @@ export interface UpdateServicioData {
 
 // Tipos de Factura
 export interface Factura {
-  id: number;
+  id: string | number;  // ← Cambiar de number a string | number
   numero: string;
-  clienteId: number;
+  serie?: string;  // ← Añadir campo opcional
+  clienteId: string | number;  // ← Cambiar a string | number
   clienteNombre: string;
   fecha: string;
   fechaVencimiento: string;
@@ -202,7 +203,6 @@ export interface Factura {
   total: number;
   estado: EstadoFactura;
   concepto: string;
-  // NUEVOS CAMPOS:
   conceptos?: ConceptoFactura[];
   impuestos?: number;
 }
