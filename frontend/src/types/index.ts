@@ -147,7 +147,7 @@ export interface UpdateClienteData {
 export interface Servicio {
   id: number;
   codigo: string;
-  titulo?: string;  // ← AÑADIR ESTA LÍNEA
+  titulo?: string;
   clienteId: number;
   clienteNombre: string;
   tipo: string;
@@ -156,6 +156,7 @@ export interface Servicio {
   fechaFin?: string;
   estado: 'pendiente' | 'en_progreso' | 'completado' | 'cancelado' | 'facturado';
   importe: number;
+  precio?: number;  // ← AÑADIR ESTA LÍNEA (alias de importe)
   notas: string;
   rutas?: {
     vehiculoAsignadoId: string;
