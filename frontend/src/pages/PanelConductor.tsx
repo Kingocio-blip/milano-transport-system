@@ -166,7 +166,7 @@ export default function PanelConductor() {
                           ? 'bg-green-100 text-green-700' 
                           : 'bg-blue-100 text-blue-700'
                       }>
-                        {servicio.estado === 'en_progreso' ? 'En Curso' : 'Pendiente'}
+                        {servicio.estado === 'en_curso' ? 'En Curso' : 'Planificando'}
                       </Badge>
                     </div>
                     <div className="mt-4 grid gap-2 md:grid-cols-2 text-sm">
