@@ -507,7 +507,7 @@ export default function Flota() {
  </div>
  <div>
  <Label className="text-slate-500">Año Fabricación</Label>
- <p>{vehiculoSeleccionado.annoFabricacion || vehiculoSeleccionado.añoFabricacion || '-'}</p>
+ <p>{vehiculoSeleccionado.añoFabricacion || '-'}</p>
  </div>
  </div>
  <div className="grid grid-cols-3 gap-4">
