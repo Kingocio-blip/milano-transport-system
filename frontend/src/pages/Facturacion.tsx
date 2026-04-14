@@ -219,7 +219,7 @@ export default function Facturacion() {
                 <div className="space-y-2">
                   <Label htmlFor="cliente">Cliente *</Label>
                   <Select 
-                    value={nuevaFactura.clienteId} 
+                    value={String(nuevaFactura.clienteId || '')} 
                     onValueChange={(v) => setNuevaFactura({...nuevaFactura, clienteId: v})}
                   >
                     <SelectTrigger>
