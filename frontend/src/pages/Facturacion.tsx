@@ -602,7 +602,7 @@ export default function Facturacion() {
                 <div className="grid grid-cols-3 gap-4 rounded-lg bg-slate-50 p-4">
                   <div>
                     <Label className="text-slate-500">Fecha Emisión</Label>
-                    <p>{format(new Date(facturaSeleccionada.fechaEmision), 'dd/MM/yyyy')}</p>
+                    <p>{format(new Date(factura.fechaEmision || new Date()), 'dd/MM/yyyy')}</p>
                   </div>
                   <div>
                     <Label className="text-slate-500">Fecha Vencimiento</Label>
