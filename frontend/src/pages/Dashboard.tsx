@@ -331,7 +331,7 @@ export default function Dashboard() {
                 <CheckCircle2 className="h-5 w-5 text-green-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{vehiculos.filter(v => v.estado === 'operativo').length}</p>
+                <p className="text-2xl font-bold">{vehiculos.filter(v => v.estado === 'activo').length}</p>
                 <p className="text-sm text-slate-500">Operativos</p>
               </div>
             </div>
