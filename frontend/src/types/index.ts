@@ -191,10 +191,10 @@ export interface UpdateServicioData {
 
 // Tipos de Factura
 export interface Factura {
-  id: string | number;  // ← Cambiar de number a string | number
+  id: string | number;  // ← Debe permitir string o number
   numero: string;
-  serie?: string;  // ← Añadir campo opcional
-  clienteId: string | number;  // ← Cambiar a string | number
+  serie?: string;
+  clienteId: string | number;  // ← También cambiar esto
   clienteNombre: string;
   fecha: string;
   fechaVencimiento: string;
