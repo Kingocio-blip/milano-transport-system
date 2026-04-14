@@ -139,7 +139,7 @@ export default function Facturacion() {
   };
 
   const handleMarcarPagada = (factura: Factura) => {
-    updateFactura(factura.id, { 
+    updateFactura(String(factura.id), { 
       estado: 'pagada', 
       fechaPago: new Date() 
     });
