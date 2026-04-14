@@ -130,7 +130,7 @@ export default function Facturacion() {
     
     // Si está asociada a un servicio, marcarlo como facturado
     if (nuevaFactura.servicioId) {
-      updateServicio(nuevaFactura.servicioId, { facturado: true, facturaId: factura.id });
+      updateServicio(String(nuevaFactura.servicioId), { facturado: true, facturaId: factura.id });
     }
 
     setIsNuevaFacturaOpen(false);
