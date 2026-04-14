@@ -708,7 +708,7 @@ export default function CRM() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>{getDocumentoLabel(clienteSeleccionado.tipo)}</Label>
+                <Label>{getDocumentoLabel(clienteSeleccionado.tipo || 'empresa')}</Label>
                 <Input 
                   value={clienteSeleccionado.nif || ''}
                   onChange={(e) => setClienteSeleccionado({...clienteSeleccionado, nif: e.target.value})}
