@@ -353,35 +353,36 @@ export interface ConceptoFactura {
 }
 
 export interface Factura {
-  id: string;
-  numero: string;
-  serie?: string;
-  // Relaciones
-  clienteId: string;
-  clienteNombre?: string;
-  servicioId?: string;
-  servicioCodigo?: string;
-  // Fechas
-  fechaEmision: Date | string;
-  fechaVencimiento: Date | string;
-  fechaPago?: Date | string;
-  // Conceptos
-  conceptos: ConceptoFactura[];
-  // Totales
-  subtotal: number;
-  descuentoTotal?: number;
-  baseImponible: number;
-  impuestos: number;
-  total: number;
-  // Estado
-  estado: EstadoFactura;
-  metodoPago?: string;
-  referenciaPago?: string;
-  // Notas
-  notas?: string;
-  condiciones?: string;
-  // Documentos
-  pdfUrl?: string;
+ id: string;
+ numero: string;
+ serie?: string;
+ // Relaciones
+ clienteId: string;
+ clienteNombre?: string;
+ servicioId?: string;
+ servicioCodigo?: string;
+ // Fechas
+ fechaEmision: Date | string;
+ fechaVencimiento: Date | string;
+ fechaPago?: Date | string;
+ // Conceptos
+ conceptos: ConceptoFactura[];
+ // Totales
+ subtotal: number;
+ descuentoTotal?: number;
+ baseImponible: number;
+ impuestos: number;
+ iva?: number;  // <-- AÑADIR ESTA LÍNEA
+ total: number;
+ // Estado
+ estado: EstadoFactura;
+ metodoPago?: string;
+ referenciaPago?: string;
+ // Notas
+ notas?: string;
+ condiciones?: string;
+ // Documentos
+ pdfUrl?: string;
 }
 
 // ============================================
