@@ -535,6 +535,16 @@ export interface UpdateVehiculoData {
   fecha_adquisicion?: string;
 }
 
+export interface Alerta {
+  id: string;
+  tipo: 'info' | 'warning' | 'error' | 'success';
+  titulo: string;
+  mensaje: string;
+  fecha: string;
+  leida?: boolean;
+  enlace?: string;
+}
+
 // Tipos de API
 export interface ApiError {
   detail: string;
