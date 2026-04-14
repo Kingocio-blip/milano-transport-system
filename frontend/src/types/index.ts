@@ -160,8 +160,9 @@ export interface Servicio {
     vehiculoAsignadoId: string;
     distanciaKm: number;
   }[];
-  // NUEVO: conductoresAsignados
   conductoresAsignados?: string[];
+  // NUEVO: facturado
+  facturado?: boolean;
 }
 
 export interface CreateServicioData {
