@@ -65,9 +65,12 @@ const tipoVehiculoLabels: Record<TipoVehiculo, string> = {
 
 const estadoVehiculoColors: Record<EstadoVehiculo, string> = {
   activo: 'bg-green-100 text-green-700',
-  taller: 'bg-amber-100 text-amber-700',
+  inactivo: 'bg-slate-100 text-slate-700',
+  en_ruta: 'bg-blue-100 text-blue-700',
+  en_mantenimiento: 'bg-amber-100 text-amber-700',
+  taller: 'bg-orange-100 text-orange-700',
+  reservado: 'bg-purple-100 text-purple-700',
   baja: 'bg-red-100 text-red-700',
-  reservado: 'bg-blue-100 text-blue-700',
 };
 
 export default function Flota() {
