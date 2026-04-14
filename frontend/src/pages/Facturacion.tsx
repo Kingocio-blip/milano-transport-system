@@ -631,7 +631,7 @@ export default function Facturacion() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {facturaSeleccionada.conceptos.map((concepto) => (
+                      {(facturaSeleccionada.conceptos || []).map((concepto) => (
                         <TableRow key={concepto.id}>
                           <TableCell>{concepto.concepto}</TableCell>
                           <TableCell className="text-right">{concepto.cantidad}</TableCell>
