@@ -200,6 +200,7 @@ export interface Factura {
   fecha: string;
   fechaEmision?: string;
   fechaVencimiento: string;
+  fechaPago?: string;  // ← Añadir esta línea
   subtotal: number;
   baseImponible?: number;
   iva: number;
@@ -208,8 +209,8 @@ export interface Factura {
   estado: EstadoFactura;
   concepto: string;
   conceptos?: ConceptoFactura[];
-  servicioId?: string | number;  // ← Añadir esta línea
-  facturaId?: string | number;   // ← También añadir esta línea para el updateServicio
+  servicioId?: string | number;
+  facturaId?: string | number;
 }
 
 export interface CreateFacturaData {
