@@ -191,20 +191,22 @@ export interface UpdateServicioData {
 
 // Tipos de Factura
 export interface Factura {
-  id: string | number;  // ← Debe permitir string o number
+  id: string | number;
   numero: string;
   serie?: string;
-  clienteId: string | number;  // ← También cambiar esto
+  clienteId: string | number;
   clienteNombre: string;
   fecha: string;
+  fechaEmision?: string;
   fechaVencimiento: string;
   subtotal: number;
+  baseImponible?: number;  // ← Añadir esta línea
   iva: number;
+  impuestos?: number;
   total: number;
   estado: EstadoFactura;
   concepto: string;
   conceptos?: ConceptoFactura[];
-  impuestos?: number;
 }
 
 export interface CreateFacturaData {
