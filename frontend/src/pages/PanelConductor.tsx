@@ -162,7 +162,7 @@ export default function PanelConductor() {
                         <p className="text-sm text-slate-500">{servicio.clienteNombre}</p>
                       </div>
                       <Badge className={
-                        servicio.estado === 'en_progreso' 
+                        servicio.estado === 'en_curso' 
                           ? 'bg-green-100 text-green-700' 
                           : 'bg-blue-100 text-blue-700'
                       }>
