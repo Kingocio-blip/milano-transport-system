@@ -223,10 +223,13 @@ export interface CreateFacturaData {
 }
 
 export interface ConceptoFactura {
+  id?: string | number;  // ← Añadir esta línea
   descripcion: string;
   cantidad: number;
   precioUnitario: number;
   importe: number;
+  total?: number;
+  concepto?: string;  // ← También añadir esta línea si se usa
 }
 
 // Tipos de Dashboard
