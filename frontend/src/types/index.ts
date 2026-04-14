@@ -200,8 +200,11 @@ export interface Factura {
   subtotal: number;
   iva: number;
   total: number;
-  estado: 'pendiente' | 'pagada' | 'vencida' | 'anulada' | 'enviada'; // ← añade 'enviada'
+  estado: EstadoFactura;
   concepto: string;
+  // NUEVOS CAMPOS:
+  conceptos?: ConceptoFactura[];
+  impuestos?: number;
 }
 
 export interface CreateFacturaData {
