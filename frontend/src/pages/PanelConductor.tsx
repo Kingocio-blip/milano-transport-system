@@ -52,7 +52,7 @@ export default function PanelConductor() {
   // Servicios asignados al conductor (estados válidos: pendiente o en_progreso)
   const misServicios = servicios.filter(s => 
     s.conductoresAsignados?.includes(conductorActual?.id) &&
-    (s.estado === 'pendiente' || s.estado === 'en_progreso')
+    (s.estado === 'planificando' || s.estado === 'en_curso')
   );
 
   // Servicios de hoy
