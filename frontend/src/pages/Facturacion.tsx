@@ -114,7 +114,7 @@ export default function Facturacion() {
       serie: String(new Date().getFullYear()),
       clienteId: nuevaFactura.clienteId || '',
       clienteNombre: cliente?.nombre || '',
-      fechaEmision: new Date().toISOString(),
+      fecha: new Date().toISOString(),
       fechaVencimiento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       conceptos: nuevaFactura.conceptos || [],
       subtotal,
