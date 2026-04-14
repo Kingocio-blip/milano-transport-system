@@ -109,19 +109,21 @@ export default function Facturacion() {
     const total = subtotal + impuestos;
 
     const factura: Factura = {
-      id: `f${Date.now()}`,
-      numero: `F${new Date().getFullYear()}-${String(facturas.length + 1).padStart(3, '0')}`,
-      serie: String(new Date().getFullYear()),
-      clienteId: nuevaFactura.clienteId || '',
-      clienteNombre: cliente?.nombre || '',
-      fecha: new Date().toISOString(),
-      fechaVencimiento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      conceptos: nuevaFactura.conceptos || [],
-      subtotal,
-      baseImponible: subtotal,
-      impuestos,
-      total,
-      estado: 'pendiente',
+       id: `f${Date.now()}`,
+       numero: `F${new Date().getFullYear()}-${String(facturas.length + 1).padStart(3, '0')}`,
+       serie: String(new Date().getFullYear()),
+       clienteId: nuevaFactura.clienteId || '',
+       clienteNombre: cliente?.nombre || '',
+       fecha: new Date().toISOString(),
+       fechaVencimiento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+       conceptos: nuevaFactura.conceptos || [],
+       subtotal,
+       baseImponible: subtotal,
+       impuestos,
+       iva: impuestos,  // ← Añadir esta línea
+       concepto: 'Factura de servicios',  // ← Añadir esta línea
+       total,
+       estado: 'pendiente',
     };
 
     addFactura(factura);
