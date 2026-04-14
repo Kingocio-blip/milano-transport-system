@@ -543,7 +543,7 @@ export default function CRM() {
                             Editar
                           </DropdownMenuItem>
                           <DropdownMenuItem 
-                            onClick={() => handleEliminarCliente(cliente.id)}
+                            onClick={() => handleEliminarCliente(String(cliente.id))}
                             className="text-red-600"
                           >
                             <Trash2 className="mr-2 h-4 w-4" />
