@@ -537,6 +537,20 @@ export interface UpdateVehiculoData {
   fecha_adquisicion?: string;
 }
 
+export interface Mantenimiento {
+  id: string;
+  vehiculoId: number;
+  tipo: 'preventivo' | 'correctivo' | 'itv' | 'reparacion' | 'otros';
+  fecha: string;
+  kilometraje?: number;
+  descripcion: string;
+  coste?: number;
+  taller?: string;
+  estado: 'pendiente' | 'en_curso' | 'completado';
+  proximoMantenimiento?: string;
+  notas?: string;
+}
+
 export interface Alerta {
   id: string;
   tipo: 'info' | 'warning' | 'error' | 'success';
