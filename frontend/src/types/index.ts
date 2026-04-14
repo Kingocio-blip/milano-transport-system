@@ -11,6 +11,8 @@ export interface User {
   ultimoAcceso?: string;
 }
 
+export type Usuario = User;  // ← Añadir esta línea
+
 export interface LoginCredentials {
   username: string;
   password: string;
