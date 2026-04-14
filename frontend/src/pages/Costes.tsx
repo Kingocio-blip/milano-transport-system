@@ -25,7 +25,6 @@ import {
   DialogTitle,
 } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import {
   DollarSign,
   TrendingUp,
@@ -35,7 +34,6 @@ import {
   Bus,
   Receipt,
   FileDown,
-  Calculator,
   AlertTriangle,
   CheckCircle2,
   ArrowUpRight,
@@ -72,32 +70,33 @@ export default function Costes() {
     .map(servicio => {
       // Calcular costes reales
       const costeCombustible = (servicio.rutas || []).reduce((sum, ruta) => {
-        const vehiculo = vehiculos.find(v => v.id === Number(ruta.vehiculoAsignadoId));
+        const vehiculo = vehiculos.find(v => String(v.id) === String(ruta.vehiculoAsignadoId));
         if (vehiculo) {
-          return sum + (ruta.distanciaKm * (vehiculo.consumoMedio || 0) / 100 * 1.5); // 1.5€/L
+          return sum + ((ruta.distanciaKm || 0) * (vehiculo.consumoMedio || 0) / 100 * 1.5); // 1.5€/L
         }
         return sum;
       }, 0);
 
       const costeConductor = (servicio.conductoresAsignados || []).reduce((sum, conductorId) => {
-        const conductor = conductores.find(c => String(c.id) === conductorId);
+        const conductor = conductores.find(c => String(c.id) === String(conductorId));
         if (conductor) {
           // Estimar 8 horas por servicio
-          return sum + (8 * conductor.tarifaHora);
+          return sum + (8 * (conductor.tarifaHora || 0));
         }
         return sum;
       }, 0);
 
       const costeVehiculo = (servicio.rutas || []).reduce((sum, ruta) => {
         // 0.5€/km amortización
-        return sum + (ruta.distanciaKm * 0.5);
+        return sum + ((ruta.distanciaKm || 0) * 0.5);
       }, 0);
 
-      const peajes = (servicio.rutas || []).reduce((sum, ruta) => sum + (ruta.distanciaKm * 0.1), 0);
+      const peajes = (servicio.rutas || []).reduce((sum, ruta) => sum + ((ruta.distanciaKm || 0) * 0.1), 0);
 
       const costeTotal = costeCombustible + costeConductor + costeVehiculo + peajes;
-      const beneficio = servicio.importe - costeTotal;
-      const margen = servicio.importe > 0 ? (beneficio / servicio.importe) * 100 : 0;
+      const importe = servicio.importe || 0;
+      const beneficio = importe - costeTotal;
+      const margen = importe > 0 ? (beneficio / importe) * 100 : 0;
 
       return {
         ...servicio,
@@ -114,25 +113,25 @@ export default function Costes() {
     });
 
   // Estadísticas globales
-  const totalIngresos = serviciosConCostes.reduce((sum, s) => sum + s.importe, 0);
-  const totalCostes = serviciosConCostes.reduce((sum, s) => sum + s.costes.total, 0);
+  const totalIngresos = serviciosConCostes.reduce((sum, s) => sum + (s.importe || 0), 0);
+  const totalCostes = serviciosConCostes.reduce((sum, s) => sum + (s.costes?.total || 0), 0);
   const beneficioTotal = totalIngresos - totalCostes;
   const margenMedio = totalIngresos > 0 ? (beneficioTotal / totalIngresos) * 100 : 0;
 
   // Desglose de costes
   const desgloseCostes = [
-    { name: 'Combustible', value: serviciosConCostes.reduce((sum, s) => sum + s.costes.combustible, 0) },
-    { name: 'Conductores', value: serviciosConCostes.reduce((sum, s) => sum + s.costes.conductor, 0) },
-    { name: 'Vehículos', value: serviciosConCostes.reduce((sum, s) => sum + s.costes.vehiculo, 0) },
-    { name: 'Peajes', value: serviciosConCostes.reduce((sum, s) => sum + s.costes.peajes, 0) },
+    { name: 'Combustible', value: serviciosConCostes.reduce((sum, s) => sum + (s.costes?.combustible || 0), 0) },
+    { name: 'Conductores', value: serviciosConCostes.reduce((sum, s) => sum + (s.costes?.conductor || 0), 0) },
+    { name: 'Vehículos', value: serviciosConCostes.reduce((sum, s) => sum + (s.costes?.vehiculo || 0), 0) },
+    { name: 'Peajes', value: serviciosConCostes.reduce((sum, s) => sum + (s.costes?.peajes || 0), 0) },
   ];
 
   // Datos para gráfico de rentabilidad
   const datosRentabilidad = serviciosConCostes.slice(0, 10).map(s => ({
     nombre: s.codigo,
-    ingresos: s.importe,
-    costes: s.costes.total,
-    beneficio: s.beneficio,
+    ingresos: s.importe || 0,
+    costes: s.costes?.total || 0,
+    beneficio: s.beneficio || 0,
   }));
 
   return (
@@ -311,37 +310,37 @@ export default function Costes() {
                     <TableCell>
                       <div>
                         <p className="font-medium">{servicio.codigo}</p>
-                        <p className="text-sm text-slate-500">{servicio.descripcion}</p>
+                        <p className="text-sm text-slate-500">{servicio.descripcion || servicio.titulo}</p>
                       </div>
                     </TableCell>
                     <TableCell>{servicio.clienteNombre}</TableCell>
                     <TableCell className="font-medium text-green-600">
-                      {servicio.importe.toLocaleString('es-ES')}€
+                      {(servicio.importe || 0).toLocaleString('es-ES')}€
                     </TableCell>
                     <TableCell className="text-red-600">
-                      {servicio.costes.total.toLocaleString('es-ES')}€
+                      {(servicio.costes?.total || 0).toLocaleString('es-ES')}€
                     </TableCell>
-                    <TableCell className={`font-bold ${servicio.beneficio >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {servicio.beneficio.toLocaleString('es-ES')}€
+                    <TableCell className={`font-bold ${(servicio.beneficio || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {(servicio.beneficio || 0).toLocaleString('es-ES')}€
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Progress 
-                          value={Math.max(0, Math.min(100, servicio.margen + 50))} 
+                          value={Math.max(0, Math.min(100, (servicio.margen || 0) + 50))} 
                           className="w-20 h-2"
                         />
-                        <span className={`text-sm ${servicio.margen >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {servicio.margen.toFixed(1)}%
+                        <span className={`text-sm ${(servicio.margen || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {(servicio.margen || 0).toFixed(1)}%
                         </span>
                       </div>
                     </TableCell>
                     <TableCell>
-                      {servicio.margen < 0 ? (
+                      {(servicio.margen || 0) < 0 ? (
                         <Badge variant="destructive" className="flex items-center gap-1">
                           <AlertTriangle className="h-3 w-3" />
                           Pérdida
                         </Badge>
-                      ) : servicio.margen < 15 ? (
+                      ) : (servicio.margen || 0) < 15 ? (
                         <Badge variant="outline" className="bg-amber-100 text-amber-700">
                           Bajo
                         </Badge>
@@ -368,7 +367,7 @@ export default function Costes() {
               <DialogHeader>
                 <DialogTitle>Análisis de Costes - {servicioSeleccionado.codigo}</DialogTitle>
                 <DialogDescription>
-                  {servicioSeleccionado.descripcion}
+                  {servicioSeleccionado.descripcion || servicioSeleccionado.titulo}
                 </DialogDescription>
               </DialogHeader>
               
@@ -378,13 +377,13 @@ export default function Costes() {
                   <div className="rounded-lg bg-green-50 p-4 text-center">
                     <p className="text-sm text-green-600">Ingresos</p>
                     <p className="text-2xl font-bold text-green-700">
-                      {servicioSeleccionado.importe.toLocaleString('es-ES')}€
+                      {(servicioSeleccionado.importe || 0).toLocaleString('es-ES')}€
                     </p>
                   </div>
                   <div className="rounded-lg bg-red-50 p-4 text-center">
                     <p className="text-sm text-red-600">Costes</p>
                     <p className="text-2xl font-bold text-red-700">
-                      {servicioSeleccionado.costes?.total.toLocaleString('es-ES')}€
+                      {(servicioSeleccionado.costes?.total || 0).toLocaleString('es-ES')}€
                     </p>
                   </div>
                   <div className={`rounded-lg p-4 text-center ${
@@ -396,7 +395,7 @@ export default function Costes() {
                     <p className={`text-2xl font-bold ${
                       (servicioSeleccionado.beneficio || 0) >= 0 ? 'text-green-700' : 'text-red-700'
                     }`}>
-                      {servicioSeleccionado.beneficio?.toLocaleString('es-ES')}€
+                      {(servicioSeleccionado.beneficio || 0).toLocaleString('es-ES')}€
                     </p>
                   </div>
                 </div>
@@ -410,28 +409,28 @@ export default function Costes() {
                         <Fuel className="h-5 w-5 text-slate-400" />
                         <span>Combustible</span>
                       </div>
-                      <span className="font-medium">{servicioSeleccionado.costes?.combustible.toLocaleString('es-ES')}€</span>
+                      <span className="font-medium">{(servicioSeleccionado.costes?.combustible || 0).toLocaleString('es-ES')}€</span>
                     </div>
                     <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
                       <div className="flex items-center gap-2">
                         <Users className="h-5 w-5 text-slate-400" />
                         <span>Conductores</span>
                       </div>
-                      <span className="font-medium">{servicioSeleccionado.costes?.conductor.toLocaleString('es-ES')}€</span>
+                      <span className="font-medium">{(servicioSeleccionado.costes?.conductor || 0).toLocaleString('es-ES')}€</span>
                     </div>
                     <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
                       <div className="flex items-center gap-2">
                         <Bus className="h-5 w-5 text-slate-400" />
                         <span>Vehículos (amortización)</span>
                       </div>
-                      <span className="font-medium">{servicioSeleccionado.costes?.vehiculo.toLocaleString('es-ES')}€</span>
+                      <span className="font-medium">{(servicioSeleccionado.costes?.vehiculo || 0).toLocaleString('es-ES')}€</span>
                     </div>
                     <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
                       <div className="flex items-center gap-2">
                         <Receipt className="h-5 w-5 text-slate-400" />
                         <span>Peajes</span>
                       </div>
-                      <span className="font-medium">{servicioSeleccionado.costes?.peajes.toLocaleString('es-ES')}€</span>
+                      <span className="font-medium">{(servicioSeleccionado.costes?.peajes || 0).toLocaleString('es-ES')}€</span>
                     </div>
                   </div>
                 </div>
@@ -443,7 +442,7 @@ export default function Costes() {
                     <span className={`text-xl font-bold ${
                       (servicioSeleccionado.margen || 0) >= 0 ? 'text-green-600' : 'text-red-600'
                     }`}>
-                      {servicioSeleccionado.margen?.toFixed(1)}%
+                      {(servicioSeleccionado.margen || 0).toFixed(1)}%
                     </span>
                   </div>
                   <Progress 
