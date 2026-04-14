@@ -37,7 +37,7 @@ interface Documento {
   nombre: string;
   tipo: 'contrato' | 'factura' | 'plano' | 'seguro' | 'licencia' | 'itv' | 'otro';
   categoria: string;
-  entidad: string;
+  entidad?: string;  // ← Cambiado a opcional
   entidadTipo: string;
   fechaSubida: Date | string;
   tamaño: string;
@@ -68,25 +68,25 @@ export default function Documentacion() {
       },
     ]),
     // ITV de vehículos
-    ...vehiculos.map(v => ({
+    ...vehiculos.filter(v => v.itv?.fechaUltima).map(v => ({
       id: `doc-${v.id}-itv`,
       nombre: `ITV_${v.matricula.replace(' ', '')}.pdf`,
       tipo: 'itv' as const,
       categoria: 'itv',
       entidad: `${v.marca} ${v.modelo} (${v.matricula})`,
       entidadTipo: 'Vehículo',
-      fechaSubida: v.itv.fechaUltima,
+      fechaSubida: v.itv!.fechaUltima,
       tamaño: '1.2 MB',
     })),
     // Seguros de vehículos
-    ...vehiculos.map(v => ({
+    ...vehiculos.filter(v => v.seguro?.fechaVencimiento).map(v => ({
       id: `doc-${v.id}-seguro`,
       nombre: `Seguro_${v.matricula.replace(' ', '')}.pdf`,
       tipo: 'seguro' as const,
       categoria: 'seguros',
       entidad: `${v.marca} ${v.modelo} (${v.matricula})`,
       entidadTipo: 'Vehículo',
-      fechaSubida: v.seguro.fechaInicio,
+      fechaSubida: v.seguro!.fechaVencimiento,
       tamaño: '3.1 MB',
     })),
     // Licencias de conductores
@@ -101,15 +101,15 @@ export default function Documentacion() {
       tamaño: '0.8 MB',
     })),
     // Planos de rutas
-    ...servicios.flatMap(s => 
-      s.rutas.map(r => ({
-        id: `doc-${r.id}-plano`,
-        nombre: `Plano_${r.nombre.replace(/\s+/g, '_')}.pdf`,
+    ...servicios.filter(s => s.rutas && s.rutas.length > 0).flatMap(s => 
+      s.rutas!.map((r, index) => ({
+        id: `doc-${s.id}-plano-${index}`,
+        nombre: `Plano_Ruta_${index + 1}.pdf`,
         tipo: 'plano' as const,
         categoria: 'planos',
-        entidad: s.titulo,
+        entidad: s.titulo || s.descripcion || 'Servicio',
         entidadTipo: 'Servicio',
-        fechaSubida: s.fechaCreacion,
+        fechaSubida: s.fechaInicio,
         tamaño: '4.5 MB',
       }))
     ),
@@ -119,7 +119,7 @@ export default function Documentacion() {
   const documentosFiltrados = documentos.filter(doc => {
     const matchesSearch = 
       doc.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      doc.entidad.toLowerCase().includes(searchQuery.toLowerCase());
+      (doc.entidad || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategoria = categoriaActiva === 'todos' || doc.categoria === categoriaActiva;
     return matchesSearch && matchesCategoria;
   });
@@ -275,7 +275,7 @@ export default function Documentacion() {
                     <p className="font-medium truncate" title={doc.nombre}>
                       {doc.nombre}
                     </p>
-                    <p className="text-sm text-slate-500">{doc.entidad}</p>
+                    <p className="text-sm text-slate-500">{doc.entidad || '-'}</p>
                     <div className="flex items-center gap-2 mt-2">
                       <Badge variant="outline" className="text-xs">
                         {doc.entidadTipo}
@@ -366,7 +366,7 @@ export default function Documentacion() {
                     {getIconoPorTipo(doc.tipo)}
                     <div className="flex-1">
                       <p className="font-medium text-sm">{doc.nombre}</p>
-                      <p className="text-xs text-slate-500">{doc.entidad}</p>
+                      <p className="text-xs text-slate-500">{doc.entidad || '-'}</p>
                     </div>
                     <span className="text-xs text-slate-400">
                       {format(new Date(doc.fechaSubida), 'dd/MM/yyyy')}
