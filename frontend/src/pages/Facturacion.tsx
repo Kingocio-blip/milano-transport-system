@@ -141,7 +141,7 @@ export default function Facturacion() {
   const handleMarcarPagada = (factura: Factura) => {
     updateFactura(String(factura.id), { 
       estado: 'pagada', 
-      fechaPago: new Date() 
+      fechaPago: new Date().toISOString() 
     });
     showToast('Factura marcada como pagada', 'success');
   };
