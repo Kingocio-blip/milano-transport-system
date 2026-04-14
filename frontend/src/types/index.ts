@@ -30,6 +30,41 @@ export type EstadoFactura = 'pendiente' | 'pagada' | 'vencida' | 'anulada' | 'en
 export type TipoVehiculo = 'minibus' | 'autobus' | 'furgoneta' | 'coche';
 export type TipoCliente = 'empresa' | 'particular';
 export type TipoCombustible = 'diesel' | 'gasolina' | 'electrico' | 'hibrido';
+export type EstadoRuta = 'activa' | 'inactiva' | 'pendiente';
+
+// Tipos de Parada y Horario para Rutas
+export interface Parada {
+  id: string;
+  nombre: string;
+  direccion: string;
+  latitud?: number;
+  longitud?: number;
+  horaLlegada?: string;
+  orden?: number;
+}
+
+export interface Horario {
+  id: string;
+  horaSalida: string;
+  horaLlegada: string;
+  diasSemana: number[]; // 0=Lunes, 6=Domingo
+}
+
+export interface Ruta {
+  id: string;
+  nombre: string;
+  descripcion?: string;
+  origen: string;
+  destino: string;
+  distanciaKm: number;
+  duracionEstimada: number;
+  estado: EstadoRuta;
+  vehiculoAsignadoId?: string;
+  conductorAsignadoId?: string;
+  paradas: Parada[];
+  horarios: Horario[];
+  notasConductor?: string;
+}
 
 // Tipos de Cliente
 export interface Cliente {
@@ -156,10 +191,7 @@ export interface Servicio {
   importe: number;
   precio?: number;
   notas: string;
-  rutas?: {
-    vehiculoAsignadoId: string;
-    distanciaKm: number;
-  }[];
+  rutas?: Ruta[];
   conductoresAsignados?: string[];
   facturado?: boolean;
   facturaId?: string | number;

@@ -63,32 +63,32 @@ export default function Rutas() {
   const [rutaSeleccionada, setRutaSeleccionada] = useState<Ruta | null>(null);
 
   // Obtener todas las rutas de todos los servicios
-  const todasLasRutas = servicios.flatMap(s => s.rutas);
+  const todasLasRutas: Ruta[] = servicios.flatMap(s => s.rutas || []);
 
   // Filtrar rutas
   const rutasFiltradas = todasLasRutas.filter(ruta => {
     const matchesSearch = 
-      ruta.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ruta.origen.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ruta.destino.toLowerCase().includes(searchQuery.toLowerCase());
+      ruta.nombre?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ruta.origen?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ruta.destino?.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesSearch;
   });
 
   // Estadísticas
   const totalRutas = todasLasRutas.length;
   const rutasActivas = todasLasRutas.filter(r => r.estado === 'activa').length;
-  const totalParadas = todasLasRutas.reduce((sum, r) => sum + r.paradas.length, 0);
-  const totalHorarios = todasLasRutas.reduce((sum, r) => sum + r.horarios.length, 0);
+  const totalParadas = todasLasRutas.reduce((sum, r) => sum + (r.paradas?.length || 0), 0);
+  const totalHorarios = todasLasRutas.reduce((sum, r) => sum + (r.horarios?.length || 0), 0);
 
   const getVehiculoNombre = (id?: string) => {
     if (!id) return 'No asignado';
-    const v = vehiculos.find(ve => ve.id === id);
+    const v = vehiculos.find(ve => String(ve.id) === id);
     return v ? `${v.marca} ${v.modelo} (${v.matricula})` : 'No asignado';
   };
 
   const getConductorNombre = (id?: string) => {
     if (!id) return 'No asignado';
-    const c = conductores.find(co => co.id === id);
+    const c = conductores.find(co => String(co.id) === id);
     return c ? `${c.nombre} ${c.apellidos}` : 'No asignado';
   };
 
@@ -233,7 +233,7 @@ export default function Rutas() {
                     <TableCell>
                       <Badge variant="outline">
                         <Clock className="mr-1 h-3 w-3" />
-                        {ruta.horarios.length} horarios
+                        {ruta.horarios?.length || 0} horarios
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -333,14 +333,14 @@ export default function Rutas() {
                 </div>
 
                 {/* Paradas */}
-                {rutaSeleccionada.paradas.length > 0 && (
+                {rutaSeleccionada.paradas && rutaSeleccionada.paradas.length > 0 && (
                   <div>
                     <Label className="text-slate-500 mb-2 block">Paradas</Label>
                     <div className="space-y-2">
                       {rutaSeleccionada.paradas.map((parada, index) => (
                         <div key={parada.id} className="flex items-center gap-4 p-3 rounded-lg bg-slate-50">
                           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1e3a5f] text-white text-sm font-medium">
-                            {index + 1}
+                            {(parada.orden || index) + 1}
                           </div>
                           <div className="flex-1">
                             <p className="font-medium">{parada.nombre}</p>
@@ -359,26 +359,28 @@ export default function Rutas() {
                 )}
 
                 {/* Horarios */}
-                <div>
-                  <Label className="text-slate-500 mb-2 block">Horarios</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {rutaSeleccionada.horarios.map((horario) => (
-                      <div key={horario.id} className="flex items-center justify-between p-3 rounded-lg border">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-slate-400" />
-                          <span>{horario.horaSalida} - {horario.horaLlegada}</span>
+                {rutaSeleccionada.horarios && rutaSeleccionada.horarios.length > 0 && (
+                  <div>
+                    <Label className="text-slate-500 mb-2 block">Horarios</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {rutaSeleccionada.horarios.map((horario) => (
+                        <div key={horario.id} className="flex items-center justify-between p-3 rounded-lg border">
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-slate-400" />
+                            <span>{horario.horaSalida} - {horario.horaLlegada}</span>
+                          </div>
+                          <div className="flex gap-1">
+                            {horario.diasSemana?.map(dia => (
+                              <span key={dia} className="h-6 w-6 rounded-full bg-slate-100 flex items-center justify-center text-xs">
+                                {['L', 'M', 'X', 'J', 'V', 'S', 'D'][dia] || dia}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                        <div className="flex gap-1">
-                          {horario.diasSemana.map(dia => (
-                            <span key={dia} className="h-6 w-6 rounded-full bg-slate-100 flex items-center justify-center text-xs">
-                              {['L', 'M', 'X', 'J', 'V', 'S', 'D'][dia]}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Notas */}
                 {rutaSeleccionada.notasConductor && (
