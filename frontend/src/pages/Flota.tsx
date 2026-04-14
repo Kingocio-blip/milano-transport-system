@@ -133,7 +133,7 @@ export default function Flota() {
   const handleEditarVehiculo = async () => {
     if (!vehiculoSeleccionado) return;
     
-    const success = await updateVehiculo(vehiculoSeleccionado.id, vehiculoSeleccionado);
+    const success = await updateVehiculo(String(vehiculoSeleccionado.id), vehiculoSeleccionado);
     if (success) {
       setIsEditarOpen(false);
       showToast('Vehículo actualizado correctamente', 'success');
