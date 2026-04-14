@@ -103,10 +103,11 @@ export default function Facturacion() {
       return;
     }
 
-    const cliente = clientes.find(c => c.id === nuevaFactura.clienteId);
+      const calcularTotal = () => {
     const subtotal = nuevaFactura.conceptos?.reduce((sum, c) => sum + (c.total || 0), 0) || 0;
     const impuestos = subtotal * 0.21;
-    const total = subtotal + impuestos;
+    return { subtotal, impuestos, total: subtotal + impuestos };
+  };
 
     const factura: Factura = {
        id: `f${Date.now()}`,
