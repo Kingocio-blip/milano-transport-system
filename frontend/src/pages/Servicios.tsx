@@ -9,7 +9,6 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import {
   Table,
   TableBody,
@@ -35,8 +34,6 @@ import {
 } from '../components/ui/dropdown-menu';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { ScrollArea } from '../components/ui/scroll-area';
-import { Textarea } from '../components/ui/textarea';
 import {
   Briefcase,
   Search,
@@ -47,14 +44,10 @@ import {
   Eye,
   Calendar,
   Clock,
-  MapPin,
-  User,
-  Bus,
   CheckCircle2,
   AlertCircle,
   Euro,
   Filter,
-  ArrowRight,
 } from 'lucide-react';
 import type { Servicio, TipoServicio, EstadoServicio } from '../types';
 import { format } from 'date-fns';
@@ -82,7 +75,7 @@ const estadoServicioColors: Record<EstadoServicio, string> = {
 };
 
 export default function Servicios() {
-  const { servicios, addServicio, deleteServicio, updateServicio } = useServiciosStore();
+  const { servicios, addServicio, deleteServicio } = useServiciosStore();
   const { clientes } = useClientesStore();
   const { showToast } = useUIStore();
   
@@ -100,7 +93,7 @@ export default function Servicios() {
   const serviciosFiltrados = servicios.filter(servicio => {
     const matchesSearch = 
       servicio.codigo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      servicio.titulo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      servicio.titulo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       servicio.clienteNombre?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesEstado = estadoFiltro === 'todos' || servicio.estado === estadoFiltro;
     return matchesSearch && matchesEstado;
@@ -122,19 +115,19 @@ export default function Servicios() {
       return;
     }
 
-    const cliente = clientes.find(c => c.id === nuevoServicio.clienteId);
+    const cliente = clientes.find(c => String(c.id) === String(nuevoServicio.clienteId));
 
     const servicio: Servicio = {
       id: `s${Date.now()}`,
       codigo: `SRV${String(servicios.length + 1).padStart(3, '0')}`,
       clienteId: nuevoServicio.clienteId || '',
-      clienteNombre: cliente?.nombre,
+      clienteNombre: cliente?.nombre || '',
       tipo: nuevoServicio.tipo as TipoServicio,
       estado: 'planificando',
-      fechaInicio: nuevoServicio.fechaInicio || new Date(),
-      fechaFin: nuevoServicio.fechaFin || new Date(),
+      fechaInicio: nuevoServicio.fechaInicio ? new Date(nuevoServicio.fechaInicio).toISOString() : new Date().toISOString(),
+      fechaFin: nuevoServicio.fechaFin ? new Date(nuevoServicio.fechaFin).toISOString() : undefined,
       titulo: nuevoServicio.titulo || '',
-      descripcion: nuevoServicio.descripcion,
+      descripcion: nuevoServicio.descripcion || '',
       numeroVehiculos: nuevoServicio.numeroVehiculos || 1,
       vehiculosAsignados: [],
       conductoresAsignados: [],
@@ -150,7 +143,7 @@ export default function Servicios() {
       ],
       incidencias: [],
       documentos: [],
-      fechaCreacion: new Date(),
+      fechaCreacion: new Date().toISOString(),
       creadoPor: 'Sistema',
     };
 
@@ -160,15 +153,15 @@ export default function Servicios() {
     showToast('Servicio creado correctamente', 'success');
   };
 
-  const handleEliminarServicio = (id: string) => {
+  const handleEliminarServicio = (id: string | number) => {
     if (window.confirm('¿Está seguro de eliminar este servicio?')) {
-      deleteServicio(id);
+      deleteServicio(String(id));
       showToast('Servicio eliminado', 'success');
     }
   };
 
   const getProgresoTareas = (servicio: Servicio) => {
-    if (servicio.tareas.length === 0) return 0;
+    if (!servicio.tareas || servicio.tareas.length === 0) return 0;
     const completadas = servicio.tareas.filter(t => t.completada).length;
     return Math.round((completadas / servicio.tareas.length) * 100);
   };
@@ -199,7 +192,7 @@ export default function Servicios() {
               <div className="space-y-2">
                 <Label htmlFor="cliente">Cliente *</Label>
                 <Select 
-                  value={nuevoServicio.clienteId} 
+                  value={String(nuevoServicio.clienteId || '')} 
                   onValueChange={(v) => setNuevoServicio({...nuevoServicio, clienteId: v})}
                 >
                   <SelectTrigger>
@@ -207,7 +200,7 @@ export default function Servicios() {
                   </SelectTrigger>
                   <SelectContent>
                     {clientes.filter(c => c.estado === 'activo').map(cliente => (
-                      <SelectItem key={cliente.id} value={cliente.id}>
+                      <SelectItem key={cliente.id} value={String(cliente.id)}>
                         {cliente.nombre}
                       </SelectItem>
                     ))}
@@ -259,7 +252,7 @@ export default function Servicios() {
                     id="fechaInicio"
                     type="date"
                     value={nuevoServicio.fechaInicio ? format(new Date(nuevoServicio.fechaInicio), 'yyyy-MM-dd') : ''}
-                    onChange={(e) => setNuevoServicio({...nuevoServicio, fechaInicio: new Date(e.target.value)})}
+                    onChange={(e) => setNuevoServicio({...nuevoServicio, fechaInicio: e.target.value})}
                   />
                 </div>
                 <div className="space-y-2">
@@ -268,7 +261,7 @@ export default function Servicios() {
                     id="fechaFin"
                     type="date"
                     value={nuevoServicio.fechaFin ? format(new Date(nuevoServicio.fechaFin), 'yyyy-MM-dd') : ''}
-                    onChange={(e) => setNuevoServicio({...nuevoServicio, fechaFin: new Date(e.target.value)})}
+                    onChange={(e) => setNuevoServicio({...nuevoServicio, fechaFin: e.target.value})}
                   />
                 </div>
               </div>
@@ -428,7 +421,7 @@ export default function Servicios() {
                       <div className="flex flex-col gap-1 text-sm">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          {format(new Date(servicio.fechaInicio), 'dd/MM/yyyy')}
+                          {servicio.fechaInicio ? format(new Date(servicio.fechaInicio), 'dd/MM/yyyy') : '-'}
                         </span>
                         {servicio.horaInicio && (
                           <span className="flex items-center gap-1 text-slate-500">
@@ -453,7 +446,7 @@ export default function Servicios() {
                     </TableCell>
                     <TableCell>
                       <span className="font-medium">
-                        {servicio.precio.toLocaleString('es-ES')}€
+                        {(servicio.precio || 0).toLocaleString('es-ES')}€
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
@@ -533,7 +526,7 @@ export default function Servicios() {
                     <Label className="text-slate-500">Fecha Inicio</Label>
                     <p className="flex items-center gap-2">
                       <Calendar className="h-4 w-4" />
-                      {format(new Date(servicioSeleccionado.fechaInicio), 'dd/MM/yyyy')}
+                      {servicioSeleccionado.fechaInicio ? format(new Date(servicioSeleccionado.fechaInicio), 'dd/MM/yyyy') : '-'}
                       {servicioSeleccionado.horaInicio && ` ${servicioSeleccionado.horaInicio}`}
                     </p>
                   </div>
@@ -541,7 +534,7 @@ export default function Servicios() {
                     <Label className="text-slate-500">Fecha Fin</Label>
                     <p className="flex items-center gap-2">
                       <Calendar className="h-4 w-4" />
-                      {format(new Date(servicioSeleccionado.fechaFin), 'dd/MM/yyyy')}
+                      {servicioSeleccionado.fechaFin ? format(new Date(servicioSeleccionado.fechaFin), 'dd/MM/yyyy') : '-'}
                       {servicioSeleccionado.horaFin && ` ${servicioSeleccionado.horaFin}`}
                     </p>
                   </div>
@@ -552,15 +545,13 @@ export default function Servicios() {
                   <div className="space-y-1">
                     <Label className="text-slate-500">Vehículos Asignados</Label>
                     <p className="flex items-center gap-2">
-                      <Bus className="h-4 w-4" />
-                      {servicioSeleccionado.vehiculosAsignados.length} / {servicioSeleccionado.numeroVehiculos}
+                      {servicioSeleccionado.vehiculosAsignados?.length || 0} / {servicioSeleccionado.numeroVehiculos || 0}
                     </p>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-slate-500">Conductores Asignados</Label>
                     <p className="flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      {servicioSeleccionado.conductoresAsignados.length} conductores
+                      {servicioSeleccionado.conductoresAsignados?.length || 0} conductores
                     </p>
                   </div>
                 </div>
@@ -569,48 +560,50 @@ export default function Servicios() {
                 <div className="grid grid-cols-3 gap-4 rounded-lg bg-slate-50 p-4">
                   <div>
                     <Label className="text-slate-500">Coste Estimado</Label>
-                    <p className="text-lg font-medium">{servicioSeleccionado.costeEstimado.toLocaleString('es-ES')}€</p>
+                    <p className="text-lg font-medium">{(servicioSeleccionado.costeEstimado || 0).toLocaleString('es-ES')}€</p>
                   </div>
                   <div>
                     <Label className="text-slate-500">Precio</Label>
-                    <p className="text-lg font-medium">{servicioSeleccionado.precio.toLocaleString('es-ES')}€</p>
+                    <p className="text-lg font-medium">{(servicioSeleccionado.precio || 0).toLocaleString('es-ES')}€</p>
                   </div>
                   <div>
                     <Label className="text-slate-500">Margen</Label>
                     <p className={`text-lg font-medium ${
-                      (servicioSeleccionado.margen || 0) > 0 ? 'text-green-600' : 'text-red-600'
+                      ((servicioSeleccionado.margen || 0)) > 0 ? 'text-green-600' : 'text-red-600'
                     }`}>
-                      {servicioSeleccionado.margen?.toLocaleString('es-ES')}€
+                      {(servicioSeleccionado.margen || 0).toLocaleString('es-ES')}€
                     </p>
                   </div>
                 </div>
 
                 {/* Tareas */}
-                <div>
-                  <Label className="text-slate-500 mb-2 block">Tareas del Proyecto</Label>
-                  <div className="space-y-2">
-                    {servicioSeleccionado.tareas.map((tarea) => (
-                      <div 
-                        key={tarea.id} 
-                        className={`flex items-center gap-3 p-2 rounded-lg ${
-                          tarea.completada ? 'bg-green-50' : 'bg-slate-50'
-                        }`}
-                      >
-                        <div className={`h-5 w-5 rounded-full flex items-center justify-center ${
-                          tarea.completada ? 'bg-green-500 text-white' : 'bg-slate-300'
-                        }`}>
-                          {tarea.completada && <CheckCircle2 className="h-3 w-3" />}
+                {servicioSeleccionado.tareas && servicioSeleccionado.tareas.length > 0 && (
+                  <div>
+                    <Label className="text-slate-500 mb-2 block">Tareas del Proyecto</Label>
+                    <div className="space-y-2">
+                      {servicioSeleccionado.tareas.map((tarea) => (
+                        <div 
+                          key={tarea.id} 
+                          className={`flex items-center gap-3 p-2 rounded-lg ${
+                            tarea.completada ? 'bg-green-50' : 'bg-slate-50'
+                          }`}
+                        >
+                          <div className={`h-5 w-5 rounded-full flex items-center justify-center ${
+                            tarea.completada ? 'bg-green-500 text-white' : 'bg-slate-300'
+                          }`}>
+                            {tarea.completada && <CheckCircle2 className="h-3 w-3" />}
+                          </div>
+                          <span className={tarea.completada ? 'line-through text-slate-500' : ''}>
+                            {tarea.nombre}
+                          </span>
                         </div>
-                        <span className={tarea.completada ? 'line-through text-slate-500' : ''}>
-                          {tarea.nombre}
-                        </span>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Incidencias */}
-                {servicioSeleccionado.incidencias.length > 0 && (
+                {servicioSeleccionado.incidencias && servicioSeleccionado.incidencias.length > 0 && (
                   <div>
                     <Label className="text-slate-500 mb-2 block">Incidencias</Label>
                     <div className="space-y-2">
@@ -621,7 +614,7 @@ export default function Servicios() {
                             <p className="font-medium text-red-700">{incidencia.tipo}</p>
                             <p className="text-sm text-red-600">{incidencia.descripcion}</p>
                             <p className="text-xs text-red-500 mt-1">
-                              {format(new Date(incidencia.fecha), 'dd/MM/yyyy HH:mm')}
+                              {incidencia.fecha ? format(new Date(incidencia.fecha), 'dd/MM/yyyy HH:mm') : '-'}
                             </p>
                           </div>
                         </div>

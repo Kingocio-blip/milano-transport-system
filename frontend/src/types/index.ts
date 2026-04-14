@@ -32,6 +32,10 @@ export type TipoCliente = 'empresa' | 'particular';
 export type TipoCombustible = 'diesel' | 'gasolina' | 'electrico' | 'hibrido';
 export type EstadoRuta = 'activa' | 'inactiva' | 'pendiente';
 
+// Tipos de Servicio
+export type TipoServicio = 'lanzadera' | 'discrecional' | 'staff' | 'ruta_programada';
+export type EstadoServicio = 'solicitud' | 'presupuesto' | 'negociacion' | 'confirmado' | 'planificando' | 'asignado' | 'en_curso' | 'completado' | 'facturado' | 'cancelado';
+
 // Tipos de Parada y Horario para Rutas
 export interface Parada {
   id: string;
@@ -64,6 +68,28 @@ export interface Ruta {
   paradas: Parada[];
   horarios: Horario[];
   notasConductor?: string;
+}
+
+// Tipos de Tarea e Incidencia para Servicios
+export interface Tarea {
+  id: string;
+  nombre: string;
+  completada: boolean;
+}
+
+export interface Incidencia {
+  id: string;
+  tipo: string;
+  descripcion: string;
+  fecha: string;
+}
+
+export interface Documento {
+  id: string;
+  nombre: string;
+  url: string;
+  tipo: string;
+  fechaSubida: string;
 }
 
 // Tipos de Cliente
@@ -178,23 +204,34 @@ export interface UpdateClienteData {
 
 // Tipos de Servicio
 export interface Servicio {
-  id: number;
+  id: string | number;
   codigo: string;
-  titulo?: string;
-  clienteId: number;
-  clienteNombre: string;
-  tipo: string;
-  descripcion: string;
-  fechaInicio: string;
-  fechaFin?: string;
-  estado: 'pendiente' | 'en_progreso' | 'completado' | 'cancelado' | 'facturado';
-  importe: number;
-  precio?: number;
-  notas: string;
+  titulo: string;
+  clienteId: string | number;
+  clienteNombre?: string;
+  tipo: TipoServicio;
+  descripcion?: string;
+  fechaInicio: string | Date;
+  fechaFin?: string | Date;
+  horaInicio?: string;
+  horaFin?: string;
+  estado: EstadoServicio;
+  importe?: number;
+  precio: number;
+  costeEstimado?: number;
+  margen?: number;
+  notas?: string;
+  numeroVehiculos?: number;
   rutas?: Ruta[];
   conductoresAsignados?: string[];
-  facturado?: boolean;
+  vehiculosAsignados?: string[];
+  facturado: boolean;
   facturaId?: string | number;
+  tareas: Tarea[];
+  incidencias: Incidencia[];
+  documentos: Documento[];
+  fechaCreacion?: string | Date;
+  creadoPor?: string;
 }
 
 export interface CreateServicioData {
