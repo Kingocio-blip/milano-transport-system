@@ -9,7 +9,7 @@ export type TipoServicio = 'lanzadera' | 'discrecional' | 'staff' | 'ruta_progra
 export type EstadoServicio = 'solicitud' | 'presupuesto' | 'negociacion' | 'confirmado' | 'planificando' | 'asignado' | 'en_curso' | 'completado' | 'facturado' | 'cancelado';
 export type TipoVehiculo = 'autobus' | 'minibus' | 'furgoneta' | 'coche';
 export type EstadoVehiculo = 'operativo' | 'taller' | 'baja' | 'reservado';
-export type EstadoConductor = 'activo' | 'baja' | 'vacaciones' | 'descanso';
+export type EstadoConductor = 'activo' | 'baja' | 'vacaciones' | 'descanso' | 'inactivo' | 'en_ruta';
 export type EstadoFactura = 'pendiente' | 'enviada' | 'pagada' | 'vencida' | 'anulada';
 export type EstadoOportunidad = 'nueva' | 'contactado' | 'presupuesto_enviado' | 'negociacion' | 'ganada' | 'perdida';
 
