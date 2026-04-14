@@ -69,7 +69,7 @@ const tipoClienteLabels: Record<string, string> = {
   particular: 'Particular',
 };
 
-const tipoClienteColors: Record<TipoCliente, string> = {
+const tipoClienteColors: Record<string, string> = {
   festival: 'bg-purple-100 text-purple-700',
   promotor: 'bg-blue-100 text-blue-700',
   colegio: 'bg-green-100 text-green-700',
