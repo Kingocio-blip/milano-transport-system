@@ -161,7 +161,7 @@ export const useClientesStore = create<ClientesState>((set, get) => ({
           }
         };
         set((state) => ({
-          clientes: state.clientes.map(c => c.id === id ? clienteFormateado : c),
+          clientes: state.clientes.map(c => String(c.id) === String(id) ? clienteFormateado : c),
           isLoading: false,
         }));
       }
