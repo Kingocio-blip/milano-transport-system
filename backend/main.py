@@ -361,18 +361,23 @@ def root():
 
 # ============================================
 # ENDPOINT TEMPORAL - Crear usuario admin
-# PEGAR AL FINAL DEL ARCHIVO, DESPUÉS DE TODO
 # ============================================
+import bcrypt
+
 @app.post("/setup/create-admin")
 def setup_create_admin(db: Session = Depends(get_db)):
     existing = db.query(models.User).filter(models.User.username == "admin").first()
     if existing:
         return {"message": "Usuario admin ya existe"}
     
+    # Usar bcrypt directamente
+    password = "admin123"
+    hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    
     admin = models.User(
         username="admin",
         email="admin@milano.com",
-        hashed_password=pwd_context.hash("admin123"),
+        hashed_password=hashed,
         nombre_completo="Administrador Sistema",
         rol=models.UserRole.ADMIN,
         activo=True
@@ -383,6 +388,4 @@ def setup_create_admin(db: Session = Depends(get_db)):
         "message": "✅ Usuario admin creado",
         "credentials": {"username": "admin", "password": "admin123"}
     }
-# ============================================
-# ELIMINAR DESPUÉS DE USAR
 # ============================================
