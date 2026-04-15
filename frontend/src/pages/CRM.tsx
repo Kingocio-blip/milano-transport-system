@@ -1,5 +1,5 @@
 // ============================================
-// MILANO - CRM / Clientes Page (FIX SIN EstadoCliente)
+// MILANO - CRM / Clientes Page (FIX FINAL)
 // ============================================
 
 import { useState, useEffect } from 'react';
@@ -79,6 +79,25 @@ return 'NIF';
 }
 };
 
+// Tipo para el formulario de nuevo cliente
+type NuevoClienteForm = {
+tipo: TipoCliente;
+nombre: string;
+estado: 'activo' | 'inactivo';
+nif: string;
+formaPago: string;
+diasPago: number;
+condicionesEspeciales: string;
+notas: string;
+contacto: {
+email: string;
+telefono: string;
+direccion: string;
+ciudad: string;
+codigoPostal: string;
+};
+};
+
 export default function CRM() {
 const { clientes, isLoading, addCliente, updateCliente, deleteCliente, fetchClientes } = useClientesStore();
 const { showToast } = useUIStore();
@@ -91,11 +110,16 @@ const [isEditarOpen, setIsEditarOpen] = useState(false);
 const [isDetalleOpen, setIsDetalleOpen] = useState(false);
 const [isSubmitting, setIsSubmitting] = useState(false);
 
-// FIX: Estado inicial con tipos literales usando "as const"
-const initialClienteState = {
-tipo: 'empresa' as TipoCliente,
-estado: 'activo' as const, // ← Esto fuerza el literal "activo" en vez de string
+// Estado inicial con tipos correctos
+const initialClienteState: NuevoClienteForm = {
+tipo: 'empresa',
+nombre: '',
+estado: 'activo',
+nif: '',
+formaPago: 'transferencia',
 diasPago: 30,
+condicionesEspeciales: '',
+notas: '',
 contacto: {
 email: '',
 telefono: '',
@@ -103,9 +127,9 @@ direccion: '',
 ciudad: '',
 codigoPostal: ''
 }
-} satisfies Partial<Cliente>; // ← "satisfies" verifica sin cambiar el tipo inferido
+};
 
-const [nuevoCliente, setNuevoCliente] = useState<Partial<Cliente>>(initialClienteState);
+const [nuevoCliente, setNuevoCliente] = useState<NuevoClienteForm>(initialClienteState);
 
 useEffect(() => {
 fetchClientes();
@@ -126,13 +150,13 @@ return matchesSearch && matchesTipo;
 const totalClientes = clientes.length;
 const clientesActivos = clientes.filter(c => c.estado === 'activo').length;
 
-const handleNuevoCliente = async (e?: React.MouseEvent) => {
+const handleNuevoCliente = async (e?: React.FormEvent | React.MouseEvent) => {
 if (e) {
 e.preventDefault();
 e.stopPropagation();
 }
 
-const nombreLimpio = nuevoCliente.nombre?.trim();
+const nombreLimpio = nuevoCliente.nombre.trim();
 if (!nombreLimpio) {
 showToast('El nombre es obligatorio', 'error');
 return;
@@ -141,21 +165,27 @@ return;
 setIsSubmitting(true);
 
 try {
-const clienteData: Partial<Cliente> = {
-tipo: nuevoCliente.tipo || 'empresa',
+// Construir el objeto exacto que espera addCliente
+// Omit<Cliente, 'id' | 'codigo' | 'fechaAlta'> significa:
+// - nombre: string (obligatorio)
+// - tipo: TipoCliente (obligatorio)
+// - estado: "activo" | "inactivo" (obligatorio)
+// - y el resto opcional
+const clienteData = {
 nombre: nombreLimpio,
-estado: nuevoCliente.estado || 'activo',
-nif: nuevoCliente.nif?.trim() || undefined,
-formaPago: nuevoCliente.formaPago || 'transferencia',
-diasPago: nuevoCliente.diasPago || 30,
-condicionesEspeciales: nuevoCliente.condicionesEspeciales?.trim() || undefined,
-notas: nuevoCliente.notas?.trim() || undefined,
+tipo: nuevoCliente.tipo,
+estado: nuevoCliente.estado,
+nif: nuevoCliente.nif.trim() || undefined,
+formaPago: nuevoCliente.formaPago,
+diasPago: nuevoCliente.diasPago,
+condicionesEspeciales: nuevoCliente.condicionesEspeciales.trim() || undefined,
+notas: nuevoCliente.notas.trim() || undefined,
 contacto: {
-email: nuevoCliente.contacto?.email?.trim() || undefined,
-telefono: nuevoCliente.contacto?.telefono?.trim() || undefined,
-direccion: nuevoCliente.contacto?.direccion?.trim() || undefined,
-ciudad: nuevoCliente.contacto?.ciudad?.trim() || undefined,
-codigoPostal: nuevoCliente.contacto?.codigoPostal?.trim() || undefined,
+email: nuevoCliente.contacto.email.trim() || undefined,
+telefono: nuevoCliente.contacto.telefono.trim() || undefined,
+direccion: nuevoCliente.contacto.direccion.trim() || undefined,
+ciudad: nuevoCliente.contacto.ciudad.trim() || undefined,
+codigoPostal: nuevoCliente.contacto.codigoPostal.trim() || undefined,
 }
 };
 
@@ -245,6 +275,14 @@ setIsNuevoClienteOpen(false);
 setNuevoCliente(initialClienteState);
 };
 
+// Helper para actualizar campos anidados de contacto
+const updateContacto = (field: keyof NuevoClienteForm['contacto'], value: string) => {
+setNuevoCliente(prev => ({
+...prev,
+contacto: { ...prev.contacto, [field]: value }
+}));
+};
+
 if (isLoading && clientes.length === 0) {
 return (
 <div className="flex items-center justify-center h-96">
@@ -277,10 +315,7 @@ Complete la información del nuevo cliente
 </DialogHeader>
 
 <form
-onSubmit={(e) => {
-e.preventDefault();
-handleNuevoCliente();
-}}
+onSubmit={handleNuevoCliente}
 className="space-y-4 py-4"
 >
 <div className="grid grid-cols-2 gap-4">
@@ -306,7 +341,7 @@ onValueChange={(v) => setNuevoCliente({...nuevoCliente, tipo: v as TipoCliente})
 <Label htmlFor="nombre">Nombre / Razón Social *</Label>
 <Input
 id="nombre"
-value={nuevoCliente.nombre || ''}
+value={nuevoCliente.nombre}
 onChange={(e) => setNuevoCliente({...nuevoCliente, nombre: e.target.value})}
 placeholder="Nombre del cliente"
 required
@@ -315,12 +350,12 @@ required
 </div>
 
 <div className="space-y-2">
-<Label htmlFor="nif">{getDocumentoLabel(nuevoCliente.tipo as TipoCliente)}</Label>
+<Label htmlFor="nif">{getDocumentoLabel(nuevoCliente.tipo)}</Label>
 <Input
 id="nif"
-value={nuevoCliente.nif || ''}
+value={nuevoCliente.nif}
 onChange={(e) => setNuevoCliente({...nuevoCliente, nif: e.target.value})}
-placeholder={`Número de ${getDocumentoLabel(nuevoCliente.tipo as TipoCliente)}`}
+placeholder={`Número de ${getDocumentoLabel(nuevoCliente.tipo)}`}
 />
 </div>
 
@@ -330,11 +365,8 @@ placeholder={`Número de ${getDocumentoLabel(nuevoCliente.tipo as TipoCliente)}`
 <Input
 id="email"
 type="email"
-value={nuevoCliente.contacto?.email || ''}
-onChange={(e) => setNuevoCliente({
-...nuevoCliente,
-contacto: {...(nuevoCliente.contacto || {}), email: e.target.value}
-})}
+value={nuevoCliente.contacto.email}
+onChange={(e) => updateContacto('email', e.target.value)}
 placeholder="email@ejemplo.com"
 />
 </div>
@@ -342,11 +374,8 @@ placeholder="email@ejemplo.com"
 <Label htmlFor="telefono">Teléfono</Label>
 <Input
 id="telefono"
-value={nuevoCliente.contacto?.telefono || ''}
-onChange={(e) => setNuevoCliente({
-...nuevoCliente,
-contacto: {...(nuevoCliente.contacto || {}), telefono: e.target.value}
-})}
+value={nuevoCliente.contacto.telefono}
+onChange={(e) => updateContacto('telefono', e.target.value)}
 placeholder="+34 600 000 000"
 />
 </div>
@@ -356,11 +385,8 @@ placeholder="+34 600 000 000"
 <Label htmlFor="direccion">Dirección</Label>
 <Input
 id="direccion"
-value={nuevoCliente.contacto?.direccion || ''}
-onChange={(e) => setNuevoCliente({
-...nuevoCliente,
-contacto: {...(nuevoCliente.contacto || {}), direccion: e.target.value}
-})}
+value={nuevoCliente.contacto.direccion}
+onChange={(e) => updateContacto('direccion', e.target.value)}
 placeholder="Calle, número"
 />
 </div>
@@ -370,11 +396,8 @@ placeholder="Calle, número"
 <Label htmlFor="ciudad">Ciudad</Label>
 <Input
 id="ciudad"
-value={nuevoCliente.contacto?.ciudad || ''}
-onChange={(e) => setNuevoCliente({
-...nuevoCliente,
-contacto: {...(nuevoCliente.contacto || {}), ciudad: e.target.value}
-})}
+value={nuevoCliente.contacto.ciudad}
+onChange={(e) => updateContacto('ciudad', e.target.value)}
 placeholder="Ciudad"
 />
 </div>
@@ -382,11 +405,8 @@ placeholder="Ciudad"
 <Label htmlFor="codigoPostal">Código Postal</Label>
 <Input
 id="codigoPostal"
-value={nuevoCliente.contacto?.codigoPostal || ''}
-onChange={(e) => setNuevoCliente({
-...nuevoCliente,
-contacto: {...(nuevoCliente.contacto || {}), codigoPostal: e.target.value}
-})}
+value={nuevoCliente.contacto.codigoPostal}
+onChange={(e) => updateContacto('codigoPostal', e.target.value)}
 placeholder="28001"
 />
 </div>
@@ -396,7 +416,7 @@ placeholder="28001"
 <div className="space-y-2">
 <Label htmlFor="formaPago">Forma de Pago</Label>
 <Select
-value={nuevoCliente.formaPago || 'transferencia'}
+value={nuevoCliente.formaPago}
 onValueChange={(v) => setNuevoCliente({...nuevoCliente, formaPago: v})}
 >
 <SelectTrigger>
@@ -415,7 +435,7 @@ onValueChange={(v) => setNuevoCliente({...nuevoCliente, formaPago: v})}
 <Input
 id="diasPago"
 type="number"
-value={nuevoCliente.diasPago || 30}
+value={nuevoCliente.diasPago}
 onChange={(e) => setNuevoCliente({...nuevoCliente, diasPago: parseInt(e.target.value) || 30})}
 />
 </div>
@@ -425,7 +445,7 @@ onChange={(e) => setNuevoCliente({...nuevoCliente, diasPago: parseInt(e.target.v
 <Label htmlFor="condicionesEspeciales">Condiciones Especiales</Label>
 <Textarea
 id="condicionesEspeciales"
-value={nuevoCliente.condicionesEspeciales || ''}
+value={nuevoCliente.condicionesEspeciales}
 onChange={(e) => setNuevoCliente({...nuevoCliente, condicionesEspeciales: e.target.value})}
 placeholder="Condiciones especiales de pago, descuentos, etc."
 rows={2}
@@ -436,7 +456,7 @@ rows={2}
 <Label htmlFor="notas">Notas</Label>
 <Textarea
 id="notas"
-value={nuevoCliente.notas || ''}
+value={nuevoCliente.notas}
 onChange={(e) => setNuevoCliente({...nuevoCliente, notas: e.target.value})}
 placeholder="Notas adicionales sobre el cliente"
 rows={2}
