@@ -1,14 +1,13 @@
 // ============================================
-// MILANO - CRM / Clientes Page (FIX TYPESCRIPT)
+// MILANO - CRM / Clientes Page (FIX SIN EstadoCliente)
 // ============================================
 
 import { useState, useEffect } from 'react';
 import { useClientesStore, useUIStore } from '../store';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import {
 Table,
 TableBody,
@@ -45,15 +44,10 @@ Trash2,
 Eye,
 Phone,
 Mail,
-MapPin,
-Calendar,
 Filter,
 Loader2,
 } from 'lucide-react';
-import type { Cliente, TipoCliente, EstadoCliente } from '../types';
-import { format, parseISO } from 'date-fns';
-import { es } from 'date-fns/locale';
-import { toDateString } from '../lib/utils';
+import type { Cliente, TipoCliente } from '../types';
 
 const tipoClienteLabels: Record<string, string> = {
 festival: 'Festival',
@@ -86,7 +80,7 @@ return 'NIF';
 };
 
 export default function CRM() {
-const { clientes, isLoading, error, addCliente, updateCliente, deleteCliente, fetchClientes } = useClientesStore();
+const { clientes, isLoading, addCliente, updateCliente, deleteCliente, fetchClientes } = useClientesStore();
 const { showToast } = useUIStore();
 
 const [searchQuery, setSearchQuery] = useState('');
@@ -97,10 +91,10 @@ const [isEditarOpen, setIsEditarOpen] = useState(false);
 const [isDetalleOpen, setIsDetalleOpen] = useState(false);
 const [isSubmitting, setIsSubmitting] = useState(false);
 
-// FIX: Estado inicial con tipos correctos
-const initialClienteState: Partial<Cliente> = {
+// FIX: Estado inicial con tipos literales usando "as const"
+const initialClienteState = {
 tipo: 'empresa' as TipoCliente,
-estado: 'activo' as EstadoCliente,
+estado: 'activo' as const, // ← Esto fuerza el literal "activo" en vez de string
 diasPago: 30,
 contacto: {
 email: '',
@@ -109,7 +103,7 @@ direccion: '',
 ciudad: '',
 codigoPostal: ''
 }
-};
+} satisfies Partial<Cliente>; // ← "satisfies" verifica sin cambiar el tipo inferido
 
 const [nuevoCliente, setNuevoCliente] = useState<Partial<Cliente>>(initialClienteState);
 
@@ -138,11 +132,8 @@ e.preventDefault();
 e.stopPropagation();
 }
 
-console.log('=== INICIANDO GUARDADO ===');
-console.log('Datos actuales:', nuevoCliente);
-
 const nombreLimpio = nuevoCliente.nombre?.trim();
-if (!nombreLimpio || nombreLimpio === '') {
+if (!nombreLimpio) {
 showToast('El nombre es obligatorio', 'error');
 return;
 }
@@ -153,7 +144,7 @@ try {
 const clienteData: Partial<Cliente> = {
 tipo: nuevoCliente.tipo || 'empresa',
 nombre: nombreLimpio,
-estado: (nuevoCliente.estado as EstadoCliente) || 'activo',
+estado: nuevoCliente.estado || 'activo',
 nif: nuevoCliente.nif?.trim() || undefined,
 formaPago: nuevoCliente.formaPago || 'transferencia',
 diasPago: nuevoCliente.diasPago || 30,
@@ -168,28 +159,21 @@ codigoPostal: nuevoCliente.contacto?.codigoPostal?.trim() || undefined,
 }
 };
 
-console.log('Datos a enviar:', clienteData);
-
 const success = await addCliente(clienteData);
-console.log('Resultado addCliente:', success);
 
 if (success) {
-console.log('Guardado exitoso, cerrando dialog...');
 setIsNuevoClienteOpen(false);
 setNuevoCliente(initialClienteState);
 showToast('Cliente creado correctamente', 'success');
 await fetchClientes();
-console.log('Lista refrescada');
 } else {
-console.error('addCliente retornó false');
-showToast('Error al crear el cliente - respuesta negativa', 'error');
+showToast('Error al crear el cliente', 'error');
 }
 } catch (err) {
-console.error('Error en handleNuevoCliente:', err);
+console.error('Error:', err);
 showToast(`Error: ${err instanceof Error ? err.message : 'Desconocido'}`, 'error');
 } finally {
 setIsSubmitting(false);
-console.log('=== FIN GUARDADO ===');
 }
 };
 
@@ -222,7 +206,7 @@ await fetchClientes();
 showToast('Error al actualizar el cliente', 'error');
 }
 } catch (err) {
-console.error('Error actualizando cliente:', err);
+console.error('Error:', err);
 showToast('Error inesperado al actualizar', 'error');
 } finally {
 setIsSubmitting(false);
@@ -240,7 +224,7 @@ await fetchClientes();
 showToast('Error al eliminar el cliente', 'error');
 }
 } catch (err) {
-console.error('Error eliminando cliente:', err);
+console.error('Error:', err);
 showToast('Error inesperado al eliminar', 'error');
 }
 }
