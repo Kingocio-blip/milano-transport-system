@@ -358,3 +358,31 @@ def root():
         "version": "1.0.0",
         "docs": "/docs"
     }
+
+# ============================================
+# ENDPOINT TEMPORAL - Crear usuario admin
+# PEGAR AL FINAL DEL ARCHIVO, DESPUÉS DE TODO
+# ============================================
+@app.post("/setup/create-admin")
+def setup_create_admin(db: Session = Depends(get_db)):
+    existing = db.query(models.User).filter(models.User.username == "admin").first()
+    if existing:
+        return {"message": "Usuario admin ya existe"}
+    
+    admin = models.User(
+        username="admin",
+        email="admin@milano.com",
+        hashed_password=pwd_context.hash("admin123"),
+        nombre_completo="Administrador Sistema",
+        rol=models.UserRole.ADMIN,
+        activo=True
+    )
+    db.add(admin)
+    db.commit()
+    return {
+        "message": "✅ Usuario admin creado",
+        "credentials": {"username": "admin", "password": "admin123"}
+    }
+# ============================================
+# ELIMINAR DESPUÉS DE USAR
+# ============================================
