@@ -134,7 +134,8 @@ export default function Conductores() {
   const handleEditarConductor = async () => {
     if (!conductorSeleccionado) return;
     
-const success = await updateConductor(String(conductorSeleccionado.id), conductorSeleccionado);    if (success) {
+    const success = await updateConductor(String(conductorSeleccionado.id), conductorSeleccionado);
+    if (success) {
       setIsEditarOpen(false);
       showToast('Conductor actualizado correctamente', 'success');
     }
@@ -159,11 +160,11 @@ const success = await updateConductor(String(conductorSeleccionado.id), conducto
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Header con título y botón - AHORA VISIBLE */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-4 rounded-lg border shadow-sm">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Conductores</h1>
-          <p className="text-slate-500">Gestión de personal y recursos humanos</p>
+          <h2 className="text-xl font-bold text-slate-900">Conductores</h2>
+          <p className="text-slate-500 text-sm">Gestión de personal y recursos humanos</p>
         </div>
         <Dialog open={isNuevoConductorOpen} onOpenChange={setIsNuevoConductorOpen}>
           <DialogTrigger asChild>
