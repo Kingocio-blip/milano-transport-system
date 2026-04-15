@@ -1,8 +1,8 @@
 // ============================================
-// MILANO - CRM / Clientes Page (FIX FINAL)
+// MILANO - CRM / Clientes Page (COMPLETO Y FUNCIONAL)
 // ============================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useClientesStore, useUIStore } from '../store';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -79,7 +79,6 @@ return 'NIF';
 }
 };
 
-// Tipo para el formulario de nuevo cliente
 type NuevoClienteForm = {
 tipo: TipoCliente;
 nombre: string;
@@ -110,7 +109,6 @@ const [isEditarOpen, setIsEditarOpen] = useState(false);
 const [isDetalleOpen, setIsDetalleOpen] = useState(false);
 const [isSubmitting, setIsSubmitting] = useState(false);
 
-// Estado inicial con tipos correctos
 const initialClienteState: NuevoClienteForm = {
 tipo: 'empresa',
 nombre: '',
@@ -150,11 +148,9 @@ return matchesSearch && matchesTipo;
 const totalClientes = clientes.length;
 const clientesActivos = clientes.filter(c => c.estado === 'activo').length;
 
-const handleNuevoCliente = async (e?: React.FormEvent | React.MouseEvent) => {
-if (e) {
+const handleNuevoCliente = useCallback(async (e: React.FormEvent) => {
 e.preventDefault();
 e.stopPropagation();
-}
 
 const nombreLimpio = nuevoCliente.nombre.trim();
 if (!nombreLimpio) {
@@ -165,47 +161,78 @@ return;
 setIsSubmitting(true);
 
 try {
-// Construir el objeto exacto que espera addCliente
-// Omit<Cliente, 'id' | 'codigo' | 'fechaAlta'> significa:
-// - nombre: string (obligatorio)
-// - tipo: TipoCliente (obligatorio)
-// - estado: "activo" | "inactivo" (obligatorio)
-// - y el resto opcional
-const clienteData = {
+// Generar código único
+const codigo = `CLI-${Date.now().toString().slice(-5)}`;
+
+// Formato EXACTO que espera el backend (schemas.py)
+const clienteParaBackend = {
+codigo: codigo,
 nombre: nombreLimpio,
 tipo: nuevoCliente.tipo,
+razon_social: null,
+nif_cif: nuevoCliente.nif.trim() || null,
+direccion: nuevoCliente.contacto.direccion.trim() || null,
+ciudad: nuevoCliente.contacto.ciudad.trim() || null,
+codigo_postal: nuevoCliente.contacto.codigoPostal.trim() || null,
+pais: 'España',
+email: nuevoCliente.contacto.email.trim() || null,
+telefono: nuevoCliente.contacto.telefono.trim() || null,
 estado: nuevoCliente.estado,
-nif: nuevoCliente.nif.trim() || undefined,
-formaPago: nuevoCliente.formaPago,
-diasPago: nuevoCliente.diasPago,
-condicionesEspeciales: nuevoCliente.condicionesEspeciales.trim() || undefined,
-notas: nuevoCliente.notas.trim() || undefined,
-contacto: {
-email: nuevoCliente.contacto.email.trim() || undefined,
-telefono: nuevoCliente.contacto.telefono.trim() || undefined,
-direccion: nuevoCliente.contacto.direccion.trim() || undefined,
-ciudad: nuevoCliente.contacto.ciudad.trim() || undefined,
-codigoPostal: nuevoCliente.contacto.codigoPostal.trim() || undefined,
-}
+condiciones_pago: nuevoCliente.formaPago,
+dias_pago: Number(nuevoCliente.diasPago) || null,
+limite_credito: null,
+notas: nuevoCliente.notas.trim() || null,
+persona_contacto_nombre: null,
+persona_contacto_email: null,
+persona_contacto_telefono: null,
+persona_contacto_cargo: null,
 };
 
-const success = await addCliente(clienteData);
+console.log('Enviando:', clienteParaBackend);
 
-if (success) {
+const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/clientes`, {
+method: 'POST',
+headers: {
+'Content-Type': 'application/json',
+'Authorization': `Bearer ${localStorage.getItem('milano_token') || ''}`,
+},
+body: JSON.stringify(clienteParaBackend),
+});
+
+if (!response.ok) {
+const errorData = await response.json();
+console.error('Error del backend:', errorData);
+throw new Error(JSON.stringify(errorData));
+}
+
+const data = await response.json();
+console.log('Éxito:', data);
+
 setIsNuevoClienteOpen(false);
 setNuevoCliente(initialClienteState);
 showToast('Cliente creado correctamente', 'success');
 await fetchClientes();
-} else {
-showToast('Error al crear el cliente', 'error');
-}
-} catch (err) {
+
+} catch (err: any) {
 console.error('Error:', err);
-showToast(`Error: ${err instanceof Error ? err.message : 'Desconocido'}`, 'error');
+
+let errorMsg = err.message;
+try {
+const parsed = JSON.parse(err.message);
+if (parsed.detail) {
+if (Array.isArray(parsed.detail)) {
+errorMsg = parsed.detail.map((e: any) => `${e.loc?.join('.')}: ${e.msg}`).join(', ');
+} else {
+errorMsg = parsed.detail;
+}
+}
+} catch {}
+
+showToast(`Error: ${errorMsg}`, 'error');
 } finally {
 setIsSubmitting(false);
 }
-};
+}, [nuevoCliente, fetchClientes, showToast, initialClienteState]);
 
 const handleEditarCliente = async () => {
 if (!clienteSeleccionado) return;
@@ -235,9 +262,9 @@ await fetchClientes();
 } else {
 showToast('Error al actualizar el cliente', 'error');
 }
-} catch (err) {
+} catch (err: any) {
 console.error('Error:', err);
-showToast('Error inesperado al actualizar', 'error');
+showToast(`Error: ${err.message || 'Desconocido'}`, 'error');
 } finally {
 setIsSubmitting(false);
 }
@@ -253,9 +280,9 @@ await fetchClientes();
 } else {
 showToast('Error al eliminar el cliente', 'error');
 }
-} catch (err) {
+} catch (err: any) {
 console.error('Error:', err);
-showToast('Error inesperado al eliminar', 'error');
+showToast(`Error: ${err.message || 'Desconocido'}`, 'error');
 }
 }
 };
@@ -275,7 +302,6 @@ setIsNuevoClienteOpen(false);
 setNuevoCliente(initialClienteState);
 };
 
-// Helper para actualizar campos anidados de contacto
 const updateContacto = (field: keyof NuevoClienteForm['contacto'], value: string) => {
 setNuevoCliente(prev => ({
 ...prev,
@@ -314,10 +340,7 @@ Complete la información del nuevo cliente
 </DialogDescription>
 </DialogHeader>
 
-<form
-onSubmit={handleNuevoCliente}
-className="space-y-4 py-4"
->
+<form onSubmit={handleNuevoCliente} className="space-y-4 py-4">
 <div className="grid grid-cols-2 gap-4">
 <div className="space-y-2">
 <Label htmlFor="tipo">Tipo *</Label>
