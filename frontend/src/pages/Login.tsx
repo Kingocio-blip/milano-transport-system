@@ -34,9 +34,10 @@ export default function Login() {
         // Actualizar el store de usuario
         login({
           id: 'admin',
-          username: username,
-          nombre: 'Administrador',
-          rol: 'admin'
+          nombre: username,
+          email: 'admin@milano.com',
+          rol: 'admin',
+          activo: true
         });
         
         navigate('/');
