@@ -102,6 +102,7 @@ export default function CRM() {
   const [isNuevoClienteOpen, setIsNuevoClienteOpen] = useState(false);
   const [isEditarOpen, setIsEditarOpen] = useState(false);
   const [isDetalleOpen, setIsDetalleOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [nuevoCliente, setNuevoCliente] = useState<Partial<Cliente>>({
     tipo: 'empresa',
     estado: 'activo',
@@ -131,72 +132,111 @@ export default function CRM() {
   const totalClientes = clientes.length;
   const clientesActivos = clientes.filter(c => c.estado === 'activo').length;
 
+  // CORREGIDO: Manejo de guardado con mejor validación y errores
   const handleNuevoCliente = async () => {
-    if (!nuevoCliente.nombre) {
+    // Validación más estricta
+    if (!nuevoCliente.nombre || nuevoCliente.nombre.trim() === '') {
       showToast('El nombre es obligatorio', 'error');
       return;
     }
 
-    // Limpiar valores vacíos antes de enviar
-    const clienteData = {
-      ...nuevoCliente,
-      nif: nuevoCliente.nif?.trim() || undefined,
-      condicionesEspeciales: nuevoCliente.condicionesEspeciales?.trim() || undefined,
-      formaPago: nuevoCliente.formaPago || 'transferencia',
-      diasPago: nuevoCliente.diasPago || 30,
-      notas: nuevoCliente.notas?.trim() || undefined,
-      contacto: {
-        email: nuevoCliente.contacto?.email?.trim() || undefined,
-        telefono: nuevoCliente.contacto?.telefono?.trim() || undefined,
-        direccion: nuevoCliente.contacto?.direccion?.trim() || undefined,
-        ciudad: nuevoCliente.contacto?.ciudad?.trim() || undefined,
-        codigoPostal: nuevoCliente.contacto?.codigoPostal?.trim() || undefined,
-      }
-    };
+    setIsSubmitting(true);
 
-    const success = await addCliente(clienteData as Omit<Cliente, 'id' | 'codigo' | 'fechaAlta'>);
-    if (success) {
-      setIsNuevoClienteOpen(false);
-      setNuevoCliente({ 
-        tipo: 'empresa', 
-        estado: 'activo', 
-        diasPago: 30,
-        contacto: { email: '', telefono: '', direccion: '', ciudad: '', codigoPostal: '' } 
-      });
-      showToast('Cliente creado correctamente', 'success');
+    try {
+      // Limpiar valores vacíos antes de enviar
+      const clienteData = {
+        ...nuevoCliente,
+        nombre: nuevoCliente.nombre.trim(),
+        nif: nuevoCliente.nif?.trim() || undefined,
+        condicionesEspeciales: nuevoCliente.condicionesEspeciales?.trim() || undefined,
+        formaPago: nuevoCliente.formaPago || 'transferencia',
+        diasPago: nuevoCliente.diasPago || 30,
+        notas: nuevoCliente.notas?.trim() || undefined,
+        contacto: {
+          email: nuevoCliente.contacto?.email?.trim() || undefined,
+          telefono: nuevoCliente.contacto?.telefono?.trim() || undefined,
+          direccion: nuevoCliente.contacto?.direccion?.trim() || undefined,
+          ciudad: nuevoCliente.contacto?.ciudad?.trim() || undefined,
+          codigoPostal: nuevoCliente.contacto?.codigoPostal?.trim() || undefined,
+        }
+      };
+
+      console.log('Creando cliente:', clienteData); // Debug
+
+      const success = await addCliente(clienteData as Omit<Cliente, 'id' | 'codigo' | 'fechaAlta'>);
+      
+      if (success) {
+        setIsNuevoClienteOpen(false);
+        setNuevoCliente({ 
+          tipo: 'empresa', 
+          estado: 'activo', 
+          diasPago: 30,
+          contacto: { email: '', telefono: '', direccion: '', ciudad: '', codigoPostal: '' } 
+        });
+        showToast('Cliente creado correctamente', 'success');
+        // Refrescar lista
+        await fetchClientes();
+      } else {
+        showToast('Error al crear el cliente', 'error');
+      }
+    } catch (err) {
+      console.error('Error creando cliente:', err);
+      showToast('Error inesperado al crear cliente', 'error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleEditarCliente = async () => {
     if (!clienteSeleccionado) return;
     
-    // Limpiar valores vacíos antes de enviar
-    const clienteData = {
-      ...clienteSeleccionado,
-      nif: clienteSeleccionado.nif?.trim() || undefined,
-      condicionesEspeciales: clienteSeleccionado.condicionesEspeciales?.trim() || undefined,
-      notas: clienteSeleccionado.notas?.trim() || undefined,
-      contacto: {
-        email: clienteSeleccionado.contacto?.email?.trim() || undefined,
-        telefono: clienteSeleccionado.contacto?.telefono?.trim() || undefined,
-        direccion: clienteSeleccionado.contacto?.direccion?.trim() || undefined,
-        ciudad: clienteSeleccionado.contacto?.ciudad?.trim() || undefined,
-        codigoPostal: clienteSeleccionado.contacto?.codigoPostal?.trim() || undefined,
-      }
-    };
+    setIsSubmitting(true);
     
-    const success = await updateCliente(String(clienteSeleccionado.id), clienteData);
-    if (success) {
-      setIsEditarOpen(false);
-      showToast('Cliente actualizado correctamente', 'success');
+    try {
+      // Limpiar valores vacíos antes de enviar
+      const clienteData = {
+        ...clienteSeleccionado,
+        nif: clienteSeleccionado.nif?.trim() || undefined,
+        condicionesEspeciales: clienteSeleccionado.condicionesEspeciales?.trim() || undefined,
+        notas: clienteSeleccionado.notas?.trim() || undefined,
+        contacto: {
+          email: clienteSeleccionado.contacto?.email?.trim() || undefined,
+          telefono: clienteSeleccionado.contacto?.telefono?.trim() || undefined,
+          direccion: clienteSeleccionado.contacto?.direccion?.trim() || undefined,
+          ciudad: clienteSeleccionado.contacto?.ciudad?.trim() || undefined,
+          codigoPostal: clienteSeleccionado.contacto?.codigoPostal?.trim() || undefined,
+        }
+      };
+      
+      const success = await updateCliente(String(clienteSeleccionado.id), clienteData);
+      if (success) {
+        setIsEditarOpen(false);
+        showToast('Cliente actualizado correctamente', 'success');
+        await fetchClientes();
+      } else {
+        showToast('Error al actualizar el cliente', 'error');
+      }
+    } catch (err) {
+      console.error('Error actualizando cliente:', err);
+      showToast('Error inesperado al actualizar', 'error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleEliminarCliente = async (id: string) => {
     if (window.confirm('¿Está seguro de eliminar este cliente?')) {
-      const success = await deleteCliente(id);
-      if (success) {
-        showToast('Cliente eliminado', 'success');
+      try {
+        const success = await deleteCliente(id);
+        if (success) {
+          showToast('Cliente eliminado', 'success');
+          await fetchClientes();
+        } else {
+          showToast('Error al eliminar el cliente', 'error');
+        }
+      } catch (err) {
+        console.error('Error eliminando cliente:', err);
+        showToast('Error inesperado al eliminar', 'error');
       }
     }
   };
@@ -221,15 +261,16 @@ export default function CRM() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Header con título y botón VISIBLE */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-4 rounded-lg border shadow-sm">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">CRM - Clientes</h1>
-          <p className="text-slate-500">Gestión de clientes y oportunidades</p>
+          <h2 className="text-xl font-bold text-slate-900">CRM - Clientes</h2>
+          <p className="text-slate-500 text-sm">Gestión de clientes y oportunidades</p>
         </div>
         <Dialog open={isNuevoClienteOpen} onOpenChange={setIsNuevoClienteOpen}>
           <DialogTrigger asChild>
-            <Button>
+            {/* BOTÓN CON COLOR VISIBLE */}
+            <Button className="bg-[#1e3a5f] hover:bg-[#152a45] text-white shadow-sm">
               <Plus className="mr-2 h-4 w-4" />
               Nuevo Cliente
             </Button>
@@ -413,8 +454,14 @@ export default function CRM() {
               <Button variant="outline" onClick={() => setIsNuevoClienteOpen(false)}>
                 Cancelar
               </Button>
-              <Button onClick={handleNuevoCliente} disabled={isLoading}>
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Crear Cliente'}
+              {/* BOTÓN CREAR VISIBLE CON COLOR */}
+              <Button 
+                onClick={handleNuevoCliente} 
+                disabled={isSubmitting}
+                className="bg-[#1e3a5f] hover:bg-[#152a45] text-white"
+              >
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Crear Cliente
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -506,8 +553,8 @@ export default function CRM() {
                     <TableCell>{cliente.nombre}</TableCell>
                     <TableCell>
                       <Badge className={tipoClienteColors[cliente.tipo || 'empresa']}>
- 			 {tipoClienteLabels[cliente.tipo || 'empresa']}
-			</Badge>
+                        {tipoClienteLabels[cliente.tipo || 'empresa']}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-1">
@@ -816,8 +863,13 @@ export default function CRM() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditarOpen(false)}>Cancelar</Button>
-            <Button onClick={handleEditarCliente} disabled={isLoading}>
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Guardar Cambios'}
+            <Button 
+              onClick={handleEditarCliente} 
+              disabled={isSubmitting}
+              className="bg-[#1e3a5f] hover:bg-[#152a45] text-white"
+            >
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Guardar Cambios
             </Button>
           </DialogFooter>
         </DialogContent>
