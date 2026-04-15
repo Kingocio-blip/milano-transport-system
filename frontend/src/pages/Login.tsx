@@ -11,9 +11,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { Bus, Loader2 } from 'lucide-react';
 import { authApi, setToken } from '../lib/api';
+import { useUsuarioStore } from '../store';
 
 export default function Login() {
   const navigate = useNavigate();
+  const { login } = useUsuarioStore();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -28,6 +30,15 @@ export default function Login() {
       const response = await authApi.login(username, password);
       if (response.access_token) {
         setToken(response.access_token);
+        
+        // Actualizar el store de usuario
+        login({
+          id: 'admin',
+          username: username,
+          nombre: 'Administrador',
+          rol: 'admin'
+        });
+        
         navigate('/');
       } else {
         setError('Error al iniciar sesión');

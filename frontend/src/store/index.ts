@@ -1454,3 +1454,17 @@ export const useDashboardStore = create<DashboardState>((set) => ({
 export function initializeData() {
   localStorageService.initialize();
 }
+
+// ============================================
+// INICIALIZACIÓN DE AUTENTICACIÓN
+// ============================================
+// Al cargar la app, verificar si hay usuario guardado
+const usuarioGuardado = localStorage.getItem('milano_usuario');
+if (usuarioGuardado) {
+  try {
+    const usuario = JSON.parse(usuarioGuardado);
+    useUsuarioStore.getState().login(usuario);
+  } catch (e) {
+    localStorage.removeItem('milano_usuario');
+  }
+}
