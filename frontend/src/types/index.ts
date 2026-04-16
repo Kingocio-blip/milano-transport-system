@@ -159,11 +159,11 @@ export interface Licencia {
   permisos?: string[];
 }
 
-// FIX: horaInicio y horaFin ahora son opcionales
+// FIX: Todos los campos opcionales para flexibilidad
 export interface Disponibilidad {
-  dias: number[];
-  horaInicio?: string;
-  horaFin?: string;
+  dias?: number[];      // <-- OPCIONAL
+  horaInicio?: string;  // <-- OPCIONAL
+  horaFin?: string;     // <-- OPCIONAL
   observaciones?: string;
 }
 
