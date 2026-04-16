@@ -912,7 +912,8 @@ title="Editar"
 					  </div>
 					</TableCell>
 </TableRow>
-))
+);
+})
 )}
 </TableBody>
 </Table>
