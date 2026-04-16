@@ -152,10 +152,10 @@ export interface Vehiculo {
 // CONDUCTOR / RRHH
 // ============================================
 export interface Licencia {
-  tipo: string;
+  tipo?: string;           // <-- OPCIONAL
   numero?: string;           // <-- OPCIONAL
   fechaExpedicion?: Date | string;
-  fechaCaducidad?: Date | string;  // <-- OPCIONAL
+  fechaCaducidad?: Date | string;
   permisos?: string[];
 }
 
