@@ -101,6 +101,13 @@ interface RouteMapData {
   }>;
 }
 
+// FIX: Interfaz extendida para rutas con datos del servicio padre
+interface RutaExtendida extends Ruta {
+  servicioId: string;
+  servicioCodigo: string;
+  servicioFecha: string;
+}
+
 export default function Rutas() {
   const { servicios, isLoading } = useServiciosStore();
   const { vehiculos } = useVehiculosStore();
@@ -108,13 +115,12 @@ export default function Rutas() {
   const { showToast } = useUIStore();
   
   const [searchQuery, setSearchQuery] = useState('');
-  const [rutaSeleccionada, setRutaSeleccionada] = useState<Ruta | null>(null);
-  const [servicioSeleccionado, setServicioSeleccionado] = useState<Servicio | null>(null);
+  const [rutaSeleccionada, setRutaSeleccionada] = useState<RutaExtendida | null>(null);
   const [activeTab, setActiveTab] = useState('todas');
 
   // Obtener todas las rutas de todos los servicios con referencia al servicio padre
-  const todasLasRutas = useMemo(() => {
-    const rutas: Array<Ruta & { servicioId: string; servicioCodigo: string; servicioFecha: string }> = [];
+  const todasLasRutas = useMemo((): RutaExtendida[] => {
+    const rutas: RutaExtendida[] = [];
     servicios.forEach(s => {
       if (s.rutas) {
         s.rutas.forEach(r => {
@@ -122,7 +128,7 @@ export default function Rutas() {
             ...r,
             servicioId: String(s.id),
             servicioCodigo: s.codigo || '',
-            servicioFecha: s.fechaInicio || '',
+            servicioFecha: s.fechaInicio ? String(s.fechaInicio) : '',
           });
         });
       }
