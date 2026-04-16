@@ -28,7 +28,7 @@ export interface Cliente {
   id: string;
   codigo: string;
   nombre: string;
-  razonSocial?: string; // <-- AÑADIDO para backend snake_case
+  razonSocial?: string;
   tipo: TipoCliente;
   contacto: Contacto;
   nif?: string;
@@ -36,19 +36,16 @@ export interface Cliente {
   formaPago?: string;
   diasPago?: number;
   fechaAlta: Date | string;
-  fechaActualizacion?: Date | string; // <-- AÑADIDO
+  fechaActualizacion?: Date | string;
   estado: 'activo' | 'inactivo';
   notas?: string;
-  // Estadísticas (del backend)
   totalServicios?: number;
   totalFacturado?: number;
   ultimoServicio?: Date | string;
-  // Relaciones
   historialServicios?: string[];
   documentos?: Documento[];
 }
 
-// Tipos para crear/actualizar clientes (usados en API)
 export interface CreateClienteData {
   nombre: string;
   tipo?: TipoCliente;
@@ -88,7 +85,7 @@ export interface Oportunidad {
   ubicacion?: string;
   presupuestoEstimado: number;
   estado: EstadoOportunidad;
-  probabilidad: number; // 0-100
+  probabilidad: number;
   fechaCreacion: Date | string;
   fechaCierreEstimada?: Date | string;
   fechaCierreReal?: Date | string;
@@ -138,25 +135,21 @@ export interface Vehiculo {
   tipo: TipoVehiculo;
   plazas: number;
   añoFabricacion?: number;
-  // Kilometraje y consumo
   kilometraje: number;
   kilometrajeUltimaRevision?: number;
-  consumoMedio?: number; // L/100km
+  consumoMedio?: number;
   combustible?: 'diesel' | 'gasolina' | 'electric' | 'hibrido';
-  // Documentación
   itv: ITV;
   seguro: Seguro;
   mantenimientos: Mantenimiento[];
-  // Estado
   estado: EstadoVehiculo;
   ubicacion?: string;
   notas?: string;
-  // Imagen
   imagenUrl?: string;
 }
 
 // ============================================
-// CONDUCTOR / RRHH (ACTUALIZADO)
+// CONDUCTOR / RRHH
 // ============================================
 export interface Licencia {
   tipo: string;
@@ -166,17 +159,16 @@ export interface Licencia {
   permisos?: string[];
 }
 
+// FIX: horaInicio y horaFin ahora son opcionales
 export interface Disponibilidad {
-  dias: number[]; // 0=Domingo, 1=Lunes, 2=Martes...
-  horaInicio: string;
-  horaFin: string;
+  dias: number[];
+  horaInicio?: string;
+  horaFin?: string;
   observaciones?: string;
 }
 
-// <-- NUEVO: Credenciales para panel de control
 export interface CredencialesConductor {
   usuario: string;
-  // password no se devuelve al frontend por seguridad
   passwordHash?: string;
   ultimoAcceso?: Date | string;
   tokenReset?: string;
@@ -190,30 +182,23 @@ export interface Conductor {
   dni: string;
   fechaNacimiento?: Date | string;
   fechaAlta: Date | string;
-  // Contacto
-  telefono?: string;  // <-- CAMBIADO: opcional para crear
-  email?: string;     // <-- CAMBIADO: opcional para crear
+  telefono?: string;
+  email?: string;
   direccion?: string;
-  // Profesional
-  licencia?: Licencia; // <-- CAMBIADO: opcional inicialmente
-  tarifaHora?: number; // <-- CAMBIADO: opcional con default
-  prioridad?: number;  // <-- AÑADIDO: 0-100 para orden de asignación
+  licencia?: Licencia;
+  tarifaHora?: number;
+  prioridad?: number;
   disponibilidad?: Disponibilidad;
-  // Credenciales panel
-  credenciales?: CredencialesConductor; // <-- AÑADIDO
-  panelActivo?: boolean; // <-- AÑADIDO
-  // Documentación
+  credenciales?: CredencialesConductor;
+  panelActivo?: boolean;
   documentos?: Documento[];
-  // Estado
   estado: EstadoConductor;
-  // Estadísticas
   totalHorasMes?: number;
   totalServiciosMes?: number;
   valoracion?: number;
   notas?: string;
 }
 
-// <-- NUEVO: Fichaje con estados extendidos
 export interface Fichaje {
   id: string;
   conductorId: string;
@@ -224,7 +209,6 @@ export interface Fichaje {
   horasTrabajadas?: number;
   incidencias?: string;
   estado: 'pendiente' | 'completado' | 'validado';
-  // Nuevos campos para tracking GPS
   ubicacionInicio?: { lat: number; lng: number };
   ubicacionFin?: { lat: number; lng: number };
 }
@@ -238,7 +222,7 @@ export interface Parada {
   direccion: string;
   coordenadas?: { lat: number; lng: number };
   horaLlegada?: string;
-  tiempoEspera?: number; // minutos
+  tiempoEspera?: number;
   notas?: string;
 }
 
@@ -258,48 +242,39 @@ export interface Ruta {
   codigo?: string;
   servicioId: string;
   descripcion?: string;
-  // Origen y destino
   origen: string;
   destino: string;
   paradas: Parada[];
-  // Distancia y tiempo
   distanciaKm: number;
-  duracionEstimada: number; // minutos
-  // Asignaciones
+  duracionEstimada: number;
   vehiculoAsignadoId?: string;
   conductorAsignadoId?: string;
-  // Horarios
   horarios: Horario[];
-  // Documentos
   planoRecogidaUrl?: string;
   notasConductor?: string;
-  // Estado
   estado: 'activa' | 'inactiva' | 'completada';
 }
 
 // ============================================
-// SERVICIOS (ACTUALIZADO)
+// SERVICIOS
 // ============================================
-
-// <-- NUEVO: Gasto registrado por conductor
 export interface GastoServicio {
   id: string;
   tipo: 'gasoil' | 'peaje' | 'aparcamiento' | 'otro';
-  cantidad?: number; // litros para gasoil, horas para parking, etc.
+  cantidad?: number;
   precio: number;
-  precioUnitario?: number; // precio por litro, hora, etc.
+  precioUnitario?: number;
   notas?: string;
-  ticket?: string; // URL de foto del ticket
+  ticket?: string;
   fecha: Date | string;
   conductorId?: string;
   aprobado?: boolean;
 }
 
-// <-- NUEVO: Revisión del vehículo por conductor
 export interface RevisionVehiculo {
   id: string;
   tipo: 'limpieza' | 'neumaticos' | 'aceite' | 'luces' | 'carroceria' | 'otro';
-  estado: 'ok' | 'ko' | 'na'; // correcto / defectuoso / no aplica
+  estado: 'ok' | 'ko' | 'na';
   notas?: string;
   fotos?: string[];
   fecha: Date | string;
@@ -307,13 +282,12 @@ export interface RevisionVehiculo {
   vehiculoId?: string;
 }
 
-// <-- NUEVO: Tracking de ruta
 export interface TrackingRuta {
   kmInicio?: number;
   kmFin?: number;
   kmTotal?: number;
-  rutaTomada?: string; // descripción de desvíos, atascos
-  duracionReal?: number; // minutos
+  rutaTomada?: string;
+  duracionReal?: number;
   incidenciasRuta?: string;
 }
 
@@ -338,64 +312,48 @@ export interface TareaServicio {
   asignadaA?: string;
   fechaLimite?: Date | string;
   fechaCompletada?: Date | string;
-  tipo?: 'conductor' | 'sistema' | 'coordinador'; // <-- AÑADIDO
+  tipo?: 'conductor' | 'sistema' | 'coordinador';
 }
 
 export interface Servicio {
   id: string;
   codigo: string;
-  // Cliente
   clienteId: string;
   clienteNombre?: string;
   contactoCliente?: Contacto;
-  // Tipo y estado
   tipo: TipoServicio;
   estado: EstadoServicio;
-  // Fechas
   fechaInicio: Date | string;
   fechaFin: Date | string;
   horaInicio?: string;
   horaFin?: string;
-  // <-- AÑADIDO: Horas reales de fichaje
   horaInicioReal?: Date | string;
   horaFinReal?: Date | string;
   horasReales?: number;
-  // Descripción
   titulo: string;
   descripcion?: string;
-  // Vehículos y conductores
   numeroVehiculos: number;
   vehiculosAsignados: string[];
   conductoresAsignados: string[];
-  // Rutas
   rutas: Ruta[];
-  // Ubicación
   origen?: string;
   destino?: string;
   ubicacionEvento?: string;
-  // Financiero
   costeEstimado: number;
   costeReal?: number;
   precio: number;
   margen?: number;
-  // Facturación
   facturado: boolean;
   facturaId?: string;
-  // Pipeline de tareas
   tareas: TareaServicio[];
-  // Incidencias
   incidencias: Incidencia[];
-  // <-- AÑADIDO: Gastos y revisiones del conductor
   gastos?: GastoServicio[];
   revisiones?: RevisionVehiculo[];
-  tracking?: TrackingRuta; // <-- AÑADIDO
-  // Documentos
+  tracking?: TrackingRuta;
   contratoUrl?: string;
   documentos: Documento[];
-  // Notas
   notasInternas?: string;
   notasCliente?: string;
-  // Metadatos
   fechaCreacion: Date | string;
   creadoPor: string;
   fechaModificacion?: Date | string;
@@ -420,32 +378,25 @@ export interface Factura {
   id: string;
   numero: string;
   serie?: string;
-  // Relaciones
   clienteId: string;
   clienteNombre?: string;
   servicioId?: string;
   servicioCodigo?: string;
-  // Fechas
   fechaEmision: Date | string;
   fechaVencimiento: Date | string;
   fechaPago?: Date | string;
-  // Conceptos
   conceptos: ConceptoFactura[];
-  // Totales
   subtotal: number;
   descuentoTotal?: number;
   baseImponible: number;
   impuestos: number;
   iva?: number;
   total: number;
-  // Estado
   estado: EstadoFactura;
   metodoPago?: string;
   referenciaPago?: string;
-  // Notas
   notas?: string;
   condiciones?: string;
-  // Documentos
   pdfUrl?: string;
 }
 
@@ -465,14 +416,10 @@ export interface InformeCostes {
   servicioId: string;
   servicioCodigo: string;
   clienteNombre: string;
-  // Ingresos
   precioVenta: number;
-  // Costes
   costes: DesgloseCostes;
-  // Rentabilidad
   beneficio: number;
   margenPorcentaje: number;
-  // Comparación
   estimadoVsReal?: {
     estimado: number;
     real: number;
@@ -492,7 +439,7 @@ export interface Documento {
   tamaño?: number;
   fechaSubida: Date | string;
   subidoPor: string;
-  entidadId?: string; // clienteId, vehiculoId, etc.
+  entidadId?: string;
   entidadTipo?: string;
   notas?: string;
 }
@@ -550,7 +497,6 @@ export interface Usuario {
     notificaciones?: boolean;
     idioma?: string;
   };
-  // <-- AÑADIDO: Para conductores que son usuarios
   conductorId?: string;
 }
 
@@ -561,16 +507,12 @@ export interface ConfiguracionEmpresa {
   telefono: string;
   email: string;
   logo?: string;
-  // Configuración de facturación
   serieFactura: string;
   numeroFacturaActual: number;
   ivaDefault: number;
-  // Configuración de conductores
   maxHorasSemana: number;
   maxHorasDia: number;
-  // Precios combustible
   precioCombustible: number;
-  // <-- AÑADIDO: Tarifas por defecto
   tarifaConductorDefault?: number;
   tarifaCoordinadorDefault?: number;
 }
@@ -619,8 +561,6 @@ export interface Paginacion {
 // ============================================
 // API RESPONSES
 // ============================================
-
-// <-- NUEVO: Respuesta paginada genérica
 export interface ApiResponse<T> {
   data: T;
   success: boolean;
@@ -628,7 +568,6 @@ export interface ApiResponse<T> {
   pagination?: Paginacion;
 }
 
-// <-- NUEVO: Error de validación de API
 export interface ApiError {
   field?: string;
   message: string;
