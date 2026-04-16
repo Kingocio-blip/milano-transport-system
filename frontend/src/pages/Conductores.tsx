@@ -60,7 +60,7 @@ import {
   Briefcase,
 } from 'lucide-react';
 import type { Conductor, EstadoConductor } from '../types';
-import { format, parseISO, differenceInDays, isWithinInterval, addDays } from 'date-fns';
+import { format, parseISO, differenceInDays, isWithinInterval, addDays, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 const estadoConductorColors: Record<EstadoConductor, string> = {
@@ -80,6 +80,18 @@ const generarPassword = (): string => {
     pass += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return pass;
+};
+
+// FIX: Helper seguro para convertir fecha a string y parsear
+const parseDateSafe = (date: string | Date | undefined): Date | null => {
+  if (!date) return null;
+  try {
+    const dateStr = typeof date === 'string' ? date : date.toISOString();
+    const parsed = parseISO(dateStr);
+    return isValid(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 };
 
 // Verificar si un conductor está disponible en una fecha/hora específica
@@ -219,18 +231,19 @@ export default function Conductores() {
     });
   }, [conductores, searchQuery, estadoFiltro]);
 
+  // FIX: Usar parseDateSafe en lugar de parseISO directo
   const stats = useMemo(() => ({
     activos: conductores.filter(c => c.estado === 'activo').length,
     vacaciones: conductores.filter(c => c.estado === 'vacaciones').length,
     enRuta: conductores.filter(c => c.estado === 'en_ruta').length,
     totalHorasMes: conductores.reduce((sum, c) => sum + (c.totalHorasMes || 0), 0),
     licenciasProximas: conductores.filter(c => {
-      const fechaCaducidad = c.licencia?.fechaCaducidad ? parseISO(c.licencia.fechaCaducidad) : null;
+      const fechaCaducidad = parseDateSafe(c.licencia?.fechaCaducidad);
       return fechaCaducidad && differenceInDays(fechaCaducidad, new Date()) <= 30;
     }).length,
   }), [conductores]);
 
-  // FIX: Handler con preventDefault
+  // Handler con preventDefault
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -430,7 +443,7 @@ export default function Conductores() {
         </Card>
       </div>
 
-      {/* Dialog Nuevo Conductor - FIX: form con onSubmit */}
+      {/* Dialog Nuevo Conductor */}
       <Dialog open={isNuevoConductorOpen} onOpenChange={setIsNuevoConductorOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -846,7 +859,7 @@ export default function Conductores() {
           </Card>
         </TabsContent>
 
-        {/* Tab Alertas */}
+        {/* Tab Alertas - FIX: Usar parseDateSafe */}
         <TabsContent value="alertas">
           <Card>
             <CardHeader>
@@ -861,10 +874,11 @@ export default function Conductores() {
               ) : (
                 <div className="space-y-3">
                   {conductores.filter(c => {
-                    const fecha = c.licencia?.fechaCaducidad ? parseISO(c.licencia.fechaCaducidad) : null;
+                    const fecha = parseDateSafe(c.licencia?.fechaCaducidad);
                     return fecha && differenceInDays(fecha, new Date()) <= 30;
                   }).map(conductor => {
-                    const diasRestantes = differenceInDays(parseISO(conductor.licencia!.fechaCaducidad!), new Date());
+                    const fechaCaducidad = parseDateSafe(conductor.licencia!.fechaCaducidad)!;
+                    const diasRestantes = differenceInDays(fechaCaducidad, new Date());
                     return (
                       <div key={conductor.id} className={`flex items-center justify-between p-4 rounded-lg border ${
                         diasRestantes <= 7 ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'
@@ -882,7 +896,7 @@ export default function Conductores() {
                         </div>
                         <div className="text-right">
                           <p className={`font-medium ${diasRestantes <= 7 ? 'text-red-700' : 'text-amber-700'}`}>
-                            Caduca: {format(parseISO(conductor.licencia!.fechaCaducidad!), 'dd/MM/yyyy')}
+                            Caduca: {format(fechaCaducidad, 'dd/MM/yyyy')}
                           </p>
                           <p className="text-xs">{diasRestantes} días restantes</p>
                         </div>
@@ -896,7 +910,7 @@ export default function Conductores() {
         </TabsContent>
       </Tabs>
 
-      {/* Detail Dialog */}
+      {/* Detail Dialog - FIX: Usar parseDateSafe */}
       <Dialog open={!!conductorSeleccionado && !isEditarOpen} onOpenChange={() => setConductorSeleccionado(null)}>
         <DialogContent className="max-w-2xl">
           {conductorSeleccionado && (
@@ -925,7 +939,12 @@ export default function Conductores() {
                   <div>
                     <Label className="text-slate-500">Licencia</Label>
                     <p className="flex items-center gap-2"><Award className="h-4 w-4" />Tipo {conductorSeleccionado.licencia?.tipo || '-'}</p>
-                    <p className="text-sm text-slate-500">Vence: {conductorSeleccionado.licencia?.fechaCaducidad ? format(parseISO(conductorSeleccionado.licencia.fechaCaducidad), 'dd/MM/yyyy') : '-'}</p>
+                    <p className="text-sm text-slate-500">
+                      Vence: {(() => {
+                        const fecha = parseDateSafe(conductorSeleccionado.licencia?.fechaCaducidad);
+                        return fecha ? format(fecha, 'dd/MM/yyyy') : '-';
+                      })()}
+                    </p>
                   </div>
                   <div>
                     <Label className="text-slate-500">Tarifa y Prioridad</Label>
