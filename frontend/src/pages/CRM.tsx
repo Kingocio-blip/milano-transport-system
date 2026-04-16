@@ -121,7 +121,7 @@ const formatDateSafe = (date: string | Date | undefined): string => {
   }
 };
 
-// Helper para comparar IDs (maneja string y number) - FIX CRÍTICO
+// Helper para comparar IDs (maneja string y number)
 const idsEqual = (id1: string | number | undefined, id2: string | number | undefined): boolean => {
   if (id1 === undefined || id2 === undefined) return false;
   return String(id1) === String(id2);
@@ -1344,7 +1344,7 @@ export default function CRM() {
                 <div className="space-y-2">
                   <Label>Código Postal</Label>
                   <Input
-                    value={clienteSeleccionado.contacto?.codigoPostal || ''}
+                  value={clienteSeleccionado.contacto?.codigoPostal || ''}
                     onChange={(e) => updateClienteContacto('codigoPostal', e.target.value)}
                   />
                 </div>
