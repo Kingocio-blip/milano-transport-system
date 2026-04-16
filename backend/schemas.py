@@ -1,8 +1,13 @@
-from pydantic import BaseModel, Field
+# ============================================
+# MILANO - Schemas Pydantic v2 (OPTIMIZADO)
+# ============================================
+
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 from decimal import Decimal
 import enum
+import uuid
 
 # ============== ENUMS ==============
 
@@ -81,103 +86,121 @@ class EstadoRevision(str, enum.Enum):
     KO = "ko"
     NA = "na"
 
+# ============== CONSTANTES ==============
+
+CONSUMO_LITROS_100KM = 35
+PRECIO_GASOIL_LITRO = 1.6
+COSTE_KM_CONDUCTOR = 0.5
+TARIFA_CONDUCTOR_HORA = 18
+TARIFA_COORDINADOR_HORA = 25
+
 # ============== USER SCHEMAS ==============
 
 class UserBase(BaseModel):
-    username: str
-    email: str
-    nombre_completo: str
+    model_config = ConfigDict(from_attributes=True)
+    
+    username: str = Field(..., min_length=3, max_length=50)
+    email: str = Field(..., max_length=100)
+    nombre_completo: str = Field(..., max_length=100)
     rol: UserRole = UserRole.OPERADOR
 
 class UserCreate(UserBase):
-    password: str
+    password: str = Field(..., min_length=8)
 
 class UserUpdate(BaseModel):
-    email: Optional[str] = None
-    nombre_completo: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+    
+    email: Optional[str] = Field(None, max_length=100)
+    nombre_completo: Optional[str] = Field(None, max_length=100)
     rol: Optional[UserRole] = None
     activo: Optional[bool] = None
     conductor_id: Optional[int] = None
 
 class User(UserBase):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
-    activo: bool
+    activo: bool = True
     fecha_creacion: datetime
     ultimo_acceso: Optional[datetime] = None
     conductor_id: Optional[int] = None
 
-    class Config:
-        orm_mode = True
-
 # ============== CLIENTE SCHEMAS ==============
 
 class ContactoPersona(BaseModel):
-    nombre: Optional[str] = None
-    email: Optional[str] = None
-    telefono: Optional[str] = None
-    cargo: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+    
+    nombre: Optional[str] = Field(None, max_length=100)
+    email: Optional[str] = Field(None, max_length=100)
+    telefono: Optional[str] = Field(None, max_length=20)
+    cargo: Optional[str] = Field(None, max_length=50)
 
 class ClienteBase(BaseModel):
-    codigo: str
+    model_config = ConfigDict(from_attributes=True)
+    
+    codigo: str = Field(..., max_length=20)
     tipo: TipoCliente = TipoCliente.EMPRESA
-    nombre: str
-    razon_social: Optional[str] = None
-    nif_cif: Optional[str] = None
-    direccion: Optional[str] = None
-    ciudad: Optional[str] = None
-    codigo_postal: Optional[str] = None
-    pais: str = "España"
-    email: Optional[str] = None
-    telefono: Optional[str] = None
+    nombre: str = Field(..., max_length=100)
+    razon_social: Optional[str] = Field(None, max_length=100)
+    nif_cif: Optional[str] = Field(None, max_length=20)
+    direccion: Optional[str] = Field(None, max_length=200)
+    ciudad: Optional[str] = Field(None, max_length=50)
+    codigo_postal: Optional[str] = Field(None, max_length=10)
+    pais: str = Field(default="España", max_length=50)
+    email: Optional[str] = Field(None, max_length=100)
+    telefono: Optional[str] = Field(None, max_length=20)
     estado: EstadoCliente = EstadoCliente.ACTIVO
-    condiciones_pago: Optional[str] = None
+    condiciones_pago: Optional[str] = Field(None, max_length=50)
     dias_pago: Optional[int] = None
     limite_credito: Optional[Decimal] = None
     notas: Optional[str] = None
     
-    persona_contacto_nombre: Optional[str] = None
-    persona_contacto_email: Optional[str] = None
-    persona_contacto_telefono: Optional[str] = None
-    persona_contacto_cargo: Optional[str] = None
+    persona_contacto_nombre: Optional[str] = Field(None, max_length=100)
+    persona_contacto_email: Optional[str] = Field(None, max_length=100)
+    persona_contacto_telefono: Optional[str] = Field(None, max_length=20)
+    persona_contacto_cargo: Optional[str] = Field(None, max_length=50)
 
 class ClienteCreate(ClienteBase):
     pass
 
 class ClienteUpdate(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     tipo: Optional[TipoCliente] = None
-    nombre: Optional[str] = None
-    razon_social: Optional[str] = None
-    nif_cif: Optional[str] = None
-    direccion: Optional[str] = None
-    ciudad: Optional[str] = None
-    codigo_postal: Optional[str] = None
-    pais: Optional[str] = None
-    email: Optional[str] = None
-    telefono: Optional[str] = None
+    nombre: Optional[str] = Field(None, max_length=100)
+    razon_social: Optional[str] = Field(None, max_length=100)
+    nif_cif: Optional[str] = Field(None, max_length=20)
+    direccion: Optional[str] = Field(None, max_length=200)
+    ciudad: Optional[str] = Field(None, max_length=50)
+    codigo_postal: Optional[str] = Field(None, max_length=10)
+    pais: Optional[str] = Field(None, max_length=50)
+    email: Optional[str] = Field(None, max_length=100)
+    telefono: Optional[str] = Field(None, max_length=20)
     estado: Optional[EstadoCliente] = None
-    condiciones_pago: Optional[str] = None
+    condiciones_pago: Optional[str] = Field(None, max_length=50)
     dias_pago: Optional[int] = None
     limite_credito: Optional[Decimal] = None
     notas: Optional[str] = None
     
-    persona_contacto_nombre: Optional[str] = None
-    persona_contacto_email: Optional[str] = None
-    persona_contacto_telefono: Optional[str] = None
-    persona_contacto_cargo: Optional[str] = None
+    persona_contacto_nombre: Optional[str] = Field(None, max_length=100)
+    persona_contacto_email: Optional[str] = Field(None, max_length=100)
+    persona_contacto_telefono: Optional[str] = Field(None, max_length=20)
+    persona_contacto_cargo: Optional[str] = Field(None, max_length=50)
 
 class Cliente(ClienteBase):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     fecha_creacion: datetime
     fecha_actualizacion: datetime
     total_servicios: int = 0
-    total_facturado: Decimal = 0
+    total_facturado: Decimal = Decimal('0')
 
-    class Config:
-        orm_mode = True
-
-# ============== CONDUCTOR SCHEMAS (ACTUALIZADO) ==============
+# ============== CONDUCTOR SCHEMAS ==============
 
 class Licencia(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     tipo: Optional[str] = None
     numero: Optional[str] = None
     fecha_expedicion: Optional[date] = None
@@ -185,36 +208,42 @@ class Licencia(BaseModel):
     permisos: List[str] = []
 
 class Disponibilidad(BaseModel):
-    dias: List[int] = [1, 2, 3, 4, 5]  # 0=Domingo, 1=Lunes...
+    model_config = ConfigDict(from_attributes=True)
+    
+    dias: List[int] = Field(default=[1, 2, 3, 4, 5], description="0=Domingo, 1=Lunes...")
     hora_inicio: str = "08:00"
     hora_fin: str = "18:00"
     observaciones: Optional[str] = None
 
 class CredencialesConductor(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     usuario: str
-    password: Optional[str] = None  # Solo para creación
+    password: Optional[str] = None
 
 class ConductorBase(BaseModel):
-    codigo: str
-    nombre: str
-    apellidos: str
-    dni: str
-    fecha_nacimiento: Optional[date] = None
-    telefono: Optional[str] = None
-    email: Optional[str] = None
-    direccion: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
     
-    # Licencia (campos planos para compatibilidad)
+    codigo: Optional[str] = Field(None, max_length=20)
+    nombre: str = Field(..., max_length=50)
+    apellidos: str = Field(..., max_length=100)
+    dni: str = Field(..., max_length=20)
+    fecha_nacimiento: Optional[date] = None
+    telefono: Optional[str] = Field(None, max_length=20)
+    email: Optional[str] = Field(None, max_length=100)
+    direccion: Optional[str] = Field(None, max_length=200)
+    
+    # Licencia
     licencia_tipo: Optional[str] = None
     licencia_numero: Optional[str] = None
     licencia_fecha_expedicion: Optional[date] = None
     licencia_fecha_caducidad: Optional[date] = None
     licencia_permisos: List[str] = []
     
-    # Tarifas y prioridad
-    tarifa_hora: float = 18
+    # Tarifas
+    tarifa_hora: float = Field(default=18, ge=0)
     tarifa_servicio: Optional[float] = None
-    prioridad: int = 50  # 0-100
+    prioridad: int = Field(default=50, ge=0, le=100)
     
     # Disponibilidad
     disponibilidad_dias: List[int] = [1, 2, 3, 4, 5]
@@ -222,29 +251,36 @@ class ConductorBase(BaseModel):
     disponibilidad_hora_fin: str = "18:00"
     disponibilidad_observaciones: Optional[str] = None
     
-    # Credenciales y panel
+    # Credenciales
     credenciales: Optional[CredencialesConductor] = None
     panel_activo: bool = True
     
     # Estadísticas
     total_horas_mes: float = 0
     total_servicios_mes: int = 0
-    valoracion: Optional[float] = None  # 0-5
+    valoracion: Optional[float] = Field(None, ge=0, le=5)
     
     estado: EstadoConductor = EstadoConductor.ACTIVO
     notas: Optional[str] = None
 
 class ConductorCreate(ConductorBase):
-    pass
+    @field_validator('codigo', mode='before')
+    @classmethod
+    def set_codigo(cls, v):
+        if v is None or v == "":
+            return f"COND-{uuid.uuid4().hex[:6].upper()}"
+        return v
 
 class ConductorUpdate(BaseModel):
-    nombre: Optional[str] = None
-    apellidos: Optional[str] = None
-    dni: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+    
+    nombre: Optional[str] = Field(None, max_length=50)
+    apellidos: Optional[str] = Field(None, max_length=100)
+    dni: Optional[str] = Field(None, max_length=20)
     fecha_nacimiento: Optional[date] = None
-    telefono: Optional[str] = None
-    email: Optional[str] = None
-    direccion: Optional[str] = None
+    telefono: Optional[str] = Field(None, max_length=20)
+    email: Optional[str] = Field(None, max_length=100)
+    direccion: Optional[str] = Field(None, max_length=200)
     
     licencia_tipo: Optional[str] = None
     licencia_numero: Optional[str] = None
@@ -252,9 +288,9 @@ class ConductorUpdate(BaseModel):
     licencia_fecha_caducidad: Optional[date] = None
     licencia_permisos: Optional[List[str]] = None
     
-    tarifa_hora: Optional[float] = None
+    tarifa_hora: Optional[float] = Field(None, ge=0)
     tarifa_servicio: Optional[float] = None
-    prioridad: Optional[int] = None
+    prioridad: Optional[int] = Field(None, ge=0, le=100)
     
     disponibilidad_dias: Optional[List[int]] = None
     disponibilidad_hora_inicio: Optional[str] = None
@@ -266,28 +302,31 @@ class ConductorUpdate(BaseModel):
     
     total_horas_mes: Optional[float] = None
     total_servicios_mes: Optional[int] = None
-    valoracion: Optional[float] = None
+    valoracion: Optional[float] = Field(None, ge=0, le=5)
     
     estado: Optional[EstadoConductor] = None
     notas: Optional[str] = None
 
 class Conductor(ConductorBase):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     fecha_creacion: datetime
     fecha_actualizacion: datetime
 
-    class Config:
-        orm_mode = True
-
-# ============== VEHICULO SCHEMAS (ACTUALIZADO) ==============
+# ============== VEHICULO SCHEMAS ==============
 
 class ITV(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     fecha_ultima: Optional[date] = None
     fecha_proxima: Optional[date] = None
     resultado: Optional[str] = None
     observaciones: Optional[str] = None
 
 class Seguro(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     compania: Optional[str] = None
     poliza: Optional[str] = None
     tipo_cobertura: Optional[str] = None
@@ -296,39 +335,40 @@ class Seguro(BaseModel):
     prima: Optional[float] = None
 
 class Mantenimiento(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: str
     fecha: date
     tipo: str
     descripcion: str
-    kilometraje: int
-    coste: float
+    kilometraje: int = 0
+    coste: float = 0
     taller: Optional[str] = None
     piezas_cambiadas: List[str] = []
     proximo_mantenimiento: Optional[date] = None
     observaciones: Optional[str] = None
 
 class VehiculoBase(BaseModel):
-    codigo: str
-    matricula: str
+    model_config = ConfigDict(from_attributes=True)
+    
+    codigo: Optional[str] = Field(None, max_length=20)
+    matricula: str = Field(..., max_length=20)
     tipo: TipoVehiculo = TipoVehiculo.AUTOBUS
-    marca: Optional[str] = None
-    modelo: Optional[str] = None
+    marca: Optional[str] = Field(None, max_length=50)
+    modelo: Optional[str] = Field(None, max_length=50)
     anno_fabricacion: Optional[int] = None
     plazas: int = 0
     
-    # Kilometraje y consumo
     kilometraje: int = 0
     kilometraje_ultima_revision: Optional[int] = None
     consumo_medio: Optional[float] = None
     combustible: str = "diesel"
     
-    # ITV
     itv_fecha_ultima: Optional[date] = None
     itv_fecha_proxima: Optional[date] = None
     itv_resultado: Optional[str] = None
     itv_observaciones: Optional[str] = None
     
-    # Seguro
     seguro_compania: Optional[str] = None
     seguro_poliza: Optional[str] = None
     seguro_tipo_cobertura: Optional[str] = None
@@ -336,7 +376,6 @@ class VehiculoBase(BaseModel):
     seguro_fecha_vencimiento: Optional[date] = None
     seguro_prima: Optional[float] = None
     
-    # Mantenimientos
     mantenimientos: List[Mantenimiento] = []
     
     estado: EstadoVehiculo = EstadoVehiculo.OPERATIVO
@@ -345,13 +384,20 @@ class VehiculoBase(BaseModel):
     imagen_url: Optional[str] = None
 
 class VehiculoCreate(VehiculoBase):
-    pass
+    @field_validator('codigo', mode='before')
+    @classmethod
+    def set_codigo(cls, v):
+        if v is None or v == "":
+            return f"VH-{uuid.uuid4().hex[:6].upper()}"
+        return v
 
 class VehiculoUpdate(BaseModel):
-    matricula: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+    
+    matricula: Optional[str] = Field(None, max_length=20)
     tipo: Optional[TipoVehiculo] = None
-    marca: Optional[str] = None
-    modelo: Optional[str] = None
+    marca: Optional[str] = Field(None, max_length=50)
+    modelo: Optional[str] = Field(None, max_length=50)
     anno_fabricacion: Optional[int] = None
     plazas: Optional[int] = None
     
@@ -380,16 +426,17 @@ class VehiculoUpdate(BaseModel):
     imagen_url: Optional[str] = None
 
 class Vehiculo(VehiculoBase):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     fecha_creacion: datetime
     fecha_actualizacion: datetime
 
-    class Config:
-        orm_mode = True
-
-# ============== SERVICIO SCHEMAS (ACTUALIZADO) ==============
+# ============== SERVICIO SCHEMAS ==============
 
 class TareaServicio(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: str
     nombre: str
     descripcion: Optional[str] = None
@@ -397,9 +444,11 @@ class TareaServicio(BaseModel):
     asignada_a: Optional[str] = None
     fecha_limite: Optional[datetime] = None
     fecha_completada: Optional[datetime] = None
-    tipo: Optional[str] = "conductor"  # conductor, sistema, coordinador
+    tipo: Optional[str] = "conductor"
 
 class Incidencia(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: str
     fecha: datetime
     tipo: str
@@ -412,18 +461,22 @@ class Incidencia(BaseModel):
     coste_adicional: Optional[float] = None
 
 class GastoServicio(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: str
     tipo: TipoGasto
-    cantidad: Optional[float] = None  # litros para gasoil, horas para parking...
+    cantidad: Optional[float] = None
     precio: float
     precio_unitario: Optional[float] = None
     notas: Optional[str] = None
-    ticket: Optional[str] = None  # URL de foto
+    ticket: Optional[str] = None
     fecha: datetime
     conductor_id: Optional[int] = None
     aprobado: bool = False
 
 class RevisionVehiculo(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: str
     tipo: TipoRevision
     estado: EstadoRevision
@@ -434,15 +487,19 @@ class RevisionVehiculo(BaseModel):
     vehiculo_id: Optional[int] = None
 
 class TrackingRuta(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     km_inicio: Optional[int] = None
     km_fin: Optional[int] = None
     km_total: Optional[int] = None
     ruta_tomada: Optional[str] = None
-    duracion_real: Optional[int] = None  # minutos
+    duracion_real: Optional[int] = None
     incidencias_ruta: Optional[str] = None
 
 class ServicioBase(BaseModel):
-    codigo: str
+    model_config = ConfigDict(from_attributes=True)
+    
+    codigo: Optional[str] = Field(None, max_length=20)
     cliente_id: Optional[int] = None
     cliente_nombre: Optional[str] = None
     tipo: str
@@ -450,45 +507,37 @@ class ServicioBase(BaseModel):
     titulo: str
     descripcion: Optional[str] = None
     
-    # Fechas
     fecha_inicio: datetime
     fecha_fin: Optional[datetime] = None
     hora_inicio: Optional[str] = None
     hora_fin: Optional[str] = None
     
-    # Horas reales (fichaje)
     hora_inicio_real: Optional[datetime] = None
     hora_fin_real: Optional[datetime] = None
     horas_reales: Optional[float] = None
     
-    # Ubicación
     origen: Optional[str] = None
     destino: Optional[str] = None
     ubicacion_evento: Optional[str] = None
     
-    # Vehículos y conductores
     numero_vehiculos: int = 1
-    vehiculos_asignados: List[str] = []  # IDs como strings
-    conductores_asignados: List[str] = []  # IDs como strings
+    vehiculos_asignados: List[str] = []
+    conductores_asignados: List[str] = []
     
-    # Financiero
     coste_estimado: float = 0
     coste_real: Optional[float] = None
     precio: float = 0
     facturado: bool = False
     factura_id: Optional[int] = None
     
-    # Notas
     notas_internas: Optional[str] = None
     notas_cliente: Optional[str] = None
     
-    # Datos estructurados
-    rutas: List[dict] = []
+    rutas: List[Dict[str, Any]] = []
     tareas: List[TareaServicio] = []
     incidencias: List[Incidencia] = []
-    documentos: List[dict] = []
+    documentos: List[Dict[str, Any]] = []
     
-    # NUEVO: Gastos, revisiones y tracking
     gastos: List[GastoServicio] = []
     revisiones: List[RevisionVehiculo] = []
     tracking: TrackingRuta = {}
@@ -496,9 +545,16 @@ class ServicioBase(BaseModel):
     creado_por: Optional[str] = None
 
 class ServicioCreate(ServicioBase):
-    pass
+    @field_validator('codigo', mode='before')
+    @classmethod
+    def set_codigo(cls, v):
+        if v is None or v == "":
+            return f"SRV-{uuid.uuid4().hex[:6].upper()}"
+        return v
 
 class ServicioUpdate(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     cliente_id: Optional[int] = None
     cliente_nombre: Optional[str] = None
     tipo: Optional[str] = None
@@ -532,26 +588,27 @@ class ServicioUpdate(BaseModel):
     notas_internas: Optional[str] = None
     notas_cliente: Optional[str] = None
     
-    rutas: Optional[List[dict]] = None
+    rutas: Optional[List[Dict[str, Any]]] = None
     tareas: Optional[List[TareaServicio]] = None
     incidencias: Optional[List[Incidencia]] = None
-    documentos: Optional[List[dict]] = None
+    documentos: Optional[List[Dict[str, Any]]] = None
     
     gastos: Optional[List[GastoServicio]] = None
     revisiones: Optional[List[RevisionVehiculo]] = None
     tracking: Optional[TrackingRuta] = None
 
 class Servicio(ServicioBase):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     fecha_creacion: datetime
     fecha_modificacion: Optional[datetime] = None
 
-    class Config:
-        orm_mode = True
-
-# ============== FACTURA SCHEMAS (NUEVO) ==============
+# ============== FACTURA SCHEMAS ==============
 
 class ConceptoFactura(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: str
     concepto: str
     descripcion: Optional[str] = None
@@ -563,6 +620,8 @@ class ConceptoFactura(BaseModel):
     total: float
 
 class FacturaBase(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     numero: str
     serie: str = "A"
     cliente_id: int
@@ -583,7 +642,7 @@ class FacturaBase(BaseModel):
     iva: float = 21
     total: float = 0
     
-    estado: str = "pendiente"  # pendiente, enviada, pagada, vencida, anulada
+    estado: str = "pendiente"
     metodo_pago: Optional[str] = None
     referencia_pago: Optional[str] = None
     
@@ -595,6 +654,8 @@ class FacturaCreate(FacturaBase):
     pass
 
 class FacturaUpdate(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     fecha_vencimiento: Optional[datetime] = None
     fecha_pago: Optional[datetime] = None
     conceptos: Optional[List[ConceptoFactura]] = None
@@ -612,16 +673,17 @@ class FacturaUpdate(BaseModel):
     pdf_url: Optional[str] = None
 
 class Factura(FacturaBase):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     fecha_creacion: datetime
     fecha_actualizacion: Optional[datetime] = None
 
-    class Config:
-        orm_mode = True
-
 # ============== DASHBOARD SCHEMAS ==============
 
 class KPIDashboard(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     servicios_activos: int
     servicios_hoy: int
     servicios_mes: int
@@ -636,12 +698,18 @@ class KPIDashboard(BaseModel):
 # ============== AUTH SCHEMAS ==============
 
 class Token(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     access_token: str
     token_type: str
 
 class TokenData(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     username: Optional[str] = None
 
 class LoginRequest(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     username: str
     password: str

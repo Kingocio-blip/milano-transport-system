@@ -1,10 +1,20 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Boolean, Numeric, Date, Enum as SQLEnum, JSON, Float
-from sqlalchemy.orm import relationship
+# ============================================
+# MILANO - SQLAlchemy Models (OPTIMIZADO)
+# ============================================
+
+from sqlalchemy import (
+    Column, Integer, String, DateTime, Text, ForeignKey, 
+    Boolean, Numeric, Date, Enum as SQLEnum, JSON, Float, Index
+)
+from sqlalchemy.orm import relationship, validates
 from database import Base
 import datetime
 import enum
 
-# Enums
+# ============================================
+# ENUMS
+# ============================================
+
 class TipoCliente(str, enum.Enum):
     EMPRESA = "empresa"
     PARTICULAR = "particular"
@@ -43,7 +53,10 @@ class UserRole(str, enum.Enum):
     OPERADOR = "operador"
     CONDUCTOR = "conductor"
 
-# User model
+# ============================================
+# USER MODEL
+# ============================================
+
 class User(Base):
     __tablename__ = "users"
     
@@ -57,11 +70,14 @@ class User(Base):
     fecha_creacion = Column(DateTime, default=datetime.datetime.utcnow)
     ultimo_acceso = Column(DateTime, nullable=True)
     
-    # Relación con conductor (para panel de control)
+    # Relación con conductor
     conductor_id = Column(Integer, ForeignKey("conductores.id"), nullable=True)
     conductor = relationship("Conductor", back_populates="usuario")
 
-# Cliente model
+# ============================================
+# CLIENTE MODEL
+# ============================================
+
 class Cliente(Base):
     __tablename__ = "clientes"
     
@@ -72,7 +88,7 @@ class Cliente(Base):
     razon_social = Column(String(100), nullable=True)
     nif_cif = Column(String(20), nullable=True)
     
-    # Direccion
+    # Dirección
     direccion = Column(String(200), nullable=True)
     ciudad = Column(String(50), nullable=True)
     codigo_postal = Column(String(10), nullable=True)
@@ -82,13 +98,13 @@ class Cliente(Base):
     email = Column(String(100), nullable=True)
     telefono = Column(String(20), nullable=True)
     
-    # Persona de contacto (campos planos)
+    # Persona de contacto
     persona_contacto_nombre = Column(String(100), nullable=True)
     persona_contacto_email = Column(String(100), nullable=True)
     persona_contacto_telefono = Column(String(20), nullable=True)
     persona_contacto_cargo = Column(String(50), nullable=True)
     
-    # Informacion comercial
+    # Información comercial
     estado = Column(SQLEnum(EstadoCliente), default=EstadoCliente.ACTIVO)
     condiciones_pago = Column(String(50), nullable=True)
     dias_pago = Column(Integer, nullable=True)
@@ -105,13 +121,23 @@ class Cliente(Base):
     
     # Relaciones
     servicios = relationship("Servicio", back_populates="cliente")
+    
+    # FIX: Índices adicionales para búsquedas frecuentes
+    __table_args__ = (
+        Index('idx_cliente_estado', 'estado'),
+        Index('idx_cliente_tipo', 'tipo'),
+    )
 
-# Conductor model (ACTUALIZADO)
+# ============================================
+# CONDUCTOR MODEL (OPTIMIZADO)
+# ============================================
+
 class Conductor(Base):
     __tablename__ = "conductores"
     
     id = Column(Integer, primary_key=True, index=True)
-    codigo = Column(String(20), unique=True, index=True, nullable=False)
+    # FIX: codigo ahora opcional en DB, se genera automáticamente
+    codigo = Column(String(20), unique=True, index=True, nullable=True)
     
     # Datos personales
     nombre = Column(String(50), nullable=False)
@@ -124,7 +150,7 @@ class Conductor(Base):
     email = Column(String(100), nullable=True)
     direccion = Column(String(200), nullable=True)
     
-    # Licencia (estructura JSON flexible)
+    # Licencia (campos planos)
     licencia_tipo = Column(String(20), nullable=True)
     licencia_numero = Column(String(50), nullable=True)
     licencia_fecha_expedicion = Column(Date, nullable=True)
@@ -134,15 +160,15 @@ class Conductor(Base):
     # Tarifas y prioridad
     tarifa_hora = Column(Numeric(8, 2), default=18)
     tarifa_servicio = Column(Numeric(10, 2), nullable=True)
-    prioridad = Column(Integer, default=50)  # 0-100 para orden de asignación
+    prioridad = Column(Integer, default=50)  # 0-100
     
     # Disponibilidad horaria
-    disponibilidad_dias = Column(JSON, default=list)  # [1,2,3,4,5] = Lunes-Viernes
+    disponibilidad_dias = Column(JSON, default=lambda: [1, 2, 3, 4, 5])  # FIX: Lambda para mutable default
     disponibilidad_hora_inicio = Column(String(10), default="08:00")
     disponibilidad_hora_fin = Column(String(10), default="18:00")
     disponibilidad_observaciones = Column(Text, nullable=True)
     
-    # Credenciales para panel de control
+    # Credenciales para panel
     credenciales_usuario = Column(String(50), nullable=True)
     credenciales_password_hash = Column(String(255), nullable=True)
     panel_activo = Column(Boolean, default=True)
@@ -162,15 +188,33 @@ class Conductor(Base):
     
     # Relaciones
     usuario = relationship("User", back_populates="conductor", uselist=False)
+    
+    # FIX: Índices para filtros comunes
+    __table_args__ = (
+        Index('idx_conductor_estado', 'estado'),
+        Index('idx_conductor_prioridad', 'prioridad'),
+        Index('idx_conductor_panel', 'panel_activo'),
+    )
+    
+    # FIX: Validación de prioridad
+    @validates('prioridad')
+    def validate_prioridad(self, key, value):
+        if value is not None and (value < 0 or value > 100):
+            raise ValueError('Prioridad debe estar entre 0 y 100')
+        return value
 
-# Vehiculo model (ACTUALIZADO)
+# ============================================
+# VEHICULO MODEL (OPTIMIZADO)
+# ============================================
+
 class Vehiculo(Base):
     __tablename__ = "vehiculos"
     
     id = Column(Integer, primary_key=True, index=True)
-    codigo = Column(String(20), unique=True, index=True, nullable=False)
+    # FIX: codigo ahora opcional en DB, se genera automáticamente
+    codigo = Column(String(20), unique=True, index=True, nullable=True)
     
-    # Informacion del vehiculo
+    # Información del vehículo
     matricula = Column(String(20), unique=True, nullable=False)
     tipo = Column(SQLEnum(TipoVehiculo), default=TipoVehiculo.AUTOBUS)
     marca = Column(String(50), nullable=True)
@@ -184,13 +228,13 @@ class Vehiculo(Base):
     consumo_medio = Column(Numeric(5, 2), nullable=True)  # L/100km
     combustible = Column(String(20), default="diesel")
     
-    # ITV (estructura plana para compatibilidad)
+    # ITV
     itv_fecha_ultima = Column(Date, nullable=True)
     itv_fecha_proxima = Column(Date, nullable=True)
     itv_resultado = Column(String(50), nullable=True)
     itv_observaciones = Column(Text, nullable=True)
     
-    # Seguro (estructura plana)
+    # Seguro
     seguro_compania = Column(String(100), nullable=True)
     seguro_poliza = Column(String(100), nullable=True)
     seguro_tipo_cobertura = Column(String(50), nullable=True)
@@ -210,23 +254,34 @@ class Vehiculo(Base):
     fecha_actualizacion = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
     notas = Column(Text, nullable=True)
     imagen_url = Column(String(500), nullable=True)
+    
+    # FIX: Índices para filtros comunes
+    __table_args__ = (
+        Index('idx_vehiculo_estado', 'estado'),
+        Index('idx_vehiculo_tipo', 'tipo'),
+        Index('idx_vehiculo_itv', 'itv_fecha_proxima'),  # Para alertas de ITV
+    )
 
-# Servicio model (ACTUALIZADO)
+# ============================================
+# SERVICIO MODEL (OPTIMIZADO)
+# ============================================
+
 class Servicio(Base):
     __tablename__ = "servicios"
     
     id = Column(Integer, primary_key=True, index=True)
-    codigo = Column(String(20), unique=True, index=True, nullable=False)
+    # FIX: codigo ahora opcional en DB, se genera automáticamente
+    codigo = Column(String(20), unique=True, index=True, nullable=True)
     
     # Cliente
     cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=True)
     cliente_nombre = Column(String(100), nullable=True)
     
     # Tipo y estado
-    tipo = Column(String(50), nullable=False)  # lanzadera, discrecional, staff, ruta_programada
+    tipo = Column(String(50), nullable=False)
     estado = Column(String(50), default="planificando")
     
-    # Descripcion
+    # Descripción
     titulo = Column(String(200), nullable=False)
     descripcion = Column(Text, nullable=True)
     
@@ -236,17 +291,17 @@ class Servicio(Base):
     hora_inicio = Column(String(10), nullable=True)
     hora_fin = Column(String(10), nullable=True)
     
-    # Horas reales (fichaje conductor)
+    # Horas reales (fichaje)
     hora_inicio_real = Column(DateTime, nullable=True)
     hora_fin_real = Column(DateTime, nullable=True)
     horas_reales = Column(Float, nullable=True)
     
-    # Ubicacion
+    # Ubicación
     origen = Column(String(200), nullable=True)
     destino = Column(String(200), nullable=True)
     ubicacion_evento = Column(String(200), nullable=True)
     
-    # Vehiculos y conductores
+    # Vehículos y conductores
     numero_vehiculos = Column(Integer, default=1)
     vehiculos_asignados = Column(JSON, default=list)
     conductores_asignados = Column(JSON, default=list)
@@ -262,20 +317,16 @@ class Servicio(Base):
     notas_internas = Column(Text, nullable=True)
     notas_cliente = Column(Text, nullable=True)
     
-    # Datos estructurados (JSON)
+    # Datos estructurados
     rutas = Column(JSON, default=list)
     tareas = Column(JSON, default=list)
     incidencias = Column(JSON, default=list)
     documentos = Column(JSON, default=list)
     
-    # NUEVO: Gastos registrados por conductor
-    gastos = Column(JSON, default=list)  # [{id, tipo, cantidad, precio, notas, fecha, conductor_id}]
-    
-    # NUEVO: Revisiones del vehiculo
-    revisiones = Column(JSON, default=list)  # [{id, tipo, estado, notas, fecha, conductor_id, vehiculo_id}]
-    
-    # NUEVO: Tracking de ruta
-    tracking = Column(JSON, default=dict)  # {kmInicio, kmFin, kmTotal, rutaTomada, duracionReal}
+    # Gastos, revisiones y tracking
+    gastos = Column(JSON, default=list)
+    revisiones = Column(JSON, default=list)
+    tracking = Column(JSON, default=dict)
     
     # Metadatos
     fecha_creacion = Column(DateTime, default=datetime.datetime.utcnow)
@@ -284,8 +335,19 @@ class Servicio(Base):
     
     # Relaciones
     cliente = relationship("Cliente", back_populates="servicios")
+    
+    # FIX: Índices para consultas frecuentes
+    __table_args__ = (
+        Index('idx_servicio_estado', 'estado'),
+        Index('idx_servicio_fecha', 'fecha_inicio'),
+        Index('idx_servicio_cliente', 'cliente_id'),
+        Index('idx_servicio_facturado', 'facturado', 'estado'),  # Para pendientes de facturar
+    )
 
-# Factura model (NUEVO)
+# ============================================
+# FACTURA MODEL
+# ============================================
+
 class Factura(Base):
     __tablename__ = "facturas"
     
@@ -313,7 +375,7 @@ class Factura(Base):
     total = Column(Numeric(10, 2), default=0)
     
     # Estado
-    estado = Column(String(20), default="pendiente")  # pendiente, enviada, pagada, vencida, anulada
+    estado = Column(String(20), default="pendiente")
     metodo_pago = Column(String(50), nullable=True)
     referencia_pago = Column(String(100), nullable=True)
     
@@ -330,3 +392,11 @@ class Factura(Base):
     # Metadatos
     fecha_creacion = Column(DateTime, default=datetime.datetime.utcnow)
     fecha_actualizacion = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    
+    # FIX: Índices para consultas frecuentes
+    __table_args__ = (
+        Index('idx_factura_estado', 'estado'),
+        Index('idx_factura_fecha', 'fecha_emision'),
+        Index('idx_factura_cliente', 'cliente_id'),
+        Index('idx_factura_vencimiento', 'fecha_vencimiento', 'estado'),  # Para vencidas
+    )
