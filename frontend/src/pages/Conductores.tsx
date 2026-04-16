@@ -236,6 +236,7 @@ export default function Conductores() {
     }).length,
   }), [conductores]);
 
+  // FIX: Handler con preventDefault y stopPropagation
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -328,6 +329,23 @@ export default function Conductores() {
     setIsNuevoConductorOpen(false);
     setNuevoConductor(initialConductorState);
     setCredencialesGeneradas(null);
+  };
+
+  // FIX: Helper para toggle de días con tipo correcto
+  const toggleDia = (idx: number, checked: boolean | 'indeterminate') => {
+    if (checked === 'indeterminate') return;
+    
+    const currentDisp = ensureDisponibilidad(nuevoConductor.disponibilidad);
+    const currentDias = currentDisp.dias || [];
+    
+    const newDias = checked
+      ? [...currentDias, idx]
+      : currentDias.filter(d => d !== idx);
+    
+    setNuevoConductor({
+      ...nuevoConductor,
+      disponibilidad: { ...currentDisp, dias: newDias }
+    });
   };
 
   if (isLoading && conductores.length === 0) {
@@ -513,17 +531,8 @@ export default function Conductores() {
                   <div key={idx} className="flex items-center gap-1">
                     <Checkbox
                       id={`dia-${idx}`}
-                      checked={nuevoConductor.disponibilidad?.dias?.includes(idx)}
-                      onCheckedChange={(checked) => {
-                        const currentDisp = ensureDisponibilidad(nuevoConductor.disponibilidad);
-                        const dias = checked
-                          ? [...(currentDisp.dias || []), idx]
-                          : (currentDisp.dias || []).filter(d => d !== idx);
-                        setNuevoConductor({
-                          ...nuevoConductor,
-                          disponibilidad: { ...currentDisp, dias }
-                        });
-                      }}
+                      checked={nuevoConductor.disponibilidad?.dias?.includes(idx) || false}
+                      onCheckedChange={(checked) => toggleDia(idx, checked)}
                     />
                     <Label htmlFor={`dia-${idx}`} className="text-sm cursor-pointer">{dia}</Label>
                   </div>
