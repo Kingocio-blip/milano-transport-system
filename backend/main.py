@@ -11,7 +11,7 @@ import os
 
 import models
 import schemas
-from database import engine, get_db
+from database import engine, get_db, SessionLocal
 
 # Create tables
 models.Base.metadata.create_all(bind=engine)
@@ -30,10 +30,38 @@ app.add_middleware(
 # Security configuration
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 24 hours
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+# ============== STARTUP - Crear admin si no existe ==============
+
+@app.on_event("startup")
+async def startup_event():
+    db = SessionLocal()
+    try:
+        # Crear admin si no existe
+        admin = db.query(models.User).filter(models.User.username == "admin").first()
+        if not admin:
+            hashed = pwd_context.hash("admin123")
+            admin = models.User(
+                username="admin",
+                email="admin@milano.com",
+                hashed_password=hashed,
+                nombre_completo="Administrador Sistema",
+                rol="admin",
+                activo=True
+            )
+            db.add(admin)
+            db.commit()
+            print("✅ Usuario admin creado: admin / admin123")
+        else:
+            print("ℹ️ Usuario admin ya existe")
+    except Exception as e:
+        print(f"⚠️ Error en startup: {e}")
+    finally:
+        db.close()
 
 # ============== AUTH UTILITIES ==============
 
@@ -534,34 +562,4 @@ def root():
         "message": "MILANO Transport Management API",
         "version": "1.0.0",
         "docs": "/docs"
-    }
-
-# ============================================
-# ENDPOINT TEMPORAL - Crear usuario admin
-# ============================================
-import bcrypt
-
-@app.post("/setup/create-admin")
-def setup_create_admin(db: Session = Depends(get_db)):
-    existing = db.query(models.User).filter(models.User.username == "admin").first()
-    if existing:
-        return {"message": "Usuario admin ya existe"}
-    
-    # Usar bcrypt directamente
-    password = "admin123"
-    hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    
-    admin = models.User(
-        username="admin",
-        email="admin@milano.com",
-        hashed_password=hashed,
-        nombre_completo="Administrador Sistema",
-        rol="admin",
-        activo=True
-    )
-    db.add(admin)
-    db.commit()
-    return {
-        "message": "✅ Usuario admin creado",
-        "credentials": {"username": "admin", "password": "admin123"}
     }
