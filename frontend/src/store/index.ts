@@ -1,6 +1,6 @@
 // ============================================
 // MILANO - Sistema de Gestión de Transporte
-// Stores Zustand con API Backend
+// Stores Zustand con API Backend (FIX MAPEO DE CAMPOS)
 // ============================================
 
 import { create } from 'zustand';
@@ -32,7 +32,7 @@ interface ClientesState {
   clienteSeleccionado: Cliente | null;
   // Acciones
   fetchClientes: () => Promise<void>;
-  addCliente: (cliente: Omit<Cliente, 'id' | 'codigo' | 'fechaAlta'>) => Promise<boolean>;
+  addCliente: (cliente: any) => Promise<boolean>;
   updateCliente: (id: string, data: Partial<Cliente>) => Promise<boolean>;
   deleteCliente: (id: string) => Promise<boolean>;
   seleccionarCliente: (cliente: Cliente | null) => void;
@@ -52,21 +52,29 @@ export const useClientesStore = create<ClientesState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const clientes = await clientesApi.getAll();
-      // Convertir id a string y mapear campos del backend
+      // FIX: Mapear correctamente desde snake_case a camelCase
       const clientesFormateados = clientes.map((c: any) => ({
-        ...c,
         id: String(c.id),
-        fechaAlta: c.fecha_alta,
-        totalServicios: c.total_servicios || 0,
-        totalFacturado: c.total_facturado || 0,
-        ultimoServicio: c.ultimo_servicio,
-        contacto: c.contacto || {
-          email: c.contacto_email || '',
-          telefono: c.contacto_telefono || '',
-          direccion: c.contacto_direccion || '',
-          ciudad: c.contacto_ciudad || '',
-          codigoPostal: c.contacto_codigo_postal || ''
-        }
+        codigo: c.codigo,
+        tipo: c.tipo,
+        nombre: c.nombre,
+        razonSocial: c.razon_social,
+        nif: c.nif_cif,  // Backend: nif_cif → Frontend: nif
+        estado: c.estado,
+        formaPago: c.condiciones_pago,
+        diasPago: c.dias_pago,
+        condicionesEspeciales: c.condiciones_especiales,
+        notas: c.notas,
+        // Contacto mapeado desde campos planos del backend
+        contacto: {
+          email: c.email || '',
+          telefono: c.telefono || '',
+          direccion: c.direccion || '',
+          ciudad: c.ciudad || '',
+          codigoPostal: c.codigo_postal || '',
+        },
+        fechaAlta: c.fecha_creacion,
+        fechaActualizacion: c.fecha_actualizacion,
       }));
       set({ clientes: clientesFormateados, isLoading: false });
     } catch (error: any) {
@@ -77,41 +85,62 @@ export const useClientesStore = create<ClientesState>((set, get) => ({
   addCliente: async (cliente) => {
     set({ isLoading: true, error: null });
     try {
-      // Convertir datos del frontend al formato que espera el backend (snake_case)
+      // FIX: Enviar en formato exacto que espera el backend (schemas.py)
       const clienteParaBackend: any = {
+        codigo: cliente.codigo,
         nombre: cliente.nombre,
         tipo: cliente.tipo || 'empresa',
-        nif: cliente.nif || null,
+        razon_social: null,
+        nif_cif: cliente.nif || null,
         estado: cliente.estado || 'activo',
-        forma_pago: cliente.formaPago || 'transferencia',
+        condiciones_pago: cliente.formaPago || 'transferencia',
         dias_pago: cliente.diasPago || 30,
         condiciones_especiales: cliente.condicionesEspeciales || null,
         notas: cliente.notas || null,
-        // Convertir contacto anidado a campos planos snake_case
-        contacto_email: cliente.contacto?.email || null,
-        contacto_telefono: cliente.contacto?.telefono || null,
-        contacto_direccion: cliente.contacto?.direccion || null,
-        contacto_ciudad: cliente.contacto?.ciudad || null,
-        contacto_codigo_postal: cliente.contacto?.codigoPostal || null,
+        // Contacto como campos planos
+        email: cliente.contacto?.email || null,
+        telefono: cliente.contacto?.telefono || null,
+        direccion: cliente.contacto?.direccion || null,
+        ciudad: cliente.contacto?.ciudad || null,
+        codigo_postal: cliente.contacto?.codigoPostal || null,
+        pais: 'España',
+        // Persona de contacto vacía por ahora
+        persona_contacto_nombre: null,
+        persona_contacto_email: null,
+        persona_contacto_telefono: null,
+        persona_contacto_cargo: null,
       };
 
       const nuevo = await clientesApi.create(clienteParaBackend);
-      const clienteFormateado = {
-        ...nuevo,
+      
+      // FIX: Mapear respuesta del backend al formato frontend
+      const clienteFormateado: Cliente = {
         id: String(nuevo.id),
-        fechaAlta: nuevo.fecha_alta,
-        totalServicios: nuevo.total_servicios || 0,
-        totalFacturado: nuevo.total_facturado || 0,
-        ultimoServicio: nuevo.ultimo_servicio,
+        codigo: nuevo.codigo,
+        tipo: nuevo.tipo,
+        nombre: nuevo.nombre,
+        razonSocial: nuevo.razon_social,
+        nif: nuevo.nif_cif,
+        estado: nuevo.estado,
+        formaPago: nuevo.condiciones_pago,
+        diasPago: nuevo.dias_pago,
+        condicionesEspeciales: nuevo.condiciones_especiales,
+        notas: nuevo.notas,
         contacto: {
-          email: nuevo.contacto_email || '',
-          telefono: nuevo.contacto_telefono || '',
-          direccion: nuevo.contacto_direccion || '',
-          ciudad: nuevo.contacto_ciudad || '',
-          codigoPostal: nuevo.contacto_codigo_postal || ''
-        }
+          email: nuevo.email || '',
+          telefono: nuevo.telefono || '',
+          direccion: nuevo.direccion || '',
+          ciudad: nuevo.ciudad || '',
+          codigoPostal: nuevo.codigo_postal || '',
+        },
+        fechaAlta: nuevo.fecha_creacion,
+        fechaActualizacion: nuevo.fecha_actualizacion,
       };
-      set((state) => ({ clientes: [...state.clientes, clienteFormateado], isLoading: false }));
+      
+      set((state) => ({ 
+        clientes: [...state.clientes, clienteFormateado], 
+        isLoading: false 
+      }));
       return true;
     } catch (error: any) {
       set({ error: error.message, isLoading: false });
@@ -127,38 +156,46 @@ export const useClientesStore = create<ClientesState>((set, get) => ({
       
       if (data.nombre !== undefined) dataParaBackend.nombre = data.nombre;
       if (data.tipo !== undefined) dataParaBackend.tipo = data.tipo;
-      if (data.nif !== undefined) dataParaBackend.nif = data.nif || null;
+      if (data.nif !== undefined) dataParaBackend.nif_cif = data.nif || null;
       if (data.estado !== undefined) dataParaBackend.estado = data.estado;
-      if (data.formaPago !== undefined) dataParaBackend.forma_pago = data.formaPago;
+      if (data.formaPago !== undefined) dataParaBackend.condiciones_pago = data.formaPago;
       if (data.diasPago !== undefined) dataParaBackend.dias_pago = data.diasPago;
       if (data.condicionesEspeciales !== undefined) dataParaBackend.condiciones_especiales = data.condicionesEspeciales || null;
       if (data.notas !== undefined) dataParaBackend.notas = data.notas || null;
       
       // Convertir contacto anidado a campos planos snake_case
       if (data.contacto) {
-        dataParaBackend.contacto_email = data.contacto.email || null;
-        dataParaBackend.contacto_telefono = data.contacto.telefono || null;
-        dataParaBackend.contacto_direccion = data.contacto.direccion || null;
-        dataParaBackend.contacto_ciudad = data.contacto.ciudad || null;
-        dataParaBackend.contacto_codigo_postal = data.contacto.codigoPostal || null;
+        dataParaBackend.email = data.contacto.email || null;
+        dataParaBackend.telefono = data.contacto.telefono || null;
+        dataParaBackend.direccion = data.contacto.direccion || null;
+        dataParaBackend.ciudad = data.contacto.ciudad || null;
+        dataParaBackend.codigo_postal = data.contacto.codigoPostal || null;
       }
 
       const actualizado = await clientesApi.update(id, dataParaBackend);
       if (actualizado) {
-        const clienteFormateado = {
-          ...actualizado,
+        // FIX: Mapear respuesta al formato frontend
+        const clienteFormateado: Cliente = {
           id: String(actualizado.id),
-          fechaAlta: actualizado.fecha_alta,
-          totalServicios: actualizado.total_servicios || 0,
-          totalFacturado: actualizado.total_facturado || 0,
-          ultimoServicio: actualizado.ultimo_servicio,
+          codigo: actualizado.codigo,
+          tipo: actualizado.tipo,
+          nombre: actualizado.nombre,
+          razonSocial: actualizado.razon_social,
+          nif: actualizado.nif_cif,
+          estado: actualizado.estado,
+          formaPago: actualizado.condiciones_pago,
+          diasPago: actualizado.dias_pago,
+          condicionesEspeciales: actualizado.condiciones_especiales,
+          notas: actualizado.notas,
           contacto: {
-            email: actualizado.contacto_email || '',
-            telefono: actualizado.contacto_telefono || '',
-            direccion: actualizado.contacto_direccion || '',
-            ciudad: actualizado.contacto_ciudad || '',
-            codigoPostal: actualizado.contacto_codigo_postal || ''
-          }
+            email: actualizado.email || '',
+            telefono: actualizado.telefono || '',
+            direccion: actualizado.direccion || '',
+            ciudad: actualizado.ciudad || '',
+            codigoPostal: actualizado.codigo_postal || '',
+          },
+          fechaAlta: actualizado.fecha_creacion,
+          fechaActualizacion: actualizado.fecha_actualizacion,
         };
         set((state) => ({
           clientes: state.clientes.map(c => c.id === id ? clienteFormateado : c),
@@ -227,23 +264,29 @@ export const useVehiculosStore = create<VehiculosState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const vehiculos = await vehiculosApi.getAll();
-      // Convertir id a string y mapear campos del backend
+      // FIX: Mapear desde snake_case a camelCase según schemas.py
       const vehiculosFormateados = vehiculos.map((v: any) => ({
-        ...v,
         id: String(v.id),
-        itv: v.itv || {
-          fechaUltima: v.itv_fecha_ultima,
-          fechaProxima: v.itv_fecha_proxima,
-          resultado: v.itv_resultado,
-          observaciones: v.itv_observaciones,
+        codigo: v.codigo,
+        matricula: v.matricula,
+        tipo: v.tipo,
+        marca: v.marca,
+        modelo: v.modelo,
+        annoFabricacion: v.anno_fabricacion,
+        capacidadKg: v.capacidad_kg,
+        volumenM3: v.volumen_m3,
+        longitudM: v.longitud_m,
+        estado: v.estado,
+        fechaAdquisicion: v.fecha_adquisicion,
+        notas: v.notas,
+        // ITV mapeada
+        itv: {
+          fechaVencimiento: v.fecha_vencimiento_itv,
+          numPolizaSeguro: v.num_poliza_seguro,
         },
-        seguro: v.seguro || {
-          compania: v.seguro_compania,
-          poliza: v.seguro_poliza,
-          tipoCobertura: v.seguro_tipo_cobertura,
-          fechaInicio: v.seguro_fecha_inicio,
-          fechaVencimiento: v.seguro_fecha_vencimiento,
-          prima: v.seguro_prima,
+        // Seguro mapeado
+        seguro: {
+          fechaVencimiento: v.fecha_vencimiento_seguro,
         },
         mantenimientos: v.mantenimientos || [],
       }));
@@ -256,57 +299,54 @@ export const useVehiculosStore = create<VehiculosState>((set, get) => ({
   addVehiculo: async (vehiculo) => {
     set({ isLoading: true, error: null });
     try {
-      // Convertir datos del frontend al formato que espera el backend (snake_case)
+      // FIX: Mapear a snake_case según schemas.py
       const vehiculoParaBackend: any = {
+        codigo: vehiculo.codigo,
         matricula: vehiculo.matricula,
-        bastidor: vehiculo.bastidor || null,
+        tipo: vehiculo.tipo || 'camion',
         marca: vehiculo.marca,
         modelo: vehiculo.modelo,
-        tipo: vehiculo.tipo,
-        plazas: vehiculo.plazas,
-        año_fabricacion: vehiculo.añoFabricacion || null,
-        kilometraje: vehiculo.kilometraje || 0,
-        kilometraje_ultima_revision: vehiculo.kilometrajeUltimaRevision || null,
-        consumo_medio: vehiculo.consumoMedio || null,
-        combustible: vehiculo.combustible || 'diesel',
-        estado: vehiculo.estado || 'operativo',
-        ubicacion: vehiculo.ubicacion || null,
+        anno_fabricacion: vehiculo.annoFabricacion || null,
+        capacidad_kg: vehiculo.capacidadKg || null,
+        volumen_m3: vehiculo.volumenM3 || null,
+        longitud_m: vehiculo.longitudM || null,
+        estado: vehiculo.estado || 'activo',
+        fecha_adquisicion: vehiculo.fechaAdquisicion || null,
         notas: vehiculo.notas || null,
-        imagen_url: vehiculo.imagenUrl || null,
         // ITV
-        itv_fecha_ultima: vehiculo.itv?.fechaUltima || null,
-        itv_fecha_proxima: vehiculo.itv?.fechaProxima || null,
-        itv_resultado: vehiculo.itv?.resultado || null,
-        itv_observaciones: vehiculo.itv?.observaciones || null,
+        fecha_vencimiento_itv: vehiculo.itv?.fechaVencimiento || null,
+        num_poliza_seguro: vehiculo.itv?.numPolizaSeguro || null,
         // Seguro
-        seguro_compania: vehiculo.seguro?.compania || null,
-        seguro_poliza: vehiculo.seguro?.poliza || null,
-        seguro_tipo_cobertura: vehiculo.seguro?.tipoCobertura || null,
-        seguro_fecha_inicio: vehiculo.seguro?.fechaInicio || null,
-        seguro_fecha_vencimiento: vehiculo.seguro?.fechaVencimiento || null,
-        seguro_prima: vehiculo.seguro?.prima || null,
+        fecha_vencimiento_seguro: vehiculo.seguro?.fechaVencimiento || null,
       };
 
       const nuevo = await vehiculosApi.create(vehiculoParaBackend);
-      const vehiculoFormateado = {
-        ...nuevo,
+      
+      // FIX: Mapear respuesta a camelCase
+      const vehiculoFormateado: Vehiculo = {
         id: String(nuevo.id),
-        itv: nuevo.itv || {
-          fechaUltima: nuevo.itv_fecha_ultima,
-          fechaProxima: nuevo.itv_fecha_proxima,
-          resultado: nuevo.itv_resultado,
-          observaciones: nuevo.itv_observaciones,
+        codigo: nuevo.codigo,
+        matricula: nuevo.matricula,
+        tipo: nuevo.tipo,
+        marca: nuevo.marca,
+        modelo: nuevo.modelo,
+        annoFabricacion: nuevo.anno_fabricacion,
+        capacidadKg: nuevo.capacidad_kg,
+        volumenM3: nuevo.volumen_m3,
+        longitudM: nuevo.longitud_m,
+        estado: nuevo.estado,
+        fechaAdquisicion: nuevo.fecha_adquisicion,
+        notas: nuevo.notas,
+        itv: {
+          fechaVencimiento: nuevo.fecha_vencimiento_itv,
+          numPolizaSeguro: nuevo.num_poliza_seguro,
         },
-        seguro: nuevo.seguro || {
-          compania: nuevo.seguro_compania,
-          poliza: nuevo.seguro_poliza,
-          tipoCobertura: nuevo.seguro_tipo_cobertura,
-          fechaInicio: nuevo.seguro_fecha_inicio,
-          fechaVencimiento: nuevo.seguro_fecha_vencimiento,
-          prima: nuevo.seguro_prima,
+        seguro: {
+          fechaVencimiento: nuevo.fecha_vencimiento_seguro,
         },
         mantenimientos: nuevo.mantenimientos || [],
       };
+      
       set((state) => ({ vehiculos: [...state.vehiculos, vehiculoFormateado], isLoading: false }));
       return true;
     } catch (error: any) {
@@ -318,61 +358,53 @@ export const useVehiculosStore = create<VehiculosState>((set, get) => ({
   updateVehiculo: async (id, data) => {
     set({ isLoading: true, error: null });
     try {
-      // Convertir datos del frontend al formato que espera el backend (snake_case)
       const dataParaBackend: any = {};
       
       if (data.matricula !== undefined) dataParaBackend.matricula = data.matricula;
-      if (data.bastidor !== undefined) dataParaBackend.bastidor = data.bastidor || null;
       if (data.marca !== undefined) dataParaBackend.marca = data.marca;
       if (data.modelo !== undefined) dataParaBackend.modelo = data.modelo;
       if (data.tipo !== undefined) dataParaBackend.tipo = data.tipo;
-      if (data.plazas !== undefined) dataParaBackend.plazas = data.plazas;
-      if (data.añoFabricacion !== undefined) dataParaBackend.año_fabricacion = data.añoFabricacion || null;
-      if (data.kilometraje !== undefined) dataParaBackend.kilometraje = data.kilometraje;
-      if (data.kilometrajeUltimaRevision !== undefined) dataParaBackend.kilometraje_ultima_revision = data.kilometrajeUltimaRevision || null;
-      if (data.consumoMedio !== undefined) dataParaBackend.consumo_medio = data.consumoMedio || null;
-      if (data.combustible !== undefined) dataParaBackend.combustible = data.combustible;
+      if (data.annoFabricacion !== undefined) dataParaBackend.anno_fabricacion = data.annoFabricacion || null;
+      if (data.capacidadKg !== undefined) dataParaBackend.capacidad_kg = data.capacidadKg || null;
+      if (data.volumenM3 !== undefined) dataParaBackend.volumen_m3 = data.volumenM3 || null;
+      if (data.longitudM !== undefined) dataParaBackend.longitud_m = data.longitudM || null;
       if (data.estado !== undefined) dataParaBackend.estado = data.estado;
-      if (data.ubicacion !== undefined) dataParaBackend.ubicacion = data.ubicacion || null;
+      if (data.fechaAdquisicion !== undefined) dataParaBackend.fecha_adquisicion = data.fechaAdquisicion || null;
       if (data.notas !== undefined) dataParaBackend.notas = data.notas || null;
-      if (data.imagenUrl !== undefined) dataParaBackend.imagen_url = data.imagenUrl || null;
       
       // ITV
       if (data.itv) {
-        dataParaBackend.itv_fecha_ultima = data.itv.fechaUltima || null;
-        dataParaBackend.itv_fecha_proxima = data.itv.fechaProxima || null;
-        dataParaBackend.itv_resultado = data.itv.resultado || null;
-        dataParaBackend.itv_observaciones = data.itv.observaciones || null;
+        dataParaBackend.fecha_vencimiento_itv = data.itv.fechaVencimiento || null;
+        dataParaBackend.num_poliza_seguro = data.itv.numPolizaSeguro || null;
       }
       
       // Seguro
       if (data.seguro) {
-        dataParaBackend.seguro_compania = data.seguro.compania || null;
-        dataParaBackend.seguro_poliza = data.seguro.poliza || null;
-        dataParaBackend.seguro_tipo_cobertura = data.seguro.tipoCobertura || null;
-        dataParaBackend.seguro_fecha_inicio = data.seguro.fechaInicio || null;
-        dataParaBackend.seguro_fecha_vencimiento = data.seguro.fechaVencimiento || null;
-        dataParaBackend.seguro_prima = data.seguro.prima || null;
+        dataParaBackend.fecha_vencimiento_seguro = data.seguro.fechaVencimiento || null;
       }
 
       const actualizado = await vehiculosApi.update(id, dataParaBackend);
       if (actualizado) {
-        const vehiculoFormateado = {
-          ...actualizado,
+        const vehiculoFormateado: Vehiculo = {
           id: String(actualizado.id),
-          itv: actualizado.itv || {
-            fechaUltima: actualizado.itv_fecha_ultima,
-            fechaProxima: actualizado.itv_fecha_proxima,
-            resultado: actualizado.itv_resultado,
-            observaciones: actualizado.itv_observaciones,
+          codigo: actualizado.codigo,
+          matricula: actualizado.matricula,
+          tipo: actualizado.tipo,
+          marca: actualizado.marca,
+          modelo: actualizado.modelo,
+          annoFabricacion: actualizado.anno_fabricacion,
+          capacidadKg: actualizado.capacidad_kg,
+          volumenM3: actualizado.volumen_m3,
+          longitudM: actualizado.longitud_m,
+          estado: actualizado.estado,
+          fechaAdquisicion: actualizado.fecha_adquisicion,
+          notas: actualizado.notas,
+          itv: {
+            fechaVencimiento: actualizado.fecha_vencimiento_itv,
+            numPolizaSeguro: actualizado.num_poliza_seguro,
           },
-          seguro: actualizado.seguro || {
-            compania: actualizado.seguro_compania,
-            poliza: actualizado.seguro_poliza,
-            tipoCobertura: actualizado.seguro_tipo_cobertura,
-            fechaInicio: actualizado.seguro_fecha_inicio,
-            fechaVencimiento: actualizado.seguro_fecha_vencimiento,
-            prima: actualizado.seguro_prima,
+          seguro: {
+            fechaVencimiento: actualizado.fecha_vencimiento_seguro,
           },
           mantenimientos: actualizado.mantenimientos || [],
         };
@@ -421,12 +453,12 @@ export const useVehiculosStore = create<VehiculosState>((set, get) => ({
 
   getVehiculoById: (id) => get().vehiculos.find(v => v.id === id),
   getVehiculosByEstado: (estado) => get().vehiculos.filter(v => v.estado === estado),
-  getVehiculosOperativos: () => get().vehiculos.filter(v => v.estado === 'operativo'),
+  getVehiculosOperativos: () => get().vehiculos.filter(v => v.estado === 'activo'),
   getVehiculosConITVProxima: () => {
     const hoy = new Date();
     const treintaDias = new Date(hoy.getTime() + 30 * 24 * 60 * 60 * 1000);
     return get().vehiculos.filter(v => {
-      const fechaProxima = new Date(v.itv?.fechaProxima || '');
+      const fechaProxima = new Date(v.itv?.fechaVencimiento || '');
       return fechaProxima <= treintaDias && fechaProxima >= hoy;
     });
   },
@@ -450,7 +482,7 @@ interface ConductoresState {
   conductorSeleccionado: Conductor | null;
   // Acciones
   fetchConductores: () => Promise<void>;
-  addConductor: (conductor: Omit<Conductor, 'id' | 'codigo' | 'fechaAlta'>) => Promise<boolean>;
+  addConductor: (conductor: any) => Promise<boolean>;
   updateConductor: (id: string, data: Partial<Conductor>) => Promise<boolean>;
   deleteConductor: (id: string) => Promise<boolean>;
   seleccionarConductor: (conductor: Conductor | null) => void;
@@ -471,29 +503,29 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const conductores = await conductoresApi.getAll();
-      // Convertir id a string y mapear campos del backend
+      // FIX: Mapear desde snake_case a camelCase según schemas.py
       const conductoresFormateados = conductores.map((c: any) => ({
-        ...c,
         id: String(c.id),
-        fechaAlta: c.fecha_alta,
+        codigo: c.codigo,
+        nombre: c.nombre,
+        apellidos: c.apellidos,
+        dni: c.dni,
         fechaNacimiento: c.fecha_nacimiento,
-        tarifaHora: c.tarifa_hora,
-        tarifaServicio: c.tarifa_servicio,
-        totalHorasMes: c.total_horas_mes,
-        totalServiciosMes: c.total_servicios_mes,
-        licencia: c.licencia || {
+        telefono: c.telefono,
+        email: c.email,
+        direccion: c.direccion,
+        estado: c.estado,
+        fechaContratacion: c.fecha_contratacion,
+        notas: c.notas,
+        // Licencia mapeada
+        licencia: {
           tipo: c.licencia_tipo,
           numero: c.licencia_numero,
           fechaExpedicion: c.licencia_fecha_expedicion,
           fechaCaducidad: c.licencia_fecha_caducidad,
-          permisos: c.licencia_permisos,
         },
-        disponibilidad: c.disponibilidad || {
-          dias: c.disponibilidad_dias || [0, 1, 2, 3, 4],
-          horaInicio: c.disponibilidad_hora_inicio || '08:00',
-          horaFin: c.disponibilidad_hora_fin || '18:00',
-          observaciones: c.disponibilidad_observaciones,
-        },
+        fechaAlta: c.fecha_creacion,
+        fechaActualizacion: c.fecha_actualizacion,
       }));
       set({ conductores: conductoresFormateados, isLoading: false });
     } catch (error: any) {
@@ -504,56 +536,52 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
   addConductor: async (conductor) => {
     set({ isLoading: true, error: null });
     try {
-      // Convertir datos del frontend al formato que espera el backend (snake_case)
+      // FIX: Mapear a snake_case según schemas.py
       const conductorParaBackend: any = {
+        codigo: conductor.codigo,
         nombre: conductor.nombre,
         apellidos: conductor.apellidos,
         dni: conductor.dni,
         fecha_nacimiento: conductor.fechaNacimiento || null,
-        telefono: conductor.telefono,
-        email: conductor.email,
+        telefono: conductor.telefono || null,
+        email: conductor.email || null,
         direccion: conductor.direccion || null,
-        tarifa_hora: conductor.tarifaHora || 18,
-        tarifa_servicio: conductor.tarifaServicio || null,
         estado: conductor.estado || 'activo',
+        fecha_contratacion: conductor.fechaContratacion || null,
         notas: conductor.notas || null,
         // Licencia
-        licencia_tipo: conductor.licencia?.tipo || 'D',
+        licencia_tipo: conductor.licencia?.tipo || null,
         licencia_numero: conductor.licencia?.numero || null,
         licencia_fecha_expedicion: conductor.licencia?.fechaExpedicion || null,
         licencia_fecha_caducidad: conductor.licencia?.fechaCaducidad || null,
-        licencia_permisos: conductor.licencia?.permisos || null,
-        // Disponibilidad
-        disponibilidad_dias: conductor.disponibilidad?.dias || [0, 1, 2, 3, 4],
-        disponibilidad_hora_inicio: conductor.disponibilidad?.horaInicio || '08:00',
-        disponibilidad_hora_fin: conductor.disponibilidad?.horaFin || '18:00',
-        disponibilidad_observaciones: conductor.disponibilidad?.observaciones || null,
       };
 
       const nuevo = await conductoresApi.create(conductorParaBackend);
-      const conductorFormateado = {
-        ...nuevo,
+      
+      // FIX: Mapear respuesta a camelCase
+      const conductorFormateado: Conductor = {
         id: String(nuevo.id),
-        fechaAlta: nuevo.fecha_alta,
+        codigo: nuevo.codigo,
+        nombre: nuevo.nombre,
+        apellidos: nuevo.apellidos,
+        dni: nuevo.dni,
         fechaNacimiento: nuevo.fecha_nacimiento,
-        tarifaHora: nuevo.tarifa_hora,
-        tarifaServicio: nuevo.tarifa_servicio,
-        totalHorasMes: nuevo.total_horas_mes,
-        totalServiciosMes: nuevo.total_servicios_mes,
-        licencia: nuevo.licencia || {
+        telefono: nuevo.telefono,
+        email: nuevo.email,
+        direccion: nuevo.direccion,
+        estado: nuevo.estado,
+        fechaContratacion: nuevo.fecha_contratacion,
+        notas: nuevo.notas,
+        licencia: {
           tipo: nuevo.licencia_tipo,
           numero: nuevo.licencia_numero,
           fechaExpedicion: nuevo.licencia_fecha_expedicion,
           fechaCaducidad: nuevo.licencia_fecha_caducidad,
-          permisos: nuevo.licencia_permisos,
         },
-        disponibilidad: nuevo.disponibilidad || {
-          dias: nuevo.disponibilidad_dias || [0, 1, 2, 3, 4],
-          horaInicio: nuevo.disponibilidad_hora_inicio || '08:00',
-          horaFin: nuevo.disponibilidad_hora_fin || '18:00',
-          observaciones: nuevo.disponibilidad_observaciones,
-        },
+        fechaAlta: nuevo.fecha_creacion,
+        fechaActualizacion: nuevo.fecha_actualizacion,
       };
+      
       set((state) => ({ conductores: [...state.conductores, conductorFormateado], isLoading: false }));
       return true;
     } catch (error: any) {
@@ -565,19 +593,17 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
   updateConductor: async (id, data) => {
     set({ isLoading: true, error: null });
     try {
-      // Convertir datos del frontend al formato que espera el backend (snake_case)
       const dataParaBackend: any = {};
       
       if (data.nombre !== undefined) dataParaBackend.nombre = data.nombre;
       if (data.apellidos !== undefined) dataParaBackend.apellidos = data.apellidos;
       if (data.dni !== undefined) dataParaBackend.dni = data.dni;
       if (data.fechaNacimiento !== undefined) dataParaBackend.fecha_nacimiento = data.fechaNacimiento || null;
-      if (data.telefono !== undefined) dataParaBackend.telefono = data.telefono;
-      if (data.email !== undefined) dataParaBackend.email = data.email;
+      if (data.telefono !== undefined) dataParaBackend.telefono = data.telefono || null;
+      if (data.email !== undefined) dataParaBackend.email = data.email || null;
       if (data.direccion !== undefined) dataParaBackend.direccion = data.direccion || null;
-      if (data.tarifaHora !== undefined) dataParaBackend.tarifa_hora = data.tarifaHora;
-      if (data.tarifaServicio !== undefined) dataParaBackend.tarifa_servicio = data.tarifaServicio || null;
       if (data.estado !== undefined) dataParaBackend.estado = data.estado;
+      if (data.fechaContratacion !== undefined) dataParaBackend.fecha_contratacion = data.fechaContratacion || null;
       if (data.notas !== undefined) dataParaBackend.notas = data.notas || null;
       
       // Licencia
@@ -586,41 +612,31 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
         dataParaBackend.licencia_numero = data.licencia.numero || null;
         dataParaBackend.licencia_fecha_expedicion = data.licencia.fechaExpedicion || null;
         dataParaBackend.licencia_fecha_caducidad = data.licencia.fechaCaducidad || null;
-        dataParaBackend.licencia_permisos = data.licencia.permisos || null;
-      }
-      
-      // Disponibilidad
-      if (data.disponibilidad) {
-        dataParaBackend.disponibilidad_dias = data.disponibilidad.dias || null;
-        dataParaBackend.disponibilidad_hora_inicio = data.disponibilidad.horaInicio || null;
-        dataParaBackend.disponibilidad_hora_fin = data.disponibilidad.horaFin || null;
-        dataParaBackend.disponibilidad_observaciones = data.disponibilidad.observaciones || null;
       }
 
       const actualizado = await conductoresApi.update(id, dataParaBackend);
       if (actualizado) {
-        const conductorFormateado = {
-          ...actualizado,
+        const conductorFormateado: Conductor = {
           id: String(actualizado.id),
-          fechaAlta: actualizado.fecha_alta,
+          codigo: actualizado.codigo,
+          nombre: actualizado.nombre,
+          apellidos: actualizado.apellidos,
+          dni: actualizado.dni,
           fechaNacimiento: actualizado.fecha_nacimiento,
-          tarifaHora: actualizado.tarifa_hora,
-          tarifaServicio: actualizado.tarifa_servicio,
-          totalHorasMes: actualizado.total_horas_mes,
-          totalServiciosMes: actualizado.total_servicios_mes,
-          licencia: actualizado.licencia || {
+          telefono: actualizado.telefono,
+          email: actualizado.email,
+          direccion: actualizado.direccion,
+          estado: actualizado.estado,
+          fechaContratacion: actualizado.fecha_contratacion,
+          notas: actualizado.notas,
+          licencia: {
             tipo: actualizado.licencia_tipo,
             numero: actualizado.licencia_numero,
             fechaExpedicion: actualizado.licencia_fecha_expedicion,
             fechaCaducidad: actualizado.licencia_fecha_caducidad,
-            permisos: actualizado.licencia_permisos,
           },
-          disponibilidad: actualizado.disponibilidad || {
-            dias: actualizado.disponibilidad_dias || [0, 1, 2, 3, 4],
-            horaInicio: actualizado.disponibilidad_hora_inicio || '08:00',
-            horaFin: actualizado.disponibilidad_hora_fin || '18:00',
-            observaciones: actualizado.disponibilidad_observaciones,
-          },
+          fechaAlta: actualizado.fecha_creacion,
+          fechaActualizacion: actualizado.fecha_actualizacion,
         };
         set((state) => ({
           conductores: state.conductores.map(c => c.id === id ? conductorFormateado : c),
@@ -674,7 +690,7 @@ interface ServiciosState {
   servicioSeleccionado: Servicio | null;
   // Acciones
   fetchServicios: () => Promise<void>;
-  addServicio: (servicio: Omit<Servicio, 'id' | 'codigo' | 'fechaCreacion'>) => Promise<boolean>;
+  addServicio: (servicio: any) => Promise<boolean>;
   updateServicio: (id: string, data: Partial<Servicio>) => Promise<boolean>;
   deleteServicio: (id: string) => Promise<boolean>;
   seleccionarServicio: (servicio: Servicio | null) => void;
@@ -698,27 +714,35 @@ export const useServiciosStore = create<ServiciosState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const servicios = await serviciosApi.getAll();
-      // Convertir id a string y mapear campos del backend
+      // FIX: Mapear desde snake_case a camelCase
       const serviciosFormateados = servicios.map((s: any) => ({
-        ...s,
         id: String(s.id),
-        fechaCreacion: s.fecha_creacion,
-        fechaModificacion: s.fecha_modificacion,
+        codigo: s.codigo,
+        clienteId: String(s.cliente_id),
+        clienteNombre: s.cliente_nombre,
+        tipo: s.tipo,
+        estado: s.estado,
+        titulo: s.titulo,
+        descripcion: s.descripcion,
         fechaInicio: s.fecha_inicio,
         fechaFin: s.fecha_fin,
         horaInicio: s.hora_inicio,
         horaFin: s.hora_fin,
-        clienteId: String(s.cliente_id),
-        clienteNombre: s.cliente_nombre,
         numeroVehiculos: s.numero_vehiculos,
         vehiculosAsignados: s.vehiculos_asignados || [],
         conductoresAsignados: s.conductores_asignados || [],
+        origen: s.origen,
+        destino: s.destino,
+        ubicacionEvento: s.ubicacion_evento,
         costeEstimado: s.coste_estimado,
         costeReal: s.coste_real,
+        precio: s.precio,
         facturado: s.facturado,
         facturaId: s.factura_id,
         notasInternas: s.notas_internas,
         notasCliente: s.notas_cliente,
+        fechaCreacion: s.fecha_creacion,
+        fechaModificacion: s.fecha_modificacion,
         creadoPor: s.creado_por,
       }));
       set({ servicios: serviciosFormateados, isLoading: false });
@@ -730,17 +754,17 @@ export const useServiciosStore = create<ServiciosState>((set, get) => ({
   addServicio: async (servicio) => {
     set({ isLoading: true, error: null });
     try {
-      // Convertir datos del frontend al formato que espera el backend (snake_case)
+      // FIX: Mapear a snake_case
       const servicioParaBackend: any = {
         cliente_id: servicio.clienteId,
         tipo: servicio.tipo,
         estado: servicio.estado || 'planificando',
-        fecha_inicio: servicio.fechaInicio,
-        fecha_fin: servicio.fechaFin,
-        hora_inicio: servicio.horaInicio || null,
-        hora_fin: servicio.horaFin || null,
         titulo: servicio.titulo,
         descripcion: servicio.descripcion || null,
+        fecha_inicio: servicio.fechaInicio,
+        fecha_fin: servicio.fechaFin || null,
+        hora_inicio: servicio.horaInicio || null,
+        hora_fin: servicio.horaFin || null,
         numero_vehiculos: servicio.numeroVehiculos || 1,
         vehiculos_asignados: servicio.vehiculosAsignados || [],
         conductores_asignados: servicio.conductoresAsignados || [],
@@ -754,35 +778,42 @@ export const useServiciosStore = create<ServiciosState>((set, get) => ({
         factura_id: servicio.facturaId || null,
         notas_internas: servicio.notasInternas || null,
         notas_cliente: servicio.notasCliente || null,
-        rutas: servicio.rutas || [],
-        tareas: servicio.tareas || [],
-        incidencias: servicio.incidencias || [],
-        documentos: servicio.documentos || [],
       };
 
       const nuevo = await serviciosApi.create(servicioParaBackend);
-      const servicioFormateado = {
-        ...nuevo,
+      
+      // FIX: Mapear respuesta a camelCase
+      const servicioFormateado: Servicio = {
         id: String(nuevo.id),
-        fechaCreacion: nuevo.fecha_creacion,
-        fechaModificacion: nuevo.fecha_modificacion,
+        codigo: nuevo.codigo,
+        clienteId: String(nuevo.cliente_id),
+        clienteNombre: nuevo.cliente_nombre,
+        tipo: nuevo.tipo,
+        estado: nuevo.estado,
+        titulo: nuevo.titulo,
+        descripcion: nuevo.descripcion,
         fechaInicio: nuevo.fecha_inicio,
         fechaFin: nuevo.fecha_fin,
         horaInicio: nuevo.hora_inicio,
         horaFin: nuevo.hora_fin,
-        clienteId: String(nuevo.cliente_id),
-        clienteNombre: nuevo.cliente_nombre,
         numeroVehiculos: nuevo.numero_vehiculos,
         vehiculosAsignados: nuevo.vehiculos_asignados || [],
         conductoresAsignados: nuevo.conductores_asignados || [],
+        origen: nuevo.origen,
+        destino: nuevo.destino,
+        ubicacionEvento: nuevo.ubicacion_evento,
         costeEstimado: nuevo.coste_estimado,
         costeReal: nuevo.coste_real,
+        precio: nuevo.precio,
         facturado: nuevo.facturado,
         facturaId: nuevo.factura_id,
         notasInternas: nuevo.notas_internas,
         notasCliente: nuevo.notas_cliente,
+        fechaCreacion: nuevo.fecha_creacion,
+        fechaModificacion: nuevo.fecha_modificacion,
         creadoPor: nuevo.creado_por,
       };
+      
       set((state) => ({ servicios: [...state.servicios, servicioFormateado], isLoading: false }));
       return true;
     } catch (error: any) {
@@ -794,18 +825,17 @@ export const useServiciosStore = create<ServiciosState>((set, get) => ({
   updateServicio: async (id, data) => {
     set({ isLoading: true, error: null });
     try {
-      // Convertir datos del frontend al formato que espera el backend (snake_case)
       const dataParaBackend: any = {};
       
       if (data.clienteId !== undefined) dataParaBackend.cliente_id = data.clienteId;
       if (data.tipo !== undefined) dataParaBackend.tipo = data.tipo;
       if (data.estado !== undefined) dataParaBackend.estado = data.estado;
-      if (data.fechaInicio !== undefined) dataParaBackend.fecha_inicio = data.fechaInicio;
-      if (data.fechaFin !== undefined) dataParaBackend.fecha_fin = data.fechaFin;
-      if (data.horaInicio !== undefined) dataParaBackend.hora_inicio = data.horaInicio || null;
-      if (data.horaFin !== undefined) dataParaBackend.hora_fin = data.horaFin || null;
       if (data.titulo !== undefined) dataParaBackend.titulo = data.titulo;
       if (data.descripcion !== undefined) dataParaBackend.descripcion = data.descripcion || null;
+      if (data.fechaInicio !== undefined) dataParaBackend.fecha_inicio = data.fechaInicio;
+      if (data.fechaFin !== undefined) dataParaBackend.fecha_fin = data.fechaFin || null;
+      if (data.horaInicio !== undefined) dataParaBackend.hora_inicio = data.horaInicio || null;
+      if (data.horaFin !== undefined) dataParaBackend.hora_fin = data.horaFin || null;
       if (data.numeroVehiculos !== undefined) dataParaBackend.numero_vehiculos = data.numeroVehiculos;
       if (data.vehiculosAsignados !== undefined) dataParaBackend.vehiculos_asignados = data.vehiculosAsignados;
       if (data.conductoresAsignados !== undefined) dataParaBackend.conductores_asignados = data.conductoresAsignados;
@@ -819,33 +849,37 @@ export const useServiciosStore = create<ServiciosState>((set, get) => ({
       if (data.facturaId !== undefined) dataParaBackend.factura_id = data.facturaId || null;
       if (data.notasInternas !== undefined) dataParaBackend.notas_internas = data.notasInternas || null;
       if (data.notasCliente !== undefined) dataParaBackend.notas_cliente = data.notasCliente || null;
-      if (data.rutas !== undefined) dataParaBackend.rutas = data.rutas;
-      if (data.tareas !== undefined) dataParaBackend.tareas = data.tareas;
-      if (data.incidencias !== undefined) dataParaBackend.incidencias = data.incidencias;
-      if (data.documentos !== undefined) dataParaBackend.documentos = data.documentos;
 
       const actualizado = await serviciosApi.update(id, dataParaBackend);
       if (actualizado) {
-        const servicioFormateado = {
-          ...actualizado,
+        const servicioFormateado: Servicio = {
           id: String(actualizado.id),
-          fechaCreacion: actualizado.fecha_creacion,
-          fechaModificacion: actualizado.fecha_modificacion,
+          codigo: actualizado.codigo,
+          clienteId: String(actualizado.cliente_id),
+          clienteNombre: actualizado.cliente_nombre,
+          tipo: actualizado.tipo,
+          estado: actualizado.estado,
+          titulo: actualizado.titulo,
+          descripcion: actualizado.descripcion,
           fechaInicio: actualizado.fecha_inicio,
           fechaFin: actualizado.fecha_fin,
           horaInicio: actualizado.hora_inicio,
           horaFin: actualizado.hora_fin,
-          clienteId: String(actualizado.cliente_id),
-          clienteNombre: actualizado.cliente_nombre,
           numeroVehiculos: actualizado.numero_vehiculos,
           vehiculosAsignados: actualizado.vehiculos_asignados || [],
           conductoresAsignados: actualizado.conductores_asignados || [],
+          origen: actualizado.origen,
+          destino: actualizado.destino,
+          ubicacionEvento: actualizado.ubicacion_evento,
           costeEstimado: actualizado.coste_estimado,
           costeReal: actualizado.coste_real,
+          precio: actualizado.precio,
           facturado: actualizado.facturado,
           facturaId: actualizado.factura_id,
           notasInternas: actualizado.notas_internas,
           notasCliente: actualizado.notas_cliente,
+          fechaCreacion: actualizado.fecha_creacion,
+          fechaModificacion: actualizado.fecha_modificacion,
           creadoPor: actualizado.creado_por,
         };
         set((state) => ({
@@ -1094,7 +1128,7 @@ export const useAlertasStore = create<AlertasState>((set, get) => ({
 
     // Alertas de ITV
     vehiculos.forEach(v => {
-      const fechaITV = new Date(v.itv?.fechaProxima || '');
+      const fechaITV = new Date(v.itv?.fechaVencimiento || '');
       if (fechaITV <= treintaDias && fechaITV >= hoy) {
         alertas.push({
           id: `alert-itv-${v.id}`,
@@ -1105,7 +1139,7 @@ export const useAlertasStore = create<AlertasState>((set, get) => ({
           entidadId: v.id,
           entidadTipo: 'vehiculo',
           fechaCreacion: new Date().toISOString(),
-          fechaVencimiento: v.itv?.fechaProxima,
+          fechaVencimiento: v.itv?.fechaVencimiento,
           leida: false,
           accion: 'Ver vehículo',
           accionUrl: `/flota`,
