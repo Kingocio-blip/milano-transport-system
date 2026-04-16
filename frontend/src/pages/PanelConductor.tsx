@@ -692,7 +692,7 @@ export default function PanelConductor() {
                         <div>
                           <p className="font-medium">{servicio.codigo} - {servicio.titulo}</p>
                           <p className="text-sm text-slate-500">
-                            {formatDateSafe(servicio.fechaInicio)} • {servicio.horaInicioReal || servicio.horaInicio} - {servicio.horaFinReal || servicio.horaFin}
+                           {`${formatDateSafe(servicio.fechaInicio)} • ${servicio.horaInicioReal || servicio.horaInicio} - ${servicio.horaFinReal || servicio.horaFin}`}
                           </p>
                         </div>
                         <div className="text-right">
