@@ -1,14 +1,13 @@
 // ============================================
-// MILANO - Documentación Page
+// MILANO - Documentación Page (OPTIMIZADO)
 // ============================================
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useClientesStore, useVehiculosStore, useConductoresStore, useServiciosStore } from '../store';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import {
   FileArchive,
   FileText,
@@ -31,17 +30,10 @@ import {
 } from '../components/ui/dropdown-menu';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import type { Documento } from '@/types';
 
-interface Documento {
-  id: string;
-  nombre: string;
-  tipo: 'contrato' | 'factura' | 'plano' | 'seguro' | 'licencia' | 'itv' | 'otro';
-  categoria: string;
-  entidad?: string;  // ← Cambiado a opcional
-  entidadTipo: string;
-  fechaSubida: Date | string;
-  tamaño: string;
-}
+// FIX: Usar tipo del types/index.ts en lugar de redefinir
+type CategoriaDocumento = 'todos' | 'contratos' | 'itv' | 'seguros' | 'licencias' | 'planos';
 
 export default function Documentacion() {
   const { clientes } = useClientesStore();
@@ -50,88 +42,157 @@ export default function Documentacion() {
   const { servicios } = useServiciosStore();
   
   const [searchQuery, setSearchQuery] = useState('');
-  const [categoriaActiva, setCategoriaActiva] = useState('todos');
+  const [categoriaActiva, setCategoriaActiva] = useState<CategoriaDocumento>('todos');
 
-  // Generar documentos simulados
-  const documentos: Documento[] = [
-    // Contratos de clientes
-    ...clientes.flatMap(c => [
-      {
-        id: `doc-${c.id}-1`,
-        nombre: `Contrato_${c.codigo}_2024.pdf`,
-        tipo: 'contrato' as const,
-        categoria: 'contratos',
-        entidad: c.nombre,
-        entidadTipo: 'Cliente',
-        fechaSubida: c.fechaAlta,
-        tamaño: '2.4 MB',
-      },
-    ]),
-    // ITV de vehículos
-    ...vehiculos.filter(v => v.itv?.fechaUltima).map(v => ({
-      id: `doc-${v.id}-itv`,
-      nombre: `ITV_${v.matricula.replace(' ', '')}.pdf`,
-      tipo: 'itv' as const,
-      categoria: 'itv',
-      entidad: `${v.marca} ${v.modelo} (${v.matricula})`,
-      entidadTipo: 'Vehículo',
-      fechaSubida: v.itv!.fechaUltima,
-      tamaño: '1.2 MB',
-    })),
-    // Seguros de vehículos
-    ...vehiculos.filter(v => v.seguro?.fechaVencimiento).map(v => ({
-      id: `doc-${v.id}-seguro`,
-      nombre: `Seguro_${v.matricula.replace(' ', '')}.pdf`,
-      tipo: 'seguro' as const,
-      categoria: 'seguros',
-      entidad: `${v.marca} ${v.modelo} (${v.matricula})`,
-      entidadTipo: 'Vehículo',
-      fechaSubida: v.seguro!.fechaVencimiento,
-      tamaño: '3.1 MB',
-    })),
-    // Licencias de conductores
-    ...conductores.map(c => ({
-      id: `doc-${c.id}-licencia`,
-      nombre: `Licencia_${c.dni}.pdf`,
-      tipo: 'licencia' as const,
-      categoria: 'licencias',
-      entidad: `${c.nombre} ${c.apellidos}`,
-      entidadTipo: 'Conductor',
-      fechaSubida: c.fechaAlta,
-      tamaño: '0.8 MB',
-    })),
-    // Planos de rutas
-    ...servicios.filter(s => s.rutas && s.rutas.length > 0).flatMap(s => 
-      s.rutas!.map((r, index) => ({
-        id: `doc-${s.id}-plano-${index}`,
-        nombre: `Plano_Ruta_${index + 1}.pdf`,
-        tipo: 'plano' as const,
-        categoria: 'planos',
-        entidad: s.titulo || s.descripcion || 'Servicio',
-        entidadTipo: 'Servicio',
-        fechaSubida: s.fechaInicio,
-        tamaño: '4.5 MB',
-      }))
-    ),
-  ];
+  // FIX: Generar documentos simulados con fechas seguras (nunca undefined)
+  const documentos: Documento[] = useMemo(() => {
+    const ahora = new Date().toISOString();
+    
+    return [
+      // Contratos de clientes
+      ...clientes.flatMap(c => {
+        const fechaSegura = c.fechaAlta ? new Date(c.fechaAlta).toISOString() : ahora;
+        return [{
+          id: `doc-${c.id}-1`,
+          nombre: `Contrato_${c.codigo || c.id}_2024.pdf`,
+          tipo: 'contrato' as const,
+          categoria: 'contratos',
+          url: '#',
+          entidadId: c.id,
+          entidadTipo: 'Cliente',
+          entidad: c.nombre,
+          fechaSubida: fechaSegura,
+          tamaño: 2.4 * 1024 * 1024, // bytes
+          subidoPor: 'Sistema',
+        }];
+      }),
+      
+      // ITV de vehículos
+      ...vehiculos
+        .filter(v => v.itv?.fechaUltima)
+        .map(v => {
+          const fechaSegura = v.itv?.fechaUltima 
+            ? new Date(v.itv.fechaUltima).toISOString() 
+            : ahora;
+          return {
+            id: `doc-${v.id}-itv`,
+            nombre: `ITV_${v.matricula.replace(/\s/g, '')}.pdf`,
+            tipo: 'itv' as const,
+            categoria: 'itv',
+            url: '#',
+            entidadId: v.id,
+            entidadTipo: 'Vehículo',
+            entidad: `${v.marca || ''} ${v.modelo || ''} (${v.matricula})`.trim(),
+            fechaSubida: fechaSegura,
+            tamaño: 1.2 * 1024 * 1024,
+            subidoPor: 'Sistema',
+          };
+        }),
+      
+      // Seguros de vehículos
+      ...vehiculos
+        .filter(v => v.seguro?.fechaVencimiento)
+        .map(v => {
+          const fechaSegura = v.seguro?.fechaVencimiento
+            ? new Date(v.seguro.fechaVencimiento).toISOString()
+            : ahora;
+          return {
+            id: `doc-${v.id}-seguro`,
+            nombre: `Seguro_${v.matricula.replace(/\s/g, '')}.pdf`,
+            tipo: 'seguro' as const,
+            categoria: 'seguros',
+            url: '#',
+            entidadId: v.id,
+            entidadTipo: 'Vehículo',
+            entidad: `${v.marca || ''} ${v.modelo || ''} (${v.matricula})`.trim(),
+            fechaSubida: fechaSegura,
+            tamaño: 3.1 * 1024 * 1024,
+            subidoPor: 'Sistema',
+          };
+        }),
+      
+      // Licencias de conductores
+      ...conductores.map(c => {
+        const fechaSegura = c.fechaAlta 
+          ? new Date(c.fechaAlta).toISOString() 
+          : ahora;
+        return {
+          id: `doc-${c.id}-licencia`,
+          nombre: `Licencia_${c.dni}.pdf`,
+          tipo: 'licencia' as const,
+          categoria: 'licencias',
+          url: '#',
+          entidadId: c.id,
+          entidadTipo: 'Conductor',
+          entidad: `${c.nombre} ${c.apellidos}`,
+          fechaSubida: fechaSegura,
+          tamaño: 0.8 * 1024 * 1024,
+          subidoPor: 'Sistema',
+        };
+      }),
+      
+      // Planos de rutas
+      ...servicios
+        .filter(s => s.rutas && s.rutas.length > 0)
+        .flatMap(s => 
+          (s.rutas || []).map((r, index) => {
+            const fechaSegura = s.fechaInicio
+              ? new Date(s.fechaInicio).toISOString()
+              : ahora;
+            return {
+              id: `doc-${s.id}-plano-${index}`,
+              nombre: `Plano_Ruta_${index + 1}.pdf`,
+              tipo: 'plano' as const,
+              categoria: 'planos',
+              url: '#',
+              entidadId: s.id,
+              entidadTipo: 'Servicio',
+              entidad: s.titulo || s.descripcion || 'Servicio',
+              fechaSubida: fechaSegura,
+              tamaño: 4.5 * 1024 * 1024,
+              subidoPor: 'Sistema',
+            };
+          })
+        ),
+    ];
+  }, [clientes, vehiculos, conductores, servicios]);
 
-  // Filtrar documentos
-  const documentosFiltrados = documentos.filter(doc => {
-    const matchesSearch = 
-      doc.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (doc.entidad || '').toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategoria = categoriaActiva === 'todos' || doc.categoria === categoriaActiva;
-    return matchesSearch && matchesCategoria;
-  });
+  // FIX: Filtrar documentos con useMemo para performance
+  const documentosFiltrados = useMemo(() => {
+    return documentos.filter(doc => {
+      const matchesSearch = 
+        doc.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (doc.entidad || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategoria = categoriaActiva === 'todos' || doc.categoria === categoriaActiva;
+      return matchesSearch && matchesCategoria;
+    });
+  }, [documentos, searchQuery, categoriaActiva]);
 
-  // Estadísticas
-  const totalDocumentos = documentos.length;
-  const documentosPorCategoria = {
+  // FIX: Estadísticas con useMemo
+  const stats = useMemo(() => ({
+    total: documentos.length,
     contratos: documentos.filter(d => d.categoria === 'contratos').length,
     itv: documentos.filter(d => d.categoria === 'itv').length,
     seguros: documentos.filter(d => d.categoria === 'seguros').length,
     licencias: documentos.filter(d => d.categoria === 'licencias').length,
     planos: documentos.filter(d => d.categoria === 'planos').length,
+  }), [documentos]);
+
+  // FIX: Formatear tamaño de archivo
+  const formatFileSize = (bytes?: number): string => {
+    if (!bytes) return '-';
+    const mb = bytes / (1024 * 1024);
+    return `${mb.toFixed(1)} MB`;
+  };
+
+  // FIX: Formatear fecha segura
+  const formatDateSafe = (fecha: string | Date | undefined): string => {
+    if (!fecha) return '-';
+    try {
+      return format(new Date(fecha), 'dd/MM/yyyy', { locale: es });
+    } catch {
+      return '-';
+    }
   };
 
   const getIconoPorTipo = (tipo: string) => {
@@ -153,6 +214,14 @@ export default function Documentacion() {
     }
   };
 
+  // FIX: Documentos recientes ordenados y seguros
+  const documentosRecientes = useMemo(() => {
+    return [...documentos]
+      .filter(d => d.fechaSubida)
+      .sort((a, b) => new Date(b.fechaSubida!).getTime() - new Date(a.fechaSubida!).getTime())
+      .slice(0, 3);
+  }, [documentos]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -168,72 +237,53 @@ export default function Documentacion() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-5">
-        <Card className={categoriaActiva === 'todos' ? 'ring-2 ring-[#1e3a5f]' : ''}>
-          <CardContent className="p-4 cursor-pointer" onClick={() => setCategoriaActiva('todos')}>
+      <div className="grid gap-4 md:grid-cols-6">
+        <Card 
+          className={categoriaActiva === 'todos' ? 'ring-2 ring-[#1e3a5f]' : ''}
+        >
+          <CardContent 
+            className="p-4 cursor-pointer" 
+            onClick={() => setCategoriaActiva('todos')}
+          >
             <div className="flex items-center gap-3">
               <div className="rounded-full bg-slate-100 p-2">
                 <Folder className="h-5 w-5 text-slate-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{totalDocumentos}</p>
+                <p className="text-2xl font-bold">{stats.total}</p>
                 <p className="text-sm text-slate-500">Total</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card className={categoriaActiva === 'contratos' ? 'ring-2 ring-[#1e3a5f]' : ''}>
-          <CardContent className="p-4 cursor-pointer" onClick={() => setCategoriaActiva('contratos')}>
-            <div className="flex items-center gap-3">
-              <div className="rounded-full bg-blue-100 p-2">
-                <FileText className="h-5 w-5 text-blue-600" />
+        
+        {[
+          { key: 'contratos', label: 'Contratos', color: 'blue' },
+          { key: 'itv', label: 'ITV', color: 'red' },
+          { key: 'seguros', label: 'Seguros', color: 'amber' },
+          { key: 'licencias', label: 'Licencias', color: 'cyan' },
+          { key: 'planos', label: 'Planos', color: 'purple' },
+        ].map(({ key, label, color }) => (
+          <Card 
+            key={key}
+            className={categoriaActiva === key ? 'ring-2 ring-[#1e3a5f]' : ''}
+          >
+            <CardContent 
+              className="p-4 cursor-pointer" 
+              onClick={() => setCategoriaActiva(key as CategoriaDocumento)}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`rounded-full bg-${color}-100 p-2`}>
+                  <FileText className={`h-5 w-5 text-${color}-600`} />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{stats[key as keyof typeof stats]}</p>
+                  <p className="text-sm text-slate-500">{label}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-bold">{documentosPorCategoria.contratos}</p>
-                <p className="text-sm text-slate-500">Contratos</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className={categoriaActiva === 'itv' ? 'ring-2 ring-[#1e3a5f]' : ''}>
-          <CardContent className="p-4 cursor-pointer" onClick={() => setCategoriaActiva('itv')}>
-            <div className="flex items-center gap-3">
-              <div className="rounded-full bg-red-100 p-2">
-                <FileText className="h-5 w-5 text-red-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{documentosPorCategoria.itv}</p>
-                <p className="text-sm text-slate-500">ITV</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className={categoriaActiva === 'seguros' ? 'ring-2 ring-[#1e3a5f]' : ''}>
-          <CardContent className="p-4 cursor-pointer" onClick={() => setCategoriaActiva('seguros')}>
-            <div className="flex items-center gap-3">
-              <div className="rounded-full bg-amber-100 p-2">
-                <FileArchive className="h-5 w-5 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{documentosPorCategoria.seguros}</p>
-                <p className="text-sm text-slate-500">Seguros</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className={categoriaActiva === 'licencias' ? 'ring-2 ring-[#1e3a5f]' : ''}>
-          <CardContent className="p-4 cursor-pointer" onClick={() => setCategoriaActiva('licencias')}>
-            <div className="flex items-center gap-3">
-              <div className="rounded-full bg-cyan-100 p-2">
-                <FileText className="h-5 w-5 text-cyan-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{documentosPorCategoria.licencias}</p>
-                <p className="text-sm text-slate-500">Licencias</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Search */}
@@ -252,7 +302,9 @@ export default function Documentacion() {
         <CardHeader>
           <CardTitle>Documentos</CardTitle>
           <CardDescription>
-            {categoriaActiva === 'todos' ? 'Todos los documentos' : `Documentos de ${categoriaActiva}`}
+            {categoriaActiva === 'todos' 
+              ? 'Todos los documentos' 
+              : `Documentos de ${categoriaActiva}`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -280,10 +332,12 @@ export default function Documentacion() {
                       <Badge variant="outline" className="text-xs">
                         {doc.entidadTipo}
                       </Badge>
-                      <span className="text-xs text-slate-400">{doc.tamaño}</span>
+                      <span className="text-xs text-slate-400">
+                        {formatFileSize(doc.tamaño)}
+                      </span>
                     </div>
                     <p className="text-xs text-slate-400 mt-1">
-                      {format(new Date(doc.fechaSubida), 'dd/MM/yyyy', { locale: es })}
+                      {formatDateSafe(doc.fechaSubida)}
                     </p>
                   </div>
                   <DropdownMenu>
@@ -358,21 +412,18 @@ export default function Documentacion() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {documentos
-                .sort((a, b) => new Date(b.fechaSubida).getTime() - new Date(a.fechaSubida).getTime())
-                .slice(0, 3)
-                .map(doc => (
-                  <div key={doc.id} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50">
-                    {getIconoPorTipo(doc.tipo)}
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">{doc.nombre}</p>
-                      <p className="text-xs text-slate-500">{doc.entidad || '-'}</p>
-                    </div>
-                    <span className="text-xs text-slate-400">
-                      {format(new Date(doc.fechaSubida), 'dd/MM/yyyy')}
-                    </span>
+              {documentosRecientes.map(doc => (
+                <div key={doc.id} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50">
+                  {getIconoPorTipo(doc.tipo)}
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">{doc.nombre}</p>
+                    <p className="text-xs text-slate-500">{doc.entidad || '-'}</p>
                   </div>
-                ))}
+                  <span className="text-xs text-slate-400">
+                    {formatDateSafe(doc.fechaSubida)}
+                  </span>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
