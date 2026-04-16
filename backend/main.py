@@ -345,6 +345,175 @@ def delete_vehiculo(vehiculo_id: int, db: Session = Depends(get_db), current_use
     db.commit()
     return {"message": "Vehiculo deleted successfully"}
 
+# ============== SERVICIO ENDPOINTS ==============
+
+@app.get("/servicios", response_model=List[schemas.Servicio])
+def get_servicios(
+    skip: int = 0, 
+    limit: int = 100, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    servicios = db.query(models.Servicio).offset(skip).limit(limit).all()
+    return servicios
+
+@app.get("/servicios/{servicio_id}", response_model=schemas.Servicio)
+def get_servicio(
+    servicio_id: int, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
+    if not servicio:
+        raise HTTPException(status_code=404, detail="Servicio not found")
+    return servicio
+
+@app.post("/servicios", response_model=schemas.Servicio)
+def create_servicio(
+    servicio: schemas.ServicioCreate, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    # Check if codigo exists
+    existing = db.query(models.Servicio).filter(models.Servicio.codigo == servicio.codigo).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Codigo already exists")
+    
+    # Get cliente name if cliente_id is provided
+    cliente_nombre = None
+    if servicio.cliente_id:
+        cliente = db.query(models.Cliente).filter(models.Cliente.id == servicio.cliente_id).first()
+        if cliente:
+            cliente_nombre = cliente.nombre
+    
+    # Convert to dict and add cliente_nombre
+    servicio_data = servicio.dict()
+    servicio_data["cliente_nombre"] = cliente_nombre
+    
+    db_servicio = models.Servicio(**servicio_data)
+    db.add(db_servicio)
+    db.commit()
+    db.refresh(db_servicio)
+    return db_servicio
+
+@app.put("/servicios/{servicio_id}", response_model=schemas.Servicio)
+def update_servicio(
+    servicio_id: int, 
+    servicio: schemas.ServicioUpdate, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    db_servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
+    if not db_servicio:
+        raise HTTPException(status_code=404, detail="Servicio not found")
+    
+    update_data = servicio.dict(exclude_unset=True)
+    
+    # Update cliente_nombre if cliente_id changed
+    if "cliente_id" in update_data and update_data["cliente_id"]:
+        cliente = db.query(models.Cliente).filter(models.Cliente.id == update_data["cliente_id"]).first()
+        if cliente:
+            update_data["cliente_nombre"] = cliente.nombre
+    
+    for key, value in update_data.items():
+        setattr(db_servicio, key, value)
+    
+    db_servicio.fecha_modificacion = datetime.utcnow()
+    db.commit()
+    db.refresh(db_servicio)
+    return db_servicio
+
+@app.delete("/servicios/{servicio_id}")
+def delete_servicio(
+    servicio_id: int, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    db_servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
+    if not db_servicio:
+        raise HTTPException(status_code=404, detail="Servicio not found")
+    
+    db.delete(db_servicio)
+    db.commit()
+    return {"message": "Servicio deleted successfully"}
+
+# ============== DASHBOARD ENDPOINTS ==============
+
+@app.get("/dashboard/stats")
+def get_dashboard_stats(
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    # Servicios
+    servicios_activos = db.query(models.Servicio).filter(
+        models.Servicio.estado.in_(['en_curso', 'asignado'])
+    ).count()
+    
+    servicios_hoy = db.query(models.Servicio).filter(
+        models.Servicio.fecha_inicio >= datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0),
+        models.Servicio.fecha_inicio < datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)
+    ).count()
+    
+    servicios_mes = db.query(models.Servicio).filter(
+        models.Servicio.fecha_creacion >= datetime.utcnow().replace(day=1, hour=0, minute=0, second=0)
+    ).count()
+    
+    # Conductores
+    conductores_disponibles = db.query(models.Conductor).filter(
+        models.Conductor.estado == models.EstadoConductor.ACTIVO
+    ).count()
+    
+    conductores_ocupados = db.query(models.Conductor).filter(
+        models.Conductor.estado == models.EstadoConductor.EN_RUTA
+    ).count()
+    
+    # Vehículos
+    vehiculos_operativos = db.query(models.Vehiculo).filter(
+        models.Vehiculo.estado == models.EstadoVehiculo.ACTIVO
+    ).count()
+    
+    vehiculos_taller = db.query(models.Vehiculo).filter(
+        models.Vehiculo.estado == models.EstadoVehiculo.EN_MANTENIMIENTO
+    ).count()
+    
+    # Facturación
+    facturacion_mes = db.query(models.Servicio).filter(
+        models.Servicio.estado == 'facturado',
+        models.Servicio.fecha_creacion >= datetime.utcnow().replace(day=1, hour=0, minute=0, second=0)
+    ).all()
+    
+    total_facturado = sum([s.precio or 0 for s in facturacion_mes])
+    
+    pendientes_facturar = db.query(models.Servicio).filter(
+        models.Servicio.estado == 'completado',
+        models.Servicio.facturado == False
+    ).count()
+    
+    return {
+        "serviciosActivos": servicios_activos,
+        "serviciosHoy": servicios_hoy,
+        "serviciosMes": servicios_mes,
+        "conductoresDisponibles": conductores_disponibles,
+        "conductoresOcupados": conductores_ocupados,
+        "vehiculosOperativos": vehiculos_operativos,
+        "vehiculosTaller": vehiculos_taller,
+        "facturacionMes": total_facturado,
+        "facturacionPendiente": 0,
+        "serviciosPendientesFacturar": pendientes_facturar
+    }
+
+@app.get("/dashboard/servicios-recientes")
+def get_servicios_recientes(
+    limit: int = 5,
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    servicios = db.query(models.Servicio).order_by(
+        models.Servicio.fecha_creacion.desc()
+    ).limit(limit).all()
+    
+    return servicios
+
 # ============== HEALTH CHECK ==============
 
 @app.get("/health")
