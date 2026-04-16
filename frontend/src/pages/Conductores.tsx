@@ -517,8 +517,8 @@ export default function Conductores() {
                       onCheckedChange={(checked) => {
                         const currentDisp = ensureDisponibilidad(nuevoConductor.disponibilidad);
                         const dias = checked
-                          ? [...currentDisp.dias, idx]
-                          : currentDisp.dias.filter(d => d !== idx);
+                          ? [...(currentDisp.dias || []), idx]
+                          : (currentDisp.dias || []).filter(d => d !== idx);
                         setNuevoConductor({
                           ...nuevoConductor,
                           disponibilidad: { ...currentDisp, dias }
