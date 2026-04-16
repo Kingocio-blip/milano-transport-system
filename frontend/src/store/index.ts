@@ -917,49 +917,63 @@ export const useServiciosStore = create<ServiciosState>((set, get) => ({
     }
   },
 
-  // FIX: addServicio optimizado con generación de código
-  addServicio: async (servicio) => {
-    set({ isLoading: true, error: null });
-    try {
-      // Generar código si no viene
-      const codigo = servicio.codigo || `SRV-${Date.now().toString().slice(-6)}`;
-      
-      const servicioParaBackend: any = {
-        codigo: codigo,
-        cliente_id: servicio.clienteId,
-        cliente_nombre: servicio.clienteNombre,
-        tipo: servicio.tipo || 'discrecional',
-        estado: servicio.estado || 'planificando',
-        titulo: servicio.titulo,
-        descripcion: servicio.descripcion,
-        fecha_inicio: servicio.fechaInicio,
-        fecha_fin: servicio.fechaFin,
-        hora_inicio: servicio.horaInicio || null,
-        hora_fin: servicio.horaFin || null,
-        numero_vehiculos: servicio.numeroVehiculos || 1,
-        vehiculos_asignados: servicio.vehiculosAsignados || [],
-        conductores_asignados: servicio.conductoresAsignados || [],
-        origen: servicio.origen || null,
-        destino: servicio.destino || null,
-        ubicacion_evento: servicio.ubicacionEvento || null,
-        coste_estimado: servicio.costeEstimado || 0,
-        coste_real: servicio.costeReal || null,
-        precio: servicio.precio || 0,
-        facturado: servicio.facturado || false,
-        factura_id: servicio.facturaId || null,
-        notas_internas: servicio.notasInternas || null,
-        notas_cliente: servicio.notasCliente || null,
-        rutas: servicio.rutas || [],
-        tareas: servicio.tareas || [],
-        incidencias: servicio.incidencias || [],
-        documentos: servicio.documentos || [],
-      };
+  // FIX: addServicio optimizado con generación de código y validación de fechas
+addServicio: async (servicio) => {
+  set({ isLoading: true, error: null });
+  try {
+    // Generar código si no viene
+    const codigo = servicio.codigo || `SRV-${Date.now().toString().slice(-6)}`;
+    
+    // FIX: Asegurar que las fechas son objetos Date válidos
+    let fechaInicio = servicio.fechaInicio;
+    let fechaFin = servicio.fechaFin;
+    
+    if (typeof fechaInicio === 'string') {
+      fechaInicio = new Date(fechaInicio);
+    }
+    if (typeof fechaFin === 'string' && fechaFin) {
+      fechaFin = new Date(fechaFin);
+    }
+    
+    // FIX: Validar clienteId
+    const clienteId = servicio.clienteId ? parseInt(servicio.clienteId) : null;
+    
+    const servicioParaBackend: any = {
+      codigo: codigo,
+      cliente_id: clienteId,
+      cliente_nombre: servicio.clienteNombre || null,
+      tipo: servicio.tipo || 'discrecional',
+      estado: servicio.estado || 'planificando',
+      titulo: servicio.titulo,
+      descripcion: servicio.descripcion || null,
+      fecha_inicio: fechaInicio.toISOString(), // FIX: Convertir a ISO string
+      fecha_fin: fechaFin ? fechaFin.toISOString() : null,
+      hora_inicio: servicio.horaInicio || null,
+      hora_fin: servicio.horaFin || null,
+      numero_vehiculos: servicio.numeroVehiculos || 1,
+      vehiculos_asignados: servicio.vehiculosAsignados || [],
+      conductores_asignados: servicio.conductoresAsignados || [],
+      origen: servicio.origen || null,
+      destino: servicio.destino || null,
+      ubicacion_evento: servicio.ubicacionEvento || null,
+      coste_estimado: servicio.costeEstimado || 0,
+      coste_real: servicio.costeReal || null,
+      precio: servicio.precio || 0,
+      facturado: servicio.facturado || false,
+      factura_id: servicio.facturaId || null,
+      notas_internas: servicio.notasInternas || null,
+      notas_cliente: servicio.notasCliente || null,
+      rutas: servicio.rutas || [],
+      tareas: servicio.tareas || [],
+      incidencias: servicio.incidencias || [],
+      documentos: servicio.documentos || [],
+    };
 
-      console.log('📤 Enviando servicio:', servicioParaBackend);
-      
-      const nuevo = await serviciosApi.create(servicioParaBackend);
-      
-      console.log('✅ Servicio creado:', nuevo);
+    console.log('📤 Enviando servicio:', servicioParaBackend);
+    
+    const nuevo = await serviciosApi.create(servicioParaBackend);
+    
+    console.log('✅ Servicio creado:', nuevo);
 
       const servicioFormateado: Servicio = {
         id: String(nuevo.id),
