@@ -26,6 +26,12 @@ DialogTitle,
 DialogTrigger,
 DialogFooter,
 } from '../components/ui/dialog';
+import {
+DropdownMenu,
+DropdownMenuContent,
+DropdownMenuItem,
+DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
@@ -35,6 +41,7 @@ import {
 Users,
 Search,
 Plus,
+MoreVertical,
 Edit,
 Trash2,
 Eye,
@@ -55,7 +62,6 @@ AlertCircle,
 CheckCircle,
 X,
 ArrowRight,
-Download,
 } from 'lucide-react';
 import type { Cliente, TipoCliente } from '../types';
 import { format, parseISO, isValid } from 'date-fns';
@@ -121,20 +127,6 @@ return '-';
 const idsEqual = (id1: string | number | undefined, id2: string | number | undefined): boolean => {
   if (id1 === undefined || id2 === undefined) return false;
   return String(id1) === String(id2);
-};
-
-// MEJORA: Helper para determinar actividad del cliente
-const getActividadCliente = (clienteId: string, servicios: any[]) => {
-  const servs = servicios.filter(s => idsEqual(s.clienteId, clienteId));
-  if (servs.length === 0) return { label: 'Sin servicios', color: 'bg-gray-100 text-gray-600', icon: '' };
-  
-  const ultimaFecha = Math.max(...servs.map(s => new Date(s.fechaInicio || 0).getTime()));
-  const dias = Math.floor((Date.now() - ultimaFecha) / (1000 * 60 * 60 * 24));
-  
-  if (dias < 30) return { label: 'Activo', color: 'bg-green-100 text-green-700', icon: '🔥' };
-  if (dias < 90) return { label: 'Reciente', color: 'bg-blue-100 text-blue-700', icon: '' };
-  if (dias < 180) return { label: 'Frío', color: 'bg-amber-100 text-amber-700', icon: '❄️' };
-  return { label: 'Dormido', color: 'bg-gray-100 text-gray-600', icon: '💤' };
 };
 
 type NuevoClienteForm = {
@@ -228,25 +220,8 @@ colegio: clientes.filter(c => c.tipo === 'colegio').length,
 
 // FIX CRÍTICO: Servicios del cliente seleccionado - usando comparación segura de IDs
 const serviciosCliente = useMemo(() => {
-  if (!clienteSeleccionado) return [];
-  
-  // DEBUG: Ver qué está pasando
-  console.log('🔍 DEBUG - Cliente seleccionado:', {
-    id: clienteSeleccionado.id,
-    tipo: typeof clienteSeleccionado.id,
-    nombre: clienteSeleccionado.nombre
-  });
-  console.log('🔍 DEBUG - Todos los servicios:', servicios.map(s => ({
-    id: s.id,
-    clienteId: s.clienteId,
-    tipoClienteId: typeof s.clienteId,
-    titulo: s.titulo
-  })));
-  
-  const filtrados = servicios.filter(s => idsEqual(s.clienteId, clienteSeleccionado.id));
-  console.log('🔍 DEBUG - Servicios filtrados:', filtrados);
-  
-  return filtrados;
+if (!clienteSeleccionado) return [];
+return servicios.filter(s => idsEqual(s.clienteId, clienteSeleccionado.id));
 }, [servicios, clienteSeleccionado]);
 
 // Servicios filtrados por tab
@@ -285,41 +260,6 @@ const facturacionStats = useMemo(() => {
   
   return { total, facturado, pendiente: completadosNoFacturados, porCobrar: enCurso };
 }, [serviciosCliente]);
-
-	// MEJORA: Exportar clientes a CSV
-	const exportarClientes = () => {
-		const headers = ['Código', 'Nombre', 'Tipo', 'Email', 'Teléfono', 'Estado', 'Actividad', 'Total Servicios', 'Total Facturado'];
-		const rows = clientesFiltrados.map(c => {
-			const servs = servicios.filter(s => idsEqual(s.clienteId, c.id));
-			const actividad = getActividadCliente(c.id, servicios);
-			return [
-				c.codigo,
-				c.nombre,
-				c.tipo,
-				c.contacto?.email || '',
-				c.contacto?.telefono || '',
-				c.estado,
-				actividad.label,
-				servs.length,
-				servs.filter(s => s.facturado).reduce((sum, s) => sum + (s.precio || 0), 0)
-			];
-		});
-		
-		const csv = [headers, ...rows]
-			.map(r => r.map(field => `"${String(field).replace(/"/g, '""')}"`).join(','))
-			.join('\n');
-		
-		const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = `clientes-${format(new Date(), 'yyyy-MM-dd')}.csv`;
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-		
-		showToast('Clientes exportados correctamente', 'success');
-	};
 
 const handleNuevoCliente = useCallback(async (e: React.FormEvent) => {
 e.preventDefault();
@@ -503,11 +443,6 @@ return (
 <h2 className="text-xl font-bold text-slate-900">CRM - Clientes</h2>
 <p className="text-slate-500 text-sm">Gestión de clientes y oportunidades</p>
 </div>
-<div className="flex gap-2">
-<Button variant="outline" onClick={exportarClientes}>
-<Download className="h-4 w-4 mr-2" />
-Exportar
-</Button>
 <Dialog open={isNuevoClienteOpen} onOpenChange={setIsNuevoClienteOpen}>
 <DialogTrigger asChild>
 <Button className="bg-[#1e3a5f] hover:bg-[#152a45] text-white shadow-sm">
@@ -816,28 +751,21 @@ className="pl-10"
 <TableHead>Tipo</TableHead>
 <TableHead>Contacto</TableHead>
 <TableHead>Estado</TableHead>
-<TableHead>Actividad</TableHead>
 <TableHead className="text-right">Acciones</TableHead>
 </TableRow>
 </TableHeader>
 <TableBody>
 {clientesFiltrados.length === 0 ? (
 <TableRow>
-<TableCell colSpan={7} className="text-center py-8 text-slate-500">
+<TableCell colSpan={6} className="text-center py-8 text-slate-500">
 {searchQuery || tipoFiltro !== 'todos' || estadoFiltro !== 'todos'
 ? 'No se encontraron clientes con los filtros aplicados'
 : 'No hay clientes registrados'}
 </TableCell>
 </TableRow>
 ) : (
-clientesFiltrados.map((cliente) => {
-const actividad = getActividadCliente(cliente.id, servicios);
-return (
-<TableRow 
-key={cliente.id} 
-className="hover:bg-slate-50 cursor-pointer"
-onClick={() => verDetalle(cliente)}
->
+clientesFiltrados.map((cliente) => (
+<TableRow key={cliente.id} className="hover:bg-slate-50">
 <TableCell className="font-medium">{cliente.codigo}</TableCell>
 <TableCell>{cliente.nombre}</TableCell>
 <TableCell>
@@ -847,29 +775,14 @@ onClick={() => verDetalle(cliente)}
 </TableCell>
 <TableCell>
 <div className="flex flex-col gap-1">
-{cliente.contacto?.email && (
-<a 
-href={`mailto:${cliente.contacto.email}`}
-className="flex items-center gap-1 text-sm text-blue-600 hover:underline"
-onClick={(e) => e.stopPropagation()}
->
+<span className="flex items-center gap-1 text-sm">
 <Mail className="h-3 w-3" />
-{cliente.contacto.email}
-</a>
-)}
-{cliente.contacto?.telefono && (
-<a 
-href={`tel:${cliente.contacto.telefono}`}
-className="flex items-center gap-1 text-sm text-green-600 hover:underline"
-onClick={(e) => e.stopPropagation()}
->
+{cliente.contacto?.email || '-'}
+</span>
+<span className="flex items-center gap-1 text-sm text-slate-500">
 <Phone className="h-3 w-3" />
-{cliente.contacto.telefono}
-</a>
-)}
-{!cliente.contacto?.email && !cliente.contacto?.telefono && (
-<span className="text-slate-400 text-sm">Sin contacto</span>
-)}
+{cliente.contacto?.telefono || '-'}
+</span>
 </div>
 </TableCell>
 <TableCell>
@@ -877,43 +790,34 @@ onClick={(e) => e.stopPropagation()}
 {cliente.estado === 'activo' ? 'Activo' : 'Inactivo'}
 </Badge>
 </TableCell>
-<TableCell>
-<Badge className={actividad.color}>
-{actividad.icon} {actividad.label}
-</Badge>
-</TableCell>
-<TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-<div className="flex items-center justify-end gap-1">
-<Button 
-variant="ghost" 
-size="icon"
-onClick={(e) => { e.stopPropagation(); verDetalle(cliente); }}
-title="Ver detalle"
->
-<Eye className="h-4 w-4" />
+<TableCell className="text-right">
+<DropdownMenu>
+<DropdownMenuTrigger asChild>
+<Button variant="ghost" size="icon">
+<MoreVertical className="h-4 w-4" />
 </Button>
-<Button 
-variant="ghost" 
-size="icon"
-onClick={(e) => { e.stopPropagation(); abrirEditar(cliente); }}
-title="Editar"
+</DropdownMenuTrigger>
+<DropdownMenuContent align="end">
+<DropdownMenuItem onClick={() => verDetalle(cliente)}>
+<Eye className="mr-2 h-4 w-4" />
+Ver detalle
+</DropdownMenuItem>
+<DropdownMenuItem onClick={() => abrirEditar(cliente)}>
+<Edit className="mr-2 h-4 w-4" />
+Editar
+</DropdownMenuItem>
+<DropdownMenuItem
+onClick={() => handleEliminarCliente(String(cliente.id))}
+className="text-red-600"
 >
-<Edit className="h-4 w-4" />
-						</Button>
-						<Button 
-						  variant="ghost" 
-						  size="icon"
-						  onClick={(e) => { e.stopPropagation(); handleEliminarCliente(String(cliente.id)); }}
-						  title="Eliminar"
-						  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-						>
-						  <Trash2 className="h-4 w-4" />
-						</Button>
-					  </div>
-					</TableCell>
+<Trash2 className="mr-2 h-4 w-4" />
+Eliminar
+</DropdownMenuItem>
+</DropdownMenuContent>
+</DropdownMenu>
+</TableCell>
 </TableRow>
-);
-})
+))
 )}
 </TableBody>
 </Table>
@@ -922,7 +826,7 @@ title="Editar"
 
 {/* DIALOGO DE DETALLE COMPLETO */}
 <Dialog open={isDetalleOpen} onOpenChange={setIsDetalleOpen}>
-<DialogContent className="max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+<DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
 {clienteSeleccionado && (
 <>
 <DialogHeader>
