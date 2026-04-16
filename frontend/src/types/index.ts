@@ -1,9 +1,12 @@
 // ============================================
 // MILANO - Sistema de Gestión de Transporte
-// Tipos TypeScript (ACTUALIZADO)
+// Tipos TypeScript (ACTUALIZADO Y COMPLETO)
 // ============================================
 
-// Tipos base
+// ============================================
+// TIPOS BASE
+// ============================================
+
 export type TipoCliente = 'festival' | 'promotor' | 'colegio' | 'empresa' | 'particular';
 export type TipoServicio = 'lanzadera' | 'discrecional' | 'staff' | 'ruta_programada';
 export type EstadoServicio = 'solicitud' | 'presupuesto' | 'negociacion' | 'confirmado' | 'planificando' | 'asignado' | 'en_curso' | 'completado' | 'facturado' | 'cancelado';
@@ -14,8 +17,19 @@ export type EstadoFactura = 'pendiente' | 'enviada' | 'pagada' | 'vencida' | 'an
 export type EstadoOportunidad = 'nueva' | 'contactado' | 'presupuesto_enviado' | 'negociacion' | 'ganada' | 'perdida';
 
 // ============================================
+// CONSTANTES DE CÁLCULO (NUEVO)
+// ============================================
+
+export const CONSUMO_LITROS_100KM = 35;
+export const PRECIO_GASOIL_LITRO = 1.6;
+export const COSTE_KM_CONDUCTOR = 0.5;
+export const TARIFA_CONDUCTOR_HORA = 18;
+export const TARIFA_COORDINADOR_HORA = 25;
+
+// ============================================
 // CLIENTE
 // ============================================
+
 export interface Contacto {
   email?: string;
   telefono?: string;
@@ -24,9 +38,10 @@ export interface Contacto {
   codigoPostal?: string;
 }
 
+// FIX: codigo opcional para permitir generación automática
 export interface Cliente {
   id: string;
-  codigo: string;
+  codigo?: string;
   nombre: string;
   razonSocial?: string;
   tipo: TipoCliente;
@@ -73,6 +88,7 @@ export interface UpdateClienteData {
 // ============================================
 // OPORTUNIDAD / CRM
 // ============================================
+
 export interface Oportunidad {
   id: string;
   codigo: string;
@@ -97,19 +113,20 @@ export interface Oportunidad {
 // ============================================
 // VEHÍCULO / FLOTA
 // ============================================
+
 export interface ITV {
-  fechaUltima: Date | string;
-  fechaProxima: Date | string;
+  fechaUltima?: Date | string;  // FIX: Opcional
+  fechaProxima?: Date | string;  // FIX: Opcional
   resultado?: 'favorable' | 'desfavorable' | 'negativo';
   observaciones?: string;
 }
 
 export interface Seguro {
-  compania: string;
-  poliza: string;
+  compania?: string;  // FIX: Opcional
+  poliza?: string;  // FIX: Opcional
   tipoCobertura?: string;
-  fechaInicio: Date | string;
-  fechaVencimiento: Date | string;
+  fechaInicio?: Date | string;  // FIX: Opcional
+  fechaVencimiento?: Date | string;  // FIX: Opcional
   prima?: number;
 }
 
@@ -118,30 +135,32 @@ export interface Mantenimiento {
   fecha: Date | string;
   tipo: 'preventivo' | 'correctivo' | 'itv' | 'otro';
   descripcion: string;
-  kilometraje: number;
-  coste: number;
+  kilometraje?: number;  // FIX: Opcional
+  coste?: number;  // FIX: Opcional
   taller?: string;
   piezasCambiadas?: string[];
   proximoMantenimiento?: Date | string;
   observaciones?: string;
 }
 
+// FIX: codigo opcional, campos ITV/Seguro opcionales
 export interface Vehiculo {
   id: string;
+  codigo?: string;  // FIX: Opcional para generación automática
   matricula: string;
-  bastidor: string;
-  marca: string;
-  modelo: string;
+  bastidor?: string;  // FIX: Opcional
+  marca?: string;  // FIX: Opcional
+  modelo?: string;  // FIX: Opcional
   tipo: TipoVehiculo;
   plazas: number;
   añoFabricacion?: number;
-  kilometraje: number;
+  kilometraje?: number;  // FIX: Opcional
   kilometrajeUltimaRevision?: number;
   consumoMedio?: number;
   combustible?: 'diesel' | 'gasolina' | 'electric' | 'hibrido';
-  itv: ITV;
-  seguro: Seguro;
-  mantenimientos: Mantenimiento[];
+  itv?: ITV;  // FIX: Opcional
+  seguro?: Seguro;  // FIX: Opcional
+  mantenimientos?: Mantenimiento[];  // FIX: Opcional
   estado: EstadoVehiculo;
   ubicacion?: string;
   notas?: string;
@@ -151,9 +170,11 @@ export interface Vehiculo {
 // ============================================
 // CONDUCTOR / RRHH
 // ============================================
+
+// FIX: Todos los campos opcionales para flexibilidad
 export interface Licencia {
-  tipo?: string; // <-- OPCIONAL
-  numero?: string; // <-- OPCIONAL
+  tipo?: string;
+  numero?: string;
   fechaExpedicion?: Date | string;
   fechaCaducidad?: Date | string;
   permisos?: string[];
@@ -161,9 +182,9 @@ export interface Licencia {
 
 // FIX: Todos los campos opcionales para flexibilidad
 export interface Disponibilidad {
-  dias?: number[]; // <-- OPCIONAL
-  horaInicio?: string; // <-- OPCIONAL
-  horaFin?: string; // <-- OPCIONAL
+  dias?: number[];
+  horaInicio?: string;
+  horaFin?: string;
   observaciones?: string;
 }
 
@@ -174,14 +195,15 @@ export interface CredencialesConductor {
   tokenReset?: string;
 }
 
+// FIX: codigo opcional, campos opcionales para formularios parciales
 export interface Conductor {
   id: string;
-  codigo: string;
+  codigo?: string;  // FIX: Opcional para generación automática
   nombre: string;
   apellidos: string;
   dni: string;
   fechaNacimiento?: Date | string;
-  fechaAlta: Date | string;
+  fechaAlta?: Date | string;  // FIX: Opcional
   telefono?: string;
   email?: string;
   direccion?: string;
@@ -216,6 +238,7 @@ export interface Fichaje {
 // ============================================
 // RUTAS
 // ============================================
+
 export interface Parada {
   id: string;
   nombre: string;
@@ -258,6 +281,7 @@ export interface Ruta {
 // ============================================
 // SERVICIOS
 // ============================================
+
 export interface GastoServicio {
   id: string;
   tipo: 'gasoil' | 'peaje' | 'aparcamiento' | 'otro';
@@ -282,7 +306,6 @@ export interface RevisionVehiculo {
   vehiculoId?: string;
 }
 
-// FIX: Campos de tracking para PanelConductor
 export interface TrackingRuta {
   kmInicio?: number;
   kmFin?: number;
@@ -316,17 +339,17 @@ export interface TareaServicio {
   tipo?: 'conductor' | 'sistema' | 'coordinador';
 }
 
-// FIX: Servicio con campos de tracking para PanelConductor
+// FIX: codigo opcional, arrays opcionales, campos tracking
 export interface Servicio {
   id: string;
-  codigo: string;
+  codigo?: string;  // FIX: Opcional para generación automática
   clienteId: string;
   clienteNombre?: string;
   contactoCliente?: Contacto;
   tipo: TipoServicio;
   estado: EstadoServicio;
   fechaInicio: Date | string;
-  fechaFin: Date | string;
+  fechaFin?: Date | string;  // FIX: Opcional
   horaInicio?: string;
   horaFin?: string;
   horaInicioReal?: Date | string;
@@ -334,41 +357,41 @@ export interface Servicio {
   horasReales?: number;
   titulo: string;
   descripcion?: string;
-  numeroVehiculos: number;
-  vehiculosAsignados: string[];
-  conductoresAsignados: string[];
-  rutas: Ruta[];
+  numeroVehiculos?: number;  // FIX: Opcional
+  vehiculosAsignados?: string[];  // FIX: Opcional
+  conductoresAsignados?: string[];  // FIX: Opcional
+  rutas?: Ruta[];  // FIX: Opcional
   origen?: string;
   destino?: string;
   ubicacionEvento?: string;
-  costeEstimado: number;
+  costeEstimado?: number;  // FIX: Opcional
   costeReal?: number;
-  precio: number;
+  precio?: number;  // FIX: Opcional
   margen?: number;
-  facturado: boolean;
+  facturado?: boolean;  // FIX: Opcional
   facturaId?: string;
-  tareas: TareaServicio[];
-  incidencias: Incidencia[];
+  tareas?: TareaServicio[];  // FIX: Opcional
+  incidencias?: Incidencia[];  // FIX: Opcional
   gastos?: GastoServicio[];
   revisiones?: RevisionVehiculo[];
   tracking?: TrackingRuta;
-  // FIX: Campos directos para compatibilidad con PanelConductor
   kmInicio?: number;
   kmFin?: number;
   kmTotal?: number;
   rutaTomada?: string;
   contratoUrl?: string;
-  documentos: Documento[];
+  documentos?: Documento[];  // FIX: Opcional
   notasInternas?: string;
   notasCliente?: string;
-  fechaCreacion: Date | string;
-  creadoPor: string;
+  fechaCreacion?: Date | string;  // FIX: Opcional
+  creadoPor?: string;  // FIX: Opcional
   fechaModificacion?: Date | string;
 }
 
 // ============================================
 // FACTURACIÓN
 // ============================================
+
 export interface ConceptoFactura {
   id: string;
   concepto: string;
@@ -410,6 +433,7 @@ export interface Factura {
 // ============================================
 // COSTES
 // ============================================
+
 export interface DesgloseCostes {
   combustible: number;
   peajes: number;
@@ -437,6 +461,7 @@ export interface InformeCostes {
 // ============================================
 // DOCUMENTOS
 // ============================================
+
 export interface Documento {
   id: string;
   nombre: string;
@@ -454,6 +479,7 @@ export interface Documento {
 // ============================================
 // COMUNICACIONES
 // ============================================
+
 export interface Mensaje {
   id: string;
   canal: 'email' | 'whatsapp' | 'telefono' | 'interno';
@@ -472,6 +498,7 @@ export interface Mensaje {
 // ============================================
 // ALERTAS Y NOTIFICACIONES
 // ============================================
+
 export interface Alerta {
   id: string;
   tipo: 'itv' | 'seguro' | 'licencia' | 'mantenimiento' | 'servicio' | 'factura' | 'sistema';
@@ -490,6 +517,7 @@ export interface Alerta {
 // ============================================
 // USUARIO Y CONFIGURACIÓN
 // ============================================
+
 export interface Usuario {
   id: string;
   nombre: string;
@@ -527,6 +555,7 @@ export interface ConfiguracionEmpresa {
 // ============================================
 // DASHBOARD
 // ============================================
+
 export interface KPIDashboard {
   serviciosActivos: number;
   serviciosHoy: number;
@@ -549,6 +578,7 @@ export interface DatoGrafico {
 // ============================================
 // FILTROS Y PAGINACIÓN
 // ============================================
+
 export interface FiltrosBusqueda {
   texto?: string;
   fechaDesde?: Date | string;
@@ -568,6 +598,7 @@ export interface Paginacion {
 // ============================================
 // API RESPONSES
 // ============================================
+
 export interface ApiResponse<T> {
   data: T;
   success: boolean;
