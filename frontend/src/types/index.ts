@@ -469,10 +469,11 @@ export interface Documento {
   categoria?: string;
   url: string;
   tamaño?: number;
-  fechaSubida: Date | string;
-  subidoPor: string;
+  fechaSubida?: Date | string;
+  subidoPor?: string;
   entidadId?: string;
   entidadTipo?: string;
+  entidad?: string;  // <-- AÑADIR ESTA LÍNEA (nombre legible de la entidad)
   notas?: string;
 }
 
