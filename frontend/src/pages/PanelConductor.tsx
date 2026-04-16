@@ -46,7 +46,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { removeToken } from '../lib/api';
 import { useConductoresStore, useServiciosStore, useVehiculosStore, useUIStore } from '../store';
-import { format, parseISO, differenceInMinutes, differenceInHours, addHours, isAfter, isBefore } from 'date-fns';
+import { format, parseISO, differenceInMinutes, differenceInHours, addHours, isAfter, isBefore, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 // Tipos extendidos para el panel
@@ -54,6 +54,24 @@ type EstadoFichaje = 'no_fichado' | 'fichado_entrada' | 'en_ruta' | 'fichado_sal
 type TareaServicio = { id: string; nombre: string; completada: boolean; tipo: 'conductor' | 'sistema' };
 type GastoServicio = { id: string; tipo: 'gasoil' | 'peaje' | 'aparcamiento' | 'otro'; cantidad: number; precio: number; notas?: string; ticket?: string };
 type RevisionBus = { id: string; tipo: 'limpieza' | 'neumaticos' | 'aceite' | 'luces' | 'otro'; estado: 'ok' | 'ko' | 'na'; notas?: string };
+
+// FIX: Helper seguro para parsear fechas
+const parseDateSafe = (date: string | Date | undefined): Date | null => {
+  if (!date) return null;
+  try {
+    const dateStr = typeof date === 'string' ? date : date.toISOString();
+    const parsed = parseISO(dateStr);
+    return isValid(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+// FIX: Helper seguro para formatear fechas
+const formatDateSafe = (date: string | Date | undefined, formatStr: string = 'dd/MM/yyyy'): string => {
+  const parsed = parseDateSafe(date);
+  return parsed ? format(parsed, formatStr) : '-';
+};
 
 export default function PanelConductor() {
   const navigate = useNavigate();
@@ -123,14 +141,18 @@ export default function PanelConductor() {
     return servicios.filter(s => 
       s.conductoresAsignados?.includes(String(conductorActual.id)) ||
       s.conductoresAsignados?.includes(conductorActual.id)
-    ).sort((a, b) => new Date(a.fechaInicio).getTime() - new Date(b.fechaInicio).getTime());
+    ).sort((a, b) => {
+      const fechaA = parseDateSafe(a.fechaInicio);
+      const fechaB = parseDateSafe(b.fechaInicio);
+      return (fechaA?.getTime() || 0) - (fechaB?.getTime() || 0);
+    });
   }, [servicios, conductorActual]);
 
   // Servicios por estado
   const serviciosHoy = useMemo(() => {
     const hoy = new Date();
     return misServicios.filter(s => {
-      const fechaServicio = s.fechaInicio ? parseISO(s.fechaInicio) : null;
+      const fechaServicio = parseDateSafe(s.fechaInicio);
       return fechaServicio && 
         format(fechaServicio, 'yyyy-MM-dd') === format(hoy, 'yyyy-MM-dd') &&
         ['planificando', 'asignado', 'en_curso'].includes(s.estado);
@@ -148,12 +170,12 @@ export default function PanelConductor() {
   // Estadísticas del conductor
   const stats = useMemo(() => ({
     serviciosMes: serviciosCompletados.filter(s => {
-      const fecha = s.fechaFin ? parseISO(s.fechaFin) : null;
+      const fecha = parseDateSafe(s.fechaFin);
       return fecha && fecha.getMonth() === new Date().getMonth();
     }).length,
     horasMes: serviciosCompletados.reduce((sum, s) => {
-      const inicio = s.fechaInicio ? parseISO(s.fechaInicio) : null;
-      const fin = s.fechaFin ? parseISO(s.fechaFin) : null;
+      const inicio = parseDateSafe(s.fechaInicio);
+      const fin = parseDateSafe(s.fechaFin);
       if (inicio && fin) return sum + differenceInHours(fin, inicio);
       return sum;
     }, 0),
@@ -485,7 +507,7 @@ export default function PanelConductor() {
                         <div>
                           <p className="font-medium">{servicio.codigo} - {servicio.titulo}</p>
                           <p className="text-sm text-slate-500">
-                            {format(parseISO(servicio.fechaInicio), 'dd/MM/yyyy', { locale: es })} • {servicio.horaInicio}
+                            {formatDateSafe(servicio.fechaInicio)} • {servicio.horaInicio}
                           </p>
                         </div>
                         <ChevronRight className="h-5 w-5 text-slate-400" />
@@ -670,7 +692,7 @@ export default function PanelConductor() {
                         <div>
                           <p className="font-medium">{servicio.codigo} - {servicio.titulo}</p>
                           <p className="text-sm text-slate-500">
-                            {format(parseISO(servicio.fechaInicio), 'dd/MM/yyyy')} • {servicio.horaInicioReal || servicio.horaInicio} - {servicio.horaFinReal || servicio.horaFin}
+                            {formatDateSafe(servicio.fechaInicio)} • {servicio.horaInicioReal || servicio.horaInicio} - {servicio.horaFinReal || servicio.horaFin}
                           </p>
                         </div>
                         <div className="text-right">
@@ -722,8 +744,7 @@ export default function PanelConductor() {
                     <Label className="text-slate-500">Licencia</Label>
                     <p className="font-medium">Tipo {conductorActual.licencia?.tipo || '-'}</p>
                     <p className="text-sm text-slate-500">
-                      Caduca: {conductorActual.licencia?.fechaCaducidad ? 
-                        format(parseISO(conductorActual.licencia.fechaCaducidad), 'dd/MM/yyyy') : '-'}
+                      Caduca: {formatDateSafe(conductorActual.licencia?.fechaCaducidad)}
                     </p>
                   </div>
                   <div>
