@@ -55,6 +55,7 @@ AlertCircle,
 CheckCircle,
 X,
 ArrowRight,
+Download,
 } from 'lucide-react';
 import type { Cliente, TipoCliente } from '../types';
 import { format, parseISO, isValid } from 'date-fns';
@@ -120,6 +121,20 @@ return '-';
 const idsEqual = (id1: string | number | undefined, id2: string | number | undefined): boolean => {
   if (id1 === undefined || id2 === undefined) return false;
   return String(id1) === String(id2);
+};
+
+// MEJORA: Helper para determinar actividad del cliente
+const getActividadCliente = (clienteId: string, servicios: any[]) => {
+  const servs = servicios.filter(s => idsEqual(s.clienteId, clienteId));
+  if (servs.length === 0) return { label: 'Sin servicios', color: 'bg-gray-100 text-gray-600', icon: '' };
+  
+  const ultimaFecha = Math.max(...servs.map(s => new Date(s.fechaInicio || 0).getTime()));
+  const dias = Math.floor((Date.now() - ultimaFecha) / (1000 * 60 * 60 * 24));
+  
+  if (dias < 30) return { label: 'Activo', color: 'bg-green-100 text-green-700', icon: '🔥' };
+  if (dias < 90) return { label: 'Reciente', color: 'bg-blue-100 text-blue-700', icon: '' };
+  if (dias < 180) return { label: 'Frío', color: 'bg-amber-100 text-amber-700', icon: '❄️' };
+  return { label: 'Dormido', color: 'bg-gray-100 text-gray-600', icon: '💤' };
 };
 
 type NuevoClienteForm = {
@@ -270,6 +285,41 @@ const facturacionStats = useMemo(() => {
   
   return { total, facturado, pendiente: completadosNoFacturados, porCobrar: enCurso };
 }, [serviciosCliente]);
+
+	// MEJORA: Exportar clientes a CSV
+	const exportarClientes = () => {
+		const headers = ['Código', 'Nombre', 'Tipo', 'Email', 'Teléfono', 'Estado', 'Actividad', 'Total Servicios', 'Total Facturado'];
+		const rows = clientesFiltrados.map(c => {
+			const servs = servicios.filter(s => idsEqual(s.clienteId, c.id));
+			const actividad = getActividadCliente(c.id, servicios);
+			return [
+				c.codigo,
+				c.nombre,
+				c.tipo,
+				c.contacto?.email || '',
+				c.contacto?.telefono || '',
+				c.estado,
+				actividad.label,
+				servs.length,
+				servs.filter(s => s.facturado).reduce((sum, s) => sum + (s.precio || 0), 0)
+			];
+		});
+		
+		const csv = [headers, ...rows]
+			.map(r => r.map(field => `"${String(field).replace(/"/g, '""')}"`).join(','))
+			.join('\n');
+		
+		const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `clientes-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		
+		showToast('Clientes exportados correctamente', 'success');
+	};
 
 const handleNuevoCliente = useCallback(async (e: React.FormEvent) => {
 e.preventDefault();
@@ -453,6 +503,11 @@ return (
 <h2 className="text-xl font-bold text-slate-900">CRM - Clientes</h2>
 <p className="text-slate-500 text-sm">Gestión de clientes y oportunidades</p>
 </div>
+<div className="flex gap-2">
+<Button variant="outline" onClick={exportarClientes}>
+<Download className="h-4 w-4 mr-2" />
+Exportar
+</Button>
 <Dialog open={isNuevoClienteOpen} onOpenChange={setIsNuevoClienteOpen}>
 <DialogTrigger asChild>
 <Button className="bg-[#1e3a5f] hover:bg-[#152a45] text-white shadow-sm">
@@ -761,25 +816,28 @@ className="pl-10"
 <TableHead>Tipo</TableHead>
 <TableHead>Contacto</TableHead>
 <TableHead>Estado</TableHead>
+<TableHead>Actividad</TableHead>
 <TableHead className="text-right">Acciones</TableHead>
 </TableRow>
 </TableHeader>
 <TableBody>
 {clientesFiltrados.length === 0 ? (
 <TableRow>
-<TableCell colSpan={6} className="text-center py-8 text-slate-500">
+<TableCell colSpan={7} className="text-center py-8 text-slate-500">
 {searchQuery || tipoFiltro !== 'todos' || estadoFiltro !== 'todos'
 ? 'No se encontraron clientes con los filtros aplicados'
 : 'No hay clientes registrados'}
 </TableCell>
 </TableRow>
 ) : (
-clientesFiltrados.map((cliente) => (
+clientesFiltrados.map((cliente) => {
+const actividad = getActividadCliente(cliente.id, servicios);
+return (
 <TableRow 
-					  key={cliente.id} 
-					  className="hover:bg-slate-50 cursor-pointer"
-					  onClick={() => verDetalle(cliente)}
-					>
+key={cliente.id} 
+className="hover:bg-slate-50 cursor-pointer"
+onClick={() => verDetalle(cliente)}
+>
 <TableCell className="font-medium">{cliente.codigo}</TableCell>
 <TableCell>{cliente.nombre}</TableCell>
 <TableCell>
@@ -789,14 +847,29 @@ clientesFiltrados.map((cliente) => (
 </TableCell>
 <TableCell>
 <div className="flex flex-col gap-1">
-<span className="flex items-center gap-1 text-sm">
+{cliente.contacto?.email && (
+<a 
+href={`mailto:${cliente.contacto.email}`}
+className="flex items-center gap-1 text-sm text-blue-600 hover:underline"
+onClick={(e) => e.stopPropagation()}
+>
 <Mail className="h-3 w-3" />
-{cliente.contacto?.email || '-'}
-</span>
-<span className="flex items-center gap-1 text-sm text-slate-500">
+{cliente.contacto.email}
+</a>
+)}
+{cliente.contacto?.telefono && (
+<a 
+href={`tel:${cliente.contacto.telefono}`}
+className="flex items-center gap-1 text-sm text-green-600 hover:underline"
+onClick={(e) => e.stopPropagation()}
+>
 <Phone className="h-3 w-3" />
-{cliente.contacto?.telefono || '-'}
-</span>
+{cliente.contacto.telefono}
+</a>
+)}
+{!cliente.contacto?.email && !cliente.contacto?.telefono && (
+<span className="text-slate-400 text-sm">Sin contacto</span>
+)}
 </div>
 </TableCell>
 <TableCell>
@@ -804,23 +877,28 @@ clientesFiltrados.map((cliente) => (
 {cliente.estado === 'activo' ? 'Activo' : 'Inactivo'}
 </Badge>
 </TableCell>
+<TableCell>
+<Badge className={actividad.color}>
+{actividad.icon} {actividad.label}
+</Badge>
+</TableCell>
 <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-					  <div className="flex items-center justify-end gap-1">
-						<Button 
-						  variant="ghost" 
-						  size="icon"
-						  onClick={(e) => { e.stopPropagation(); verDetalle(cliente); }}
-						  title="Ver detalle"
-						>
-						  <Eye className="h-4 w-4" />
-						</Button>
-						<Button 
-						  variant="ghost" 
-						  size="icon"
-						  onClick={(e) => { e.stopPropagation(); abrirEditar(cliente); }}
-						  title="Editar"
-						>
-						  <Edit className="h-4 w-4" />
+<div className="flex items-center justify-end gap-1">
+<Button 
+variant="ghost" 
+size="icon"
+onClick={(e) => { e.stopPropagation(); verDetalle(cliente); }}
+title="Ver detalle"
+>
+<Eye className="h-4 w-4" />
+</Button>
+<Button 
+variant="ghost" 
+size="icon"
+onClick={(e) => { e.stopPropagation(); abrirEditar(cliente); }}
+title="Editar"
+>
+<Edit className="h-4 w-4" />
 						</Button>
 						<Button 
 						  variant="ghost" 
@@ -843,7 +921,7 @@ clientesFiltrados.map((cliente) => (
 
 {/* DIALOGO DE DETALLE COMPLETO */}
 <Dialog open={isDetalleOpen} onOpenChange={setIsDetalleOpen}>
-<DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+<DialogContent className="max-w-6xl w-full max-h-[90vh] overflow-y-auto">
 {clienteSeleccionado && (
 <>
 <DialogHeader>
