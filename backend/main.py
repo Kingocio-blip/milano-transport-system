@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
@@ -231,7 +232,7 @@ def delete_cliente(cliente_id: int, db: Session = Depends(get_db), current_user:
     db.commit()
     return {"message": "Cliente deleted successfully"}
 
-# ============== CONDUCTOR ENDPOINTS ==============
+# ============== CONDUCTOR ENDPOINTS (ACTUALIZADO) ==============
 
 @app.get("/conductores", response_model=List[schemas.Conductor])
 def get_conductores(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
@@ -449,41 +450,48 @@ def get_dashboard_stats(
         models.Servicio.estado.in_(['en_curso', 'asignado'])
     ).count()
     
+    # Servicios de hoy
+    hoy_inicio = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    hoy_fin = datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)
+    
     servicios_hoy = db.query(models.Servicio).filter(
-        models.Servicio.fecha_inicio >= datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0),
-        models.Servicio.fecha_inicio < datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)
+        models.Servicio.fecha_inicio >= hoy_inicio,
+        models.Servicio.fecha_inicio <= hoy_fin
     ).count()
     
+    # Servicios del mes
+    mes_inicio = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     servicios_mes = db.query(models.Servicio).filter(
-        models.Servicio.fecha_creacion >= datetime.utcnow().replace(day=1, hour=0, minute=0, second=0)
+        models.Servicio.fecha_creacion >= mes_inicio
     ).count()
     
     # Conductores
     conductores_disponibles = db.query(models.Conductor).filter(
-        models.Conductor.estado == models.EstadoConductor.ACTIVO
+        models.Conductor.estado == 'activo'
     ).count()
     
     conductores_ocupados = db.query(models.Conductor).filter(
-        models.Conductor.estado == models.EstadoConductor.EN_RUTA
+        models.Conductor.estado == 'en_ruta'
     ).count()
     
     # Vehículos
     vehiculos_operativos = db.query(models.Vehiculo).filter(
-        models.Vehiculo.estado == models.EstadoVehiculo.ACTIVO
+        models.Vehiculo.estado == 'operativo'
     ).count()
     
     vehiculos_taller = db.query(models.Vehiculo).filter(
-        models.Vehiculo.estado == models.EstadoVehiculo.EN_MANTENIMIENTO
+        models.Vehiculo.estado == 'taller'
     ).count()
     
-    # Facturación
+    # Facturación del mes
     facturacion_mes = db.query(models.Servicio).filter(
         models.Servicio.estado == 'facturado',
-        models.Servicio.fecha_creacion >= datetime.utcnow().replace(day=1, hour=0, minute=0, second=0)
+        models.Servicio.fecha_creacion >= mes_inicio
     ).all()
     
     total_facturado = sum([s.precio or 0 for s in facturacion_mes])
     
+    # Pendientes de facturar
     pendientes_facturar = db.query(models.Servicio).filter(
         models.Servicio.estado == 'completado',
         models.Servicio.facturado == False
@@ -548,7 +556,7 @@ def setup_create_admin(db: Session = Depends(get_db)):
         email="admin@milano.com",
         hashed_password=hashed,
         nombre_completo="Administrador Sistema",
-        rol=models.UserRole.ADMIN,
+        rol="admin",
         activo=True
     )
     db.add(admin)
@@ -557,4 +565,3 @@ def setup_create_admin(db: Session = Depends(get_db)):
         "message": "✅ Usuario admin creado",
         "credentials": {"username": "admin", "password": "admin123"}
     }
-# ============================================

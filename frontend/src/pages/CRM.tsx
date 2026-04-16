@@ -1,13 +1,14 @@
 // ============================================
-// MILANO - CRM / Clientes Page (COMPLETO Y FUNCIONAL)
+// MILANO - CRM / Clientes Page (OPTIMIZADO CON DETALLE COMPLETO)
 // ============================================
 
-import { useState, useEffect, useCallback } from 'react';
-import { useClientesStore, useUIStore } from '../store';
-import { Card, CardContent } from '../components/ui/card';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useClientesStore, useServiciosStore, useUIStore } from '../store';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import {
 Table,
 TableBody,
@@ -34,6 +35,7 @@ DropdownMenuTrigger,
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
+import { Progress } from '../components/ui/progress';
 import {
 Users,
 Search,
@@ -44,10 +46,22 @@ Trash2,
 Eye,
 Phone,
 Mail,
+MapPin,
+Calendar,
 Filter,
 Loader2,
+Briefcase,
+Euro,
+FileText,
+TrendingUp,
+Clock,
+CheckCircle2,
+XCircle,
 } from 'lucide-react';
 import type { Cliente, TipoCliente } from '../types';
+import { format, parseISO, isValid } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { Link } from 'react-router-dom';
 
 const tipoClienteLabels: Record<string, string> = {
 festival: 'Festival',
@@ -79,6 +93,17 @@ return 'NIF';
 }
 };
 
+// Helper para fechas seguras
+const formatDateSafe = (date: string | Date | undefined): string => {
+if (!date) return '-';
+try {
+const parsed = typeof date === 'string' ? parseISO(date) : date;
+return isValid(parsed) ? format(parsed, 'dd/MM/yyyy') : '-';
+} catch {
+return '-';
+}
+};
+
 type NuevoClienteForm = {
 tipo: TipoCliente;
 nombre: string;
@@ -99,14 +124,17 @@ codigoPostal: string;
 
 export default function CRM() {
 const { clientes, isLoading, addCliente, updateCliente, deleteCliente, fetchClientes } = useClientesStore();
+const { servicios, fetchServicios } = useServiciosStore();
 const { showToast } = useUIStore();
 
 const [searchQuery, setSearchQuery] = useState('');
 const [tipoFiltro, setTipoFiltro] = useState<TipoCliente | 'todos'>('todos');
+const [estadoFiltro, setEstadoFiltro] = useState<'activo' | 'inactivo' | 'todos'>('todos');
 const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
 const [isNuevoClienteOpen, setIsNuevoClienteOpen] = useState(false);
 const [isEditarOpen, setIsEditarOpen] = useState(false);
 const [isDetalleOpen, setIsDetalleOpen] = useState(false);
+const [detalleTab, setDetalleTab] = useState('info');
 const [isSubmitting, setIsSubmitting] = useState(false);
 
 const initialClienteState: NuevoClienteForm = {
@@ -131,9 +159,12 @@ const [nuevoCliente, setNuevoCliente] = useState<NuevoClienteForm>(initialClient
 
 useEffect(() => {
 fetchClientes();
-}, [fetchClientes]);
+fetchServicios();
+}, [fetchClientes, fetchServicios]);
 
-const clientesFiltrados = clientes.filter(cliente => {
+// Filtrar clientes con useMemo
+const clientesFiltrados = useMemo(() => {
+return clientes.filter(cliente => {
 const searchLower = searchQuery.toLowerCase().trim();
 const matchesSearch = searchLower === '' ||
 cliente.nombre?.toLowerCase().includes(searchLower) ||
@@ -142,11 +173,30 @@ cliente.nif?.toLowerCase().includes(searchLower) ||
 cliente.contacto?.email?.toLowerCase().includes(searchLower) ||
 cliente.contacto?.telefono?.toLowerCase().includes(searchLower);
 const matchesTipo = tipoFiltro === 'todos' || cliente.tipo === tipoFiltro;
-return matchesSearch && matchesTipo;
+const matchesEstado = estadoFiltro === 'todos' || cliente.estado === estadoFiltro;
+return matchesSearch && matchesTipo && matchesEstado;
 });
+}, [clientes, searchQuery, tipoFiltro, estadoFiltro]);
 
-const totalClientes = clientes.length;
-const clientesActivos = clientes.filter(c => c.estado === 'activo').length;
+// Estadísticas con useMemo
+const stats = useMemo(() => ({
+total: clientes.length,
+activos: clientes.filter(c => c.estado === 'activo').length,
+inactivos: clientes.filter(c => c.estado === 'inactivo').length,
+porTipo: {
+empresa: clientes.filter(c => c.tipo === 'empresa').length,
+particular: clientes.filter(c => c.tipo === 'particular').length,
+festival: clientes.filter(c => c.tipo === 'festival').length,
+promotor: clientes.filter(c => c.tipo === 'promotor').length,
+colegio: clientes.filter(c => c.tipo === 'colegio').length,
+}
+}), [clientes]);
+
+// Servicios del cliente seleccionado
+const serviciosCliente = useMemo(() => {
+if (!clienteSeleccionado) return [];
+return servicios.filter(s => s.clienteId === clienteSeleccionado.id);
+}, [servicios, clienteSeleccionado]);
 
 const handleNuevoCliente = useCallback(async (e: React.FormEvent) => {
 e.preventDefault();
@@ -161,10 +211,8 @@ return;
 setIsSubmitting(true);
 
 try {
-// Generar código único
 const codigo = `CLI-${Date.now().toString().slice(-5)}`;
 
-// Formato EXACTO que espera el backend (schemas.py)
 const clienteParaBackend = {
 codigo: codigo,
 nombre: nombreLimpio,
@@ -188,8 +236,6 @@ persona_contacto_telefono: null,
 persona_contacto_cargo: null,
 };
 
-console.log('Enviando:', clienteParaBackend);
-
 const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/clientes`, {
 method: 'POST',
 headers: {
@@ -201,12 +247,8 @@ body: JSON.stringify(clienteParaBackend),
 
 if (!response.ok) {
 const errorData = await response.json();
-console.error('Error del backend:', errorData);
 throw new Error(JSON.stringify(errorData));
 }
-
-const data = await response.json();
-console.log('Éxito:', data);
 
 setIsNuevoClienteOpen(false);
 setNuevoCliente(initialClienteState);
@@ -214,20 +256,11 @@ showToast('Cliente creado correctamente', 'success');
 await fetchClientes();
 
 } catch (err: any) {
-console.error('Error:', err);
-
 let errorMsg = err.message;
 try {
 const parsed = JSON.parse(err.message);
-if (parsed.detail) {
-if (Array.isArray(parsed.detail)) {
-errorMsg = parsed.detail.map((e: any) => `${e.loc?.join('.')}: ${e.msg}`).join(', ');
-} else {
-errorMsg = parsed.detail;
-}
-}
+errorMsg = parsed.detail || 'Error desconocido';
 } catch {}
-
 showToast(`Error: ${errorMsg}`, 'error');
 } finally {
 setIsSubmitting(false);
@@ -263,7 +296,6 @@ await fetchClientes();
 showToast('Error al actualizar el cliente', 'error');
 }
 } catch (err: any) {
-console.error('Error:', err);
 showToast(`Error: ${err.message || 'Desconocido'}`, 'error');
 } finally {
 setIsSubmitting(false);
@@ -271,24 +303,28 @@ setIsSubmitting(false);
 };
 
 const handleEliminarCliente = async (id: string) => {
-if (window.confirm('¿Está seguro de eliminar este cliente?')) {
+if (!window.confirm('¿Está seguro de eliminar este cliente?')) return;
+
 try {
 const success = await deleteCliente(id);
 if (success) {
 showToast('Cliente eliminado', 'success');
+if (clienteSeleccionado?.id === id) {
+setIsDetalleOpen(false);
+setClienteSeleccionado(null);
+}
 await fetchClientes();
 } else {
 showToast('Error al eliminar el cliente', 'error');
 }
 } catch (err: any) {
-console.error('Error:', err);
 showToast(`Error: ${err.message || 'Desconocido'}`, 'error');
-}
 }
 };
 
 const verDetalle = (cliente: Cliente) => {
 setClienteSeleccionado(cliente);
+setDetalleTab('info');
 setIsDetalleOpen(true);
 };
 
@@ -516,13 +552,13 @@ Guardando...
 </div>
 
 {/* Stats */}
-<div className="grid gap-4 md:grid-cols-4">
+<div className="grid gap-4 md:grid-cols-5">
 <Card>
 <CardContent className="p-6">
 <div className="flex items-center justify-between">
 <div>
 <p className="text-sm font-medium text-slate-500">Total Clientes</p>
-<p className="text-3xl font-bold">{totalClientes}</p>
+<p className="text-3xl font-bold">{stats.total}</p>
 </div>
 <div className="rounded-full bg-blue-100 p-3">
 <Users className="h-6 w-6 text-blue-600" />
@@ -534,11 +570,50 @@ Guardando...
 <CardContent className="p-6">
 <div className="flex items-center justify-between">
 <div>
-<p className="text-sm font-medium text-slate-500">Clientes Activos</p>
-<p className="text-3xl font-bold">{clientesActivos}</p>
+<p className="text-sm font-medium text-slate-500">Activos</p>
+<p className="text-3xl font-bold">{stats.activos}</p>
 </div>
 <div className="rounded-full bg-green-100 p-3">
-<Users className="h-6 w-6 text-green-600" />
+<CheckCircle2 className="h-6 w-6 text-green-600" />
+</div>
+</div>
+</CardContent>
+</Card>
+<Card>
+<CardContent className="p-6">
+<div className="flex items-center justify-between">
+<div>
+<p className="text-sm font-medium text-slate-500">Inactivos</p>
+<p className="text-3xl font-bold">{stats.inactivos}</p>
+</div>
+<div className="rounded-full bg-red-100 p-3">
+<XCircle className="h-6 w-6 text-red-600" />
+</div>
+</div>
+</CardContent>
+</Card>
+<Card>
+<CardContent className="p-6">
+<div className="flex items-center justify-between">
+<div>
+<p className="text-sm font-medium text-slate-500">Empresas</p>
+<p className="text-3xl font-bold">{stats.porTipo.empresa}</p>
+</div>
+<div className="rounded-full bg-amber-100 p-3">
+<Briefcase className="h-6 w-6 text-amber-600" />
+</div>
+</div>
+</CardContent>
+</Card>
+<Card>
+<CardContent className="p-6">
+<div className="flex items-center justify-between">
+<div>
+<p className="text-sm font-medium text-slate-500">Particulares</p>
+<p className="text-3xl font-bold">{stats.porTipo.particular}</p>
+</div>
+<div className="rounded-full bg-slate-100 p-3">
+<Users className="h-6 w-6 text-slate-600" />
 </div>
 </div>
 </CardContent>
@@ -546,8 +621,8 @@ Guardando...
 </div>
 
 {/* Filters */}
-<div className="flex gap-4">
-<div className="relative flex-1 max-w-sm">
+<div className="flex flex-wrap gap-4">
+<div className="relative flex-1 min-w-[200px] max-w-sm">
 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 <Input
 placeholder="Buscar clientes..."
@@ -557,9 +632,9 @@ className="pl-10"
 />
 </div>
 <Select value={tipoFiltro} onValueChange={(v) => setTipoFiltro(v as TipoCliente | 'todos')}>
-<SelectTrigger className="w-48">
+<SelectTrigger className="w-40">
 <Filter className="mr-2 h-4 w-4" />
-<SelectValue placeholder="Filtrar por tipo" />
+<SelectValue placeholder="Tipo" />
 </SelectTrigger>
 <SelectContent>
 <SelectItem value="todos">Todos los tipos</SelectItem>
@@ -568,6 +643,17 @@ className="pl-10"
 <SelectItem value="colegio">Colegio</SelectItem>
 <SelectItem value="empresa">Empresa</SelectItem>
 <SelectItem value="particular">Particular</SelectItem>
+</SelectContent>
+</Select>
+<Select value={estadoFiltro} onValueChange={(v) => setEstadoFiltro(v as 'activo' | 'inactivo' | 'todos')}>
+<SelectTrigger className="w-40">
+<CheckCircle2 className="mr-2 h-4 w-4" />
+<SelectValue placeholder="Estado" />
+</SelectTrigger>
+<SelectContent>
+<SelectItem value="todos">Todos</SelectItem>
+<SelectItem value="activo">Activos</SelectItem>
+<SelectItem value="inactivo">Inactivos</SelectItem>
 </SelectContent>
 </Select>
 </div>
@@ -590,12 +676,14 @@ className="pl-10"
 {clientesFiltrados.length === 0 ? (
 <TableRow>
 <TableCell colSpan={6} className="text-center py-8 text-slate-500">
-No se encontraron clientes
+{searchQuery || tipoFiltro !== 'todos' || estadoFiltro !== 'todos'
+? 'No se encontraron clientes con los filtros aplicados'
+: 'No hay clientes registrados'}
 </TableCell>
 </TableRow>
 ) : (
 clientesFiltrados.map((cliente) => (
-<TableRow key={cliente.id}>
+<TableRow key={cliente.id} className="hover:bg-slate-50">
 <TableCell className="font-medium">{cliente.codigo}</TableCell>
 <TableCell>{cliente.nombre}</TableCell>
 <TableCell>
@@ -654,25 +742,239 @@ Eliminar
 </CardContent>
 </Card>
 
-{/* Dialogs */}
+{/* DIALOGO DE DETALLE COMPLETO */}
 <Dialog open={isDetalleOpen} onOpenChange={setIsDetalleOpen}>
-<DialogContent className="max-w-2xl">
+<DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
 {clienteSeleccionado && (
 <>
 <DialogHeader>
-<DialogTitle>{clienteSeleccionado.nombre}</DialogTitle>
+<DialogTitle className="flex items-center gap-2">
+{clienteSeleccionado.nombre}
+<Badge className={tipoClienteColors[clienteSeleccionado.tipo || 'empresa']}>
+{tipoClienteLabels[clienteSeleccionado.tipo || 'empresa']}
+</Badge>
+</DialogTitle>
 <DialogDescription>
-{clienteSeleccionado.codigo} • {tipoClienteLabels[clienteSeleccionado.tipo || 'empresa']}
+{clienteSeleccionado.codigo} • Cliente desde {formatDateSafe(clienteSeleccionado.fechaAlta)}
 </DialogDescription>
 </DialogHeader>
-<div className="space-y-4 py-4">
-<p>Detalle del cliente</p>
+
+<Tabs value={detalleTab} onValueChange={setDetalleTab} className="mt-4">
+<TabsList className="grid w-full grid-cols-4">
+<TabsTrigger value="info">Información</TabsTrigger>
+<TabsTrigger value="servicios">Servicios ({serviciosCliente.length})</TabsTrigger>
+<TabsTrigger value="facturacion">Facturación</TabsTrigger>
+<TabsTrigger value="historial">Historial</TabsTrigger>
+</TabsList>
+
+{/* TAB: INFORMACIÓN */}
+<TabsContent value="info" className="space-y-4">
+<div className="grid grid-cols-2 gap-4">
+<Card>
+<CardHeader>
+<CardTitle className="text-sm font-medium flex items-center gap-2">
+<Mail className="h-4 w-4" />
+Contacto
+</CardTitle>
+</CardHeader>
+<CardContent className="space-y-2">
+<div>
+<Label className="text-slate-500 text-xs">Email</Label>
+<p>{clienteSeleccionado.contacto?.email || '-'}</p>
 </div>
+<div>
+<Label className="text-slate-500 text-xs">Teléfono</Label>
+<p>{clienteSeleccionado.contacto?.telefono || '-'}</p>
+</div>
+</CardContent>
+</Card>
+
+<Card>
+<CardHeader>
+<CardTitle className="text-sm font-medium flex items-center gap-2">
+<MapPin className="h-4 w-4" />
+Dirección
+</CardTitle>
+</CardHeader>
+<CardContent className="space-y-2">
+<p>{clienteSeleccionado.contacto?.direccion || '-'}</p>
+<p>{clienteSeleccionado.contacto?.codigoPostal} {clienteSeleccionado.contacto?.ciudad}</p>
+</CardContent>
+</Card>
+</div>
+
+<div className="grid grid-cols-2 gap-4">
+<Card>
+<CardHeader>
+<CardTitle className="text-sm font-medium flex items-center gap-2">
+<FileText className="h-4 w-4" />
+Documentación
+</CardTitle>
+</CardHeader>
+<CardContent className="space-y-2">
+<div>
+<Label className="text-slate-500 text-xs">{getDocumentoLabel(clienteSeleccionado.tipo || 'empresa')}</Label>
+<p>{clienteSeleccionado.nif || '-'}</p>
+</div>
+<div>
+<Label className="text-slate-500 text-xs">Estado</Label>
+<Badge variant={clienteSeleccionado.estado === 'activo' ? 'default' : 'secondary'}>
+{clienteSeleccionado.estado === 'activo' ? 'Activo' : 'Inactivo'}
+</Badge>
+</div>
+</CardContent>
+</Card>
+
+<Card>
+<CardHeader>
+<CardTitle className="text-sm font-medium flex items-center gap-2">
+<Euro className="h-4 w-4" />
+Condiciones Comerciales
+</CardTitle>
+</CardHeader>
+<CardContent className="space-y-2">
+<div>
+<Label className="text-slate-500 text-xs">Forma de Pago</Label>
+<p className="capitalize">{clienteSeleccionado.formaPago || 'Transferencia'}</p>
+</div>
+<div>
+<Label className="text-slate-500 text-xs">Días de Pago</Label>
+<p>{clienteSeleccionado.diasPago || 30} días</p>
+</div>
+</CardContent>
+</Card>
+</div>
+
+{clienteSeleccionado.condicionesEspeciales && (
+<Card>
+<CardHeader>
+<CardTitle className="text-sm font-medium">Condiciones Especiales</CardTitle>
+</CardHeader>
+<CardContent>
+<p className="text-sm">{clienteSeleccionado.condicionesEspeciales}</p>
+</CardContent>
+</Card>
+)}
+
+{clienteSeleccionado.notas && (
+<Card>
+<CardHeader>
+<CardTitle className="text-sm font-medium">Notas</CardTitle>
+</CardHeader>
+<CardContent>
+<p className="text-sm text-slate-600">{clienteSeleccionado.notas}</p>
+</CardContent>
+</Card>
+)}
+</TabsContent>
+
+{/* TAB: SERVICIOS */}
+<TabsContent value="servicios" className="space-y-4">
+<div className="flex justify-between items-center">
+<h3 className="font-medium">Servicios contratados</h3>
+<Button asChild size="sm" className="bg-[#1e3a5f] hover:bg-[#152a45]">
+<Link to={`/servicios/nuevo?cliente=${clienteSeleccionado.id}`}>
+<Plus className="mr-2 h-4 w-4" />
+Nuevo Servicio
+</Link>
+</Button>
+</div>
+
+{serviciosCliente.length === 0 ? (
+<div className="text-center py-8 text-slate-500">
+<Briefcase className="mx-auto mb-2 h-8 w-8" />
+<p>No hay servicios registrados para este cliente</p>
+</div>
+) : (
+<div className="space-y-2">
+{serviciosCliente.map(servicio => (
+<div key={servicio.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border">
+<div>
+<p className="font-medium">{servicio.titulo}</p>
+<p className="text-sm text-slate-500">
+{formatDateSafe(servicio.fechaInicio)} • {servicio.estado}
+</p>
+</div>
+<div className="text-right">
+<p className="font-medium">{(servicio.precio || 0).toLocaleString('es-ES')}€</p>
+<Badge variant={servicio.facturado ? 'default' : 'secondary'}>
+{servicio.facturado ? 'Facturado' : 'Pendiente'}
+</Badge>
+</div>
+</div>
+))}
+</div>
+)}
+</TabsContent>
+
+{/* TAB: FACTURACIÓN */}
+<TabsContent value="facturacion" className="space-y-4">
+<div className="grid grid-cols-3 gap-4">
+<Card>
+<CardContent className="p-4">
+<p className="text-sm text-slate-500">Total Facturado</p>
+<p className="text-2xl font-bold">
+{serviciosCliente
+.filter(s => s.facturado)
+.reduce((sum, s) => sum + (s.precio || 0), 0)
+.toLocaleString('es-ES')}€
+</p>
+</CardContent>
+</Card>
+<Card>
+<CardContent className="p-4">
+<p className="text-sm text-slate-500">Pendiente</p>
+<p className="text-2xl font-bold">
+{serviciosCliente
+.filter(s => !s.facturado && s.estado === 'completado')
+.reduce((sum, s) => sum + (s.precio || 0), 0)
+.toLocaleString('es-ES')}€
+</p>
+</CardContent>
+</Card>
+<Card>
+<CardContent className="p-4">
+<p className="text-sm text-slate-500">Servicios</p>
+<p className="text-2xl font-bold">{serviciosCliente.length}</p>
+</CardContent>
+</Card>
+</div>
+
+<div className="text-center py-8 text-slate-500">
+<FileText className="mx-auto mb-2 h-8 w-8" />
+<p>Módulo de facturación en desarrollo</p>
+<p className="text-sm">Próximamente: generación de facturas, historial completo, pagos...</p>
+</div>
+</TabsContent>
+
+{/* TAB: HISTORIAL */}
+<TabsContent value="historial" className="space-y-4">
+<div className="text-center py-8 text-slate-500">
+<Clock className="mx-auto mb-2 h-8 w-8" />
+<p>Historial de actividad en desarrollo</p>
+<p className="text-sm">Próximamente: timeline completo de interacciones, cambios, comunicaciones...</p>
+</div>
+</TabsContent>
+</Tabs>
+
+<DialogFooter className="gap-2 mt-4">
+<Button variant="outline" onClick={() => setIsDetalleOpen(false)}>
+Cerrar
+</Button>
+<Button
+onClick={() => { setIsDetalleOpen(false); abrirEditar(clienteSeleccionado); }}
+className="bg-[#1e3a5f] hover:bg-[#152a45]"
+>
+<Edit className="mr-2 h-4 w-4" />
+Editar Cliente
+</Button>
+</DialogFooter>
 </>
 )}
 </DialogContent>
 </Dialog>
 
+{/* Edit Dialog */}
 <Dialog open={isEditarOpen} onOpenChange={setIsEditarOpen}>
 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
 <DialogHeader>
@@ -686,6 +988,28 @@ Eliminar
 value={clienteSeleccionado.nombre}
 onChange={(e) => setClienteSeleccionado({...clienteSeleccionado, nombre: e.target.value})}
 />
+</div>
+<div className="grid grid-cols-2 gap-4">
+<div className="space-y-2">
+<Label>Email</Label>
+<Input
+value={clienteSeleccionado.contacto?.email || ''}
+onChange={(e) => setClienteSeleccionado({
+...clienteSeleccionado,
+contacto: { ...clienteSeleccionado.contacto, email: e.target.value }
+})}
+/>
+</div>
+<div className="space-y-2">
+<Label>Teléfono</Label>
+<Input
+value={clienteSeleccionado.contacto?.telefono || ''}
+onChange={(e) => setClienteSeleccionado({
+...clienteSeleccionado,
+contacto: { ...clienteSeleccionado.contacto, telefono: e.target.value }
+})}
+/>
+</div>
 </div>
 <DialogFooter>
 <Button variant="outline" onClick={() => setIsEditarOpen(false)}>Cancelar</Button>

@@ -1,9 +1,9 @@
 // ============================================
-// MILANO - Conductores Page (con datos reales)
+// MILANO - Conductores Page (OPTIMIZADO CON AUTO-ASIGNACIÓN)
 // ============================================
 
-import { useState, useEffect } from 'react';
-import { useConductoresStore, useUIStore } from '../store';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useConductoresStore, useServiciosStore, useUIStore } from '../store';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -25,7 +25,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogTrigger,
 } from '../components/ui/dialog';
 import {
   DropdownMenu,
@@ -36,6 +35,7 @@ import {
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Checkbox } from '../components/ui/checkbox';
 import {
   UserCircle,
   Search,
@@ -54,11 +54,14 @@ import {
   CreditCard,
   Award,
   Loader2,
+  Key,
+  Shield,
+  MapPin,
+  Briefcase,
 } from 'lucide-react';
 import type { Conductor, EstadoConductor } from '../types';
-import { format, parseISO, differenceInDays } from 'date-fns';
+import { format, parseISO, differenceInDays, isWithinInterval, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { toDateString } from '../lib/utils';
 
 const estadoConductorColors: Record<EstadoConductor, string> = {
   activo: 'bg-green-100 text-green-700',
@@ -69,85 +72,271 @@ const estadoConductorColors: Record<EstadoConductor, string> = {
   en_ruta: 'bg-purple-100 text-purple-700',
 };
 
+// Generar contraseña aleatoria segura
+const generarPassword = (): string => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+  let pass = '';
+  for (let i = 0; i < 10; i++) {
+    pass += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return pass;
+};
+
+// Verificar si un conductor está disponible en una fecha/hora específica
+const estaDisponible = (
+  conductor: Conductor,
+  fechaInicio: string,
+  horaInicio?: string,
+  fechaFin?: string,
+  horaFin?: string,
+  serviciosAsignados: any[] = []
+): boolean => {
+  // Si está de baja, vacaciones o descanso → no disponible
+  if (['baja', 'vacaciones', 'descanso', 'inactivo'].includes(conductor.estado)) return false;
+  
+  // Verificar disponibilidad horaria del conductor
+  const diaSemana = new Date(fechaInicio).getDay();
+  const disponibleDia = conductor.disponibilidad?.dias?.includes(diaSemana) ?? true;
+  if (!disponibleDia) return false;
+  
+  // Verificar solapamiento con servicios existentes
+  const inicioNuevo = new Date(`${fechaInicio}T${horaInicio || '00:00'}`);
+  const finNuevo = new Date(`${fechaFin || fechaInicio}T${horaFin || '23:59'}`);
+  
+  for (const servicio of serviciosAsignados) {
+    if (!servicio.conductoresAsignados?.includes(conductor.id)) continue;
+    
+    const inicioExistente = new Date(servicio.fechaInicio);
+    const finExistente = new Date(servicio.fechaFin || servicio.fechaInicio);
+    
+    // Hay solapamiento si el nuevo servicio se superpone con uno existente
+    if (isWithinInterval(inicioNuevo, { start: inicioExistente, end: finExistente }) ||
+        isWithinInterval(finNuevo, { start: inicioExistente, end: finExistente }) ||
+        isWithinInterval(inicioExistente, { start: inicioNuevo, end: finNuevo })) {
+      return false;
+    }
+  }
+  
+  return true;
+};
+
+// Calcular puntuación de preferencia para orden de asignación
+const calcularPuntuacion = (conductor: Conductor): number => {
+  let score = conductor.prioridad || 0;
+  
+  // Bonus por valoración alta
+  if (conductor.valoracion && conductor.valoracion >= 4.5) score += 10;
+  else if (conductor.valoracion && conductor.valoracion >= 4) score += 5;
+  
+  // Bonus por experiencia (más servicios completados)
+  score += (conductor.totalServiciosMes || 0) * 0.5;
+  
+  // Penalización por horas acumuladas este mes (rotación de carga)
+  score -= (conductor.totalHorasMes || 0) * 0.1;
+  
+  return score;
+};
+
 export default function Conductores() {
   const { conductores, isLoading, error, addConductor, updateConductor, deleteConductor, fetchConductores } = useConductoresStore();
+  const { servicios } = useServiciosStore();
   const { showToast } = useUIStore();
-  
+
   const [searchQuery, setSearchQuery] = useState('');
   const [estadoFiltro, setEstadoFiltro] = useState<EstadoConductor | 'todos'>('todos');
   const [conductorSeleccionado, setConductorSeleccionado] = useState<Conductor | null>(null);
   const [isNuevoConductorOpen, setIsNuevoConductorOpen] = useState(false);
   const [isEditarOpen, setIsEditarOpen] = useState(false);
-  const [nuevoConductor, setNuevoConductor] = useState<Partial<Conductor>>({
-    estado: 'activo',
-    tarifaHora: 18,
-    disponibilidad: { dias: [0, 1, 2, 3, 4], horaInicio: '08:00', horaFin: '18:00' },
-    licencia: { tipo: 'D', numero: '', fechaCaducidad: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() }
-  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [credencialesGeneradas, setCredencialesGeneradas] = useState<{usuario: string, password: string} | null>(null);
 
-  // Refrescar datos al montar
+  // Estado inicial con campos para panel de control
+  const initialConductorState = {
+    estado: 'activo' as EstadoConductor,
+    tarifaHora: 18,
+    prioridad: 50, // 0-100, mayor = preferencia de asignación
+    disponibilidad: {
+      dias: [1, 2, 3, 4, 5], // Lunes a Viernes (0=Domingo)
+      horaInicio: '08:00',
+      horaFin: '18:00',
+    },
+    licencia: {
+      tipo: 'D',
+      numero: '',
+      fechaCaducidad: addDays(new Date(), 365).toISOString(),
+    },
+    credenciales: {
+      usuario: '',
+      password: '',
+    },
+    panelActivo: true,
+  };
+
+  const [nuevoConductor, setNuevoConductor] = useState<Partial<Conductor>>(initialConductorState);
+
   useEffect(() => {
     fetchConductores();
   }, [fetchConductores]);
 
-  // Filtrar conductores
-  const conductoresFiltrados = conductores.filter(conductor => {
-    const matchesSearch = 
-      conductor.nombre?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      conductor.apellidos?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      conductor.codigo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      conductor.dni?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesEstado = estadoFiltro === 'todos' || conductor.estado === estadoFiltro;
-    return matchesSearch && matchesEstado;
-  });
+  useEffect(() => {
+    if (error) showToast(error, 'error');
+  }, [error, showToast]);
 
-  // Estadísticas
-  const conductoresActivos = conductores.filter(c => c.estado === 'activo').length;
-  const conductoresVacaciones = conductores.filter(c => c.estado === 'vacaciones').length;
-  const totalHorasMes = conductores.reduce((sum, c) => sum + (c.totalHorasMes || 0), 0);
+  // Conductores ordenados por puntuación (para auto-asignación)
+  const conductoresPriorizados = useMemo(() => {
+    return [...conductores]
+      .filter(c => c.estado === 'activo')
+      .map(c => ({ ...c, score: calcularPuntuacion(c) }))
+      .sort((a, b) => b.score - a.score);
+  }, [conductores]);
 
-  // Conductores con licencia próxima a caducar
-  const conductoresLicenciaProxima = conductores.filter(c => {
-    const fechaCaducidad = c.licencia?.fechaCaducidad ? parseISO(toDateString(c.licencia.fechaCaducidad)) : null;
-    return fechaCaducidad && differenceInDays(fechaCaducidad, new Date()) <= 30 && differenceInDays(fechaCaducidad, new Date()) >= 0;
-  });
+  // Encontrar mejor conductor disponible para un servicio
+  const encontrarMejorConductor = useCallback((
+    fechaInicio: string,
+    horaInicio?: string,
+    fechaFin?: string,
+    horaFin?: string
+  ): Conductor | null => {
+    for (const conductor of conductoresPriorizados) {
+      if (estaDisponible(conductor, fechaInicio, horaInicio, fechaFin, horaFin, servicios)) {
+        return conductor;
+      }
+    }
+    return null;
+  }, [conductoresPriorizados, servicios]);
 
-  const handleNuevoConductor = async () => {
-    if (!nuevoConductor.nombre || !nuevoConductor.apellidos || !nuevoConductor.dni) {
-      showToast('Por favor complete los campos obligatorios', 'error');
+  const conductoresFiltrados = useMemo(() => {
+    return conductores.filter(conductor => {
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearch = 
+        conductor.nombre?.toLowerCase().includes(searchLower) ||
+        conductor.apellidos?.toLowerCase().includes(searchLower) ||
+        conductor.codigo?.toLowerCase().includes(searchLower) ||
+        conductor.dni?.toLowerCase().includes(searchLower) ||
+        conductor.email?.toLowerCase().includes(searchLower);
+      const matchesEstado = estadoFiltro === 'todos' || conductor.estado === estadoFiltro;
+      return matchesSearch && matchesEstado;
+    });
+  }, [conductores, searchQuery, estadoFiltro]);
+
+  const stats = useMemo(() => ({
+    activos: conductores.filter(c => c.estado === 'activo').length,
+    vacaciones: conductores.filter(c => c.estado === 'vacaciones').length,
+    enRuta: conductores.filter(c => c.estado === 'en_ruta').length,
+    totalHorasMes: conductores.reduce((sum, c) => sum + (c.totalHorasMes || 0), 0),
+    licenciasProximas: conductores.filter(c => {
+      const fechaCaducidad = c.licencia?.fechaCaducidad ? parseISO(c.licencia.fechaCaducidad) : null;
+      return fechaCaducidad && differenceInDays(fechaCaducidad, new Date()) <= 30;
+    }).length,
+  }), [conductores]);
+
+  // FIX: Handler con preventDefault
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!nuevoConductor.nombre?.trim() || !nuevoConductor.apellidos?.trim() || !nuevoConductor.dni?.trim()) {
+      showToast('Nombre, apellidos y DNI son obligatorios', 'error');
       return;
     }
 
-    const success = await addConductor(nuevoConductor as Omit<Conductor, 'id' | 'codigo' | 'fechaAlta'>);
-    if (success) {
-      setIsNuevoConductorOpen(false);
-      setNuevoConductor({ 
-        estado: 'activo', 
-        tarifaHora: 18, 
-        disponibilidad: { dias: [0, 1, 2, 3, 4], horaInicio: '08:00', horaFin: '18:00' },
-        licencia: { tipo: 'D', numero: '', fechaCaducidad: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() }
-      });
-      showToast('Conductor creado correctamente', 'success');
+    setIsSubmitting(true);
+
+    try {
+      // Generar credenciales para panel de control
+      const usuario = nuevoConductor.email?.split('@')[0] || nuevoConductor.dni?.toLowerCase() || `cond_${Date.now().toString().slice(-4)}`;
+      const password = generarPassword();
+
+      const conductorData = {
+        codigo: `COND-${Date.now().toString().slice(-5)}`,
+        nombre: nuevoConductor.nombre.trim(),
+        apellidos: nuevoConductor.apellidos.trim(),
+        dni: nuevoConductor.dni.trim().toUpperCase(),
+        telefono: nuevoConductor.telefono?.trim() || null,
+        email: nuevoConductor.email?.trim() || null,
+        estado: nuevoConductor.estado || 'activo',
+        tarifa_hora: nuevoConductor.tarifaHora || 18,
+        prioridad: nuevoConductor.prioridad || 50,
+        disponibilidad: {
+          dias: nuevoConductor.disponibilidad?.dias || [1, 2, 3, 4, 5],
+          hora_inicio: nuevoConductor.disponibilidad?.horaInicio || '08:00',
+          hora_fin: nuevoConductor.disponibilidad?.horaFin || '18:00',
+        },
+        licencia: {
+          tipo: nuevoConductor.licencia?.tipo || 'D',
+          numero: nuevoConductor.licencia?.numero?.trim() || '',
+          fecha_caducidad: nuevoConductor.licencia?.fechaCaducidad || addDays(new Date(), 365).toISOString(),
+        },
+        credenciales: {
+          usuario: usuario,
+          password_hash: password, // En producción: hash real
+        },
+        panel_activo: true,
+        total_horas_mes: 0,
+        total_servicios_mes: 0,
+        valoracion: 0,
+        notas: nuevoConductor.notas?.trim() || null,
+      };
+
+      console.log('📤 Creando conductor:', conductorData);
+
+      const success = await addConductor(conductorData as any);
+
+      if (success) {
+        setCredencialesGeneradas({ usuario, password });
+        setNuevoConductor(initialConductorState);
+        showToast('Conductor creado correctamente', 'success');
+        await fetchConductores();
+        
+        // Mostrar credenciales por 10 segundos
+        setTimeout(() => setCredencialesGeneradas(null), 10000);
+      } else {
+        showToast('Error al crear conductor', 'error');
+      }
+    } catch (err: any) {
+      console.error('❌ Error:', err);
+      showToast(`Error: ${err.message || 'Desconocido'}`, 'error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleEditarConductor = async () => {
     if (!conductorSeleccionado) return;
+    setIsSubmitting(true);
     
-    const success = await updateConductor(String(conductorSeleccionado.id), conductorSeleccionado);
-    if (success) {
-      setIsEditarOpen(false);
-      showToast('Conductor actualizado correctamente', 'success');
+    try {
+      const success = await updateConductor(String(conductorSeleccionado.id), conductorSeleccionado);
+      if (success) {
+        setIsEditarOpen(false);
+        showToast('Conductor actualizado', 'success');
+        await fetchConductores();
+      }
+    } catch (err: any) {
+      showToast(`Error: ${err.message}`, 'error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleEliminarConductor = async (id: string) => {
-    if (window.confirm('¿Está seguro de eliminar este conductor?')) {
+    if (!window.confirm('¿Eliminar este conductor?')) return;
+    try {
       const success = await deleteConductor(id);
       if (success) {
         showToast('Conductor eliminado', 'success');
+        if (conductorSeleccionado?.id === id) setConductorSeleccionado(null);
+        await fetchConductores();
       }
+    } catch (err: any) {
+      showToast(`Error: ${err.message}`, 'error');
     }
+  };
+
+  const handleCloseDialog = () => {
+    setIsNuevoConductorOpen(false);
+    setNuevoConductor(initialConductorState);
+    setCredencialesGeneradas(null);
   };
 
   if (isLoading && conductores.length === 0) {
@@ -160,103 +349,26 @@ export default function Conductores() {
 
   return (
     <div className="space-y-6">
-      {/* Header con título y botón - AHORA VISIBLE */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-4 rounded-lg border shadow-sm">
         <div>
           <h2 className="text-xl font-bold text-slate-900">Conductores</h2>
-          <p className="text-slate-500 text-sm">Gestión de personal y recursos humanos</p>
+          <p className="text-slate-500 text-sm">Gestión de personal y auto-asignación</p>
         </div>
-        <Dialog open={isNuevoConductorOpen} onOpenChange={setIsNuevoConductorOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Nuevo Conductor
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Nuevo Conductor</DialogTitle>
-              <DialogDescription>
-                Complete la información del nuevo conductor
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="nombre">Nombre *</Label>
-                  <Input 
-                    id="nombre"
-                    value={nuevoConductor.nombre || ''}
-                    onChange={(e) => setNuevoConductor({...nuevoConductor, nombre: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="apellidos">Apellidos *</Label>
-                  <Input 
-                    id="apellidos"
-                    value={nuevoConductor.apellidos || ''}
-                    onChange={(e) => setNuevoConductor({...nuevoConductor, apellidos: e.target.value})}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="dni">DNI *</Label>
-                <Input 
-                  id="dni"
-                  value={nuevoConductor.dni || ''}
-                  onChange={(e) => setNuevoConductor({...nuevoConductor, dni: e.target.value})}
-                  placeholder="12345678A"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="telefono">Teléfono</Label>
-                  <Input 
-                    id="telefono"
-                    value={nuevoConductor.telefono || ''}
-                    onChange={(e) => setNuevoConductor({...nuevoConductor, telefono: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input 
-                    id="email"
-                    type="email"
-                    value={nuevoConductor.email || ''}
-                    onChange={(e) => setNuevoConductor({...nuevoConductor, email: e.target.value})}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="tarifa">Tarifa/Hora (€)</Label>
-                <Input 
-                  id="tarifa"
-                  type="number"
-                  value={nuevoConductor.tarifaHora}
-                  onChange={(e) => setNuevoConductor({...nuevoConductor, tarifaHora: parseFloat(e.target.value)})}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsNuevoConductorOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleNuevoConductor} disabled={isLoading}>
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Crear Conductor'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <Button onClick={() => setIsNuevoConductorOpen(true)} className="bg-[#1e3a5f] hover:bg-[#152a45]">
+          <Plus className="mr-2 h-4 w-4" />
+          Nuevo Conductor
+        </Button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      {/* Stats */}
+      <div className="grid gap-4 md:grid-cols-5">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">Activos</p>
-                <p className="text-3xl font-bold">{conductoresActivos}</p>
+                <p className="text-sm text-slate-500">Activos</p>
+                <p className="text-3xl font-bold">{stats.activos}</p>
               </div>
               <div className="rounded-full bg-green-100 p-3">
                 <CheckCircle2 className="h-6 w-6 text-green-600" />
@@ -268,8 +380,21 @@ export default function Conductores() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">Vacaciones</p>
-                <p className="text-3xl font-bold">{conductoresVacaciones}</p>
+                <p className="text-sm text-slate-500">En Ruta</p>
+                <p className="text-3xl font-bold">{stats.enRuta}</p>
+              </div>
+              <div className="rounded-full bg-purple-100 p-3">
+                <Briefcase className="h-6 w-6 text-purple-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-500">Vacaciones</p>
+                <p className="text-3xl font-bold">{stats.vacaciones}</p>
               </div>
               <div className="rounded-full bg-blue-100 p-3">
                 <Calendar className="h-6 w-6 text-blue-600" />
@@ -281,8 +406,8 @@ export default function Conductores() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">Horas Este Mes</p>
-                <p className="text-3xl font-bold">{totalHorasMes}</p>
+                <p className="text-sm text-slate-500">Horas Mes</p>
+                <p className="text-3xl font-bold">{stats.totalHorasMes}</p>
               </div>
               <div className="rounded-full bg-purple-100 p-3">
                 <Clock className="h-6 w-6 text-purple-600" />
@@ -294,8 +419,8 @@ export default function Conductores() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">Licencias Próximas</p>
-                <p className="text-3xl font-bold">{conductoresLicenciaProxima.length}</p>
+                <p className="text-sm text-slate-500">Licencias ⚠️</p>
+                <p className="text-3xl font-bold">{stats.licenciasProximas}</p>
               </div>
               <div className="rounded-full bg-amber-100 p-3">
                 <AlertTriangle className="h-6 w-6 text-amber-600" />
@@ -305,11 +430,267 @@ export default function Conductores() {
         </Card>
       </div>
 
-      {/* Tabs */}
+      {/* Dialog Nuevo Conductor - FIX: form con onSubmit */}
+      <Dialog open={isNuevoConductorOpen} onOpenChange={setIsNuevoConductorOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Nuevo Conductor</DialogTitle>
+            <DialogDescription>
+              Complete la información. Se generarán credenciales automáticamente.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmit} className="space-y-4 py-4">
+            {/* Datos básicos */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Nombre *</Label>
+                <Input
+                  value={nuevoConductor.nombre || ''}
+                  onChange={(e) => setNuevoConductor({...nuevoConductor, nombre: e.target.value})}
+                  placeholder="Nombre"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Apellidos *</Label>
+                <Input
+                  value={nuevoConductor.apellidos || ''}
+                  onChange={(e) => setNuevoConductor({...nuevoConductor, apellidos: e.target.value})}
+                  placeholder="Apellidos"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>DNI *</Label>
+                <Input
+                  value={nuevoConductor.dni || ''}
+                  onChange={(e) => setNuevoConductor({...nuevoConductor, dni: e.target.value.toUpperCase()})}
+                  placeholder="12345678A"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Teléfono</Label>
+                <Input
+                  value={nuevoConductor.telefono || ''}
+                  onChange={(e) => setNuevoConductor({...nuevoConductor, telefono: e.target.value})}
+                  placeholder="+34 600 000 000"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Email (para panel de control)</Label>
+              <Input
+                type="email"
+                value={nuevoConductor.email || ''}
+                onChange={(e) => setNuevoConductor({...nuevoConductor, email: e.target.value})}
+                placeholder="conductor@ejemplo.com"
+              />
+            </div>
+
+            {/* Tarifa y Prioridad */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Tarifa/Hora (€)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.5}
+                  value={nuevoConductor.tarifaHora}
+                  onChange={(e) => setNuevoConductor({...nuevoConductor, tarifaHora: parseFloat(e.target.value)})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Prioridad Asignación (0-100)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={nuevoConductor.prioridad}
+                  onChange={(e) => setNuevoConductor({...nuevoConductor, prioridad: parseInt(e.target.value)})}
+                />
+                <p className="text-xs text-slate-500">Mayor = preferencia en auto-asignación</p>
+              </div>
+            </div>
+
+            {/* Disponibilidad */}
+            <div className="space-y-3 p-3 bg-slate-50 rounded-lg border">
+              <Label className="flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Disponibilidad Horaria
+              </Label>
+              
+              <div className="flex flex-wrap gap-2">
+                {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((dia, idx) => (
+                  <div key={idx} className="flex items-center gap-1">
+                    <Checkbox
+                      id={`dia-${idx}`}
+                      checked={nuevoConductor.disponibilidad?.dias?.includes(idx)}
+                      onCheckedChange={(checked) => {
+                        const dias = checked
+                          ? [...(nuevoConductor.disponibilidad?.dias || []), idx]
+                          : (nuevoConductor.disponibilidad?.dias || []).filter(d => d !== idx);
+                        setNuevoConductor({
+                          ...nuevoConductor,
+                          disponibilidad: { ...nuevoConductor.disponibilidad, dias }
+                        });
+                      }}
+                    />
+                    <Label htmlFor={`dia-${idx}`} className="text-sm cursor-pointer">{dia}</Label>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Hora Inicio</Label>
+                  <Input
+                    type="time"
+                    value={nuevoConductor.disponibilidad?.horaInicio || '08:00'}
+                    onChange={(e) => setNuevoConductor({
+                      ...nuevoConductor,
+                      disponibilidad: { ...nuevoConductor.disponibilidad, horaInicio: e.target.value }
+                    })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Hora Fin</Label>
+                  <Input
+                    type="time"
+                    value={nuevoConductor.disponibilidad?.horaFin || '18:00'}
+                    onChange={(e) => setNuevoConductor({
+                      ...nuevoConductor,
+                      disponibilidad: { ...nuevoConductor.disponibilidad, horaFin: e.target.value }
+                    })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Licencia */}
+            <div className="space-y-3 p-3 bg-slate-50 rounded-lg border">
+              <Label className="flex items-center gap-2">
+                <Award className="h-4 w-4" />
+                Licencia
+              </Label>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Tipo</Label>
+                  <Select
+                    value={nuevoConductor.licencia?.tipo || 'D'}
+                    onValueChange={(v) => setNuevoConductor({
+                      ...nuevoConductor,
+                      licencia: { ...nuevoConductor.licencia, tipo: v }
+                    })}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="D">D (Autobuses)</SelectItem>
+                      <SelectItem value="D1">D1 (Minibuses)</SelectItem>
+                      <SelectItem value="C">C (Camiones)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 col-span-2">
+                  <Label>Número Licencia</Label>
+                  <Input
+                    value={nuevoConductor.licencia?.numero || ''}
+                    onChange={(e) => setNuevoConductor({
+                      ...nuevoConductor,
+                      licencia: { ...nuevoConductor.licencia, numero: e.target.value }
+                    })}
+                    placeholder="Número de licencia"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Fecha Caducidad</Label>
+                <Input
+                  type="date"
+                  value={nuevoConductor.licencia?.fechaCaducidad ? format(new Date(nuevoConductor.licencia.fechaCaducidad), 'yyyy-MM-dd') : ''}
+                  onChange={(e) => setNuevoConductor({
+                    ...nuevoConductor,
+                    licencia: { ...nuevoConductor.licencia, fechaCaducidad: e.target.value }
+                  })}
+                />
+              </div>
+            </div>
+
+            {/* Estado */}
+            <div className="space-y-2">
+              <Label>Estado Inicial</Label>
+              <Select
+                value={nuevoConductor.estado}
+                onValueChange={(v) => setNuevoConductor({...nuevoConductor, estado: v as EstadoConductor})}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="activo">Activo</SelectItem>
+                  <SelectItem value="vacaciones">Vacaciones</SelectItem>
+                  <SelectItem value="descanso">Descanso</SelectItem>
+                  <SelectItem value="baja">Baja</SelectItem>
+                  <SelectItem value="inactivo">Inactivo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Credenciales Preview */}
+            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <Label className="flex items-center gap-2 text-blue-700">
+                <Key className="h-4 w-4" />
+                Panel de Control - Credenciales
+              </Label>
+              <p className="text-sm text-blue-600 mt-1">
+                Se generarán automáticamente al crear el conductor
+              </p>
+            </div>
+
+            {/* Credenciales Generadas */}
+            {credencialesGeneradas && (
+              <div className="p-4 bg-green-50 rounded-lg border border-green-200 space-y-2">
+                <p className="font-medium text-green-700 flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  Credenciales Generadas (guarde estas)
+                </p>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <Label className="text-green-600">Usuario:</Label>
+                    <p className="font-mono bg-white p-2 rounded border">{credencialesGeneradas.usuario}</p>
+                  </div>
+                  <div>
+                    <Label className="text-green-600">Contraseña:</Label>
+                    <p className="font-mono bg-white p-2 rounded border">{credencialesGeneradas.password}</p>
+                  </div>
+                </div>
+                <p className="text-xs text-green-600">
+                  Estas credenciales desaparecerán en 10 segundos. Asegúrese de guardarlas.
+                </p>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={handleCloseDialog} disabled={isSubmitting}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isSubmitting} className="bg-[#1e3a5f] hover:bg-[#152a45]">
+                {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Creando...</> : 'Crear Conductor'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Tabs y resto del contenido... */}
       <Tabs defaultValue="conductores" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="conductores">Conductores</TabsTrigger>
-          <TabsTrigger value="alertas">Alertas ({conductoresLicenciaProxima.length})</TabsTrigger>
+          <TabsTrigger value="conductores">Conductores ({conductoresFiltrados.length})</TabsTrigger>
+          <TabsTrigger value="disponibilidad">Disponibilidad</TabsTrigger>
+          <TabsTrigger value="alertas">Alertas ({stats.licenciasProximas})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="conductores" className="space-y-4">
@@ -331,6 +712,7 @@ export default function Conductores() {
               <SelectContent>
                 <SelectItem value="todos">Todos los estados</SelectItem>
                 <SelectItem value="activo">Activo</SelectItem>
+                <SelectItem value="en_ruta">En Ruta</SelectItem>
                 <SelectItem value="vacaciones">Vacaciones</SelectItem>
                 <SelectItem value="baja">De Baja</SelectItem>
                 <SelectItem value="descanso">Descanso</SelectItem>
@@ -338,7 +720,7 @@ export default function Conductores() {
             </Select>
           </div>
 
-          {/* Drivers Table */}
+          {/* Table */}
           <Card>
             <CardContent className="p-0">
               <Table>
@@ -346,7 +728,7 @@ export default function Conductores() {
                   <TableRow>
                     <TableHead>Conductor</TableHead>
                     <TableHead>Contacto</TableHead>
-                    <TableHead>Licencia</TableHead>
+                    <TableHead>Disponibilidad</TableHead>
                     <TableHead>Tarifa/Hora</TableHead>
                     <TableHead>Horas Mes</TableHead>
                     <TableHead>Estado</TableHead>
@@ -372,46 +754,27 @@ export default function Conductores() {
                             </Avatar>
                             <div>
                               <p className="font-medium">{conductor.nombre} {conductor.apellidos}</p>
-                              <p className="text-xs text-slate-500">{conductor.codigo}</p>
+                              <p className="text-xs text-slate-500">{conductor.codigo} • Prioridad: {conductor.prioridad || 50}</p>
                             </div>
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1">
-                            <span className="flex items-center gap-1 text-sm">
-                              <Phone className="h-3 w-3" />
-                              {conductor.telefono || '-'}
-                            </span>
-                            <span className="flex items-center gap-1 text-sm text-slate-500">
-                              <Mail className="h-3 w-3" />
-                              {conductor.email || '-'}
-                            </span>
+                            <span className="flex items-center gap-1 text-sm"><Phone className="h-3 w-3" />{conductor.telefono || '-'}</span>
+                            <span className="flex items-center gap-1 text-sm text-slate-500"><Mail className="h-3 w-3" />{conductor.email || '-'}</span>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex flex-col">
-                            <span className="text-sm">Tipo {conductor.licencia?.tipo || '-'}</span>
-                            <span className={`text-xs ${
-                              differenceInDays(parseISO(toDateString(conductor.licencia?.fechaCaducidad) || new Date().toISOString()), new Date()) <= 30 
-                                ? 'text-red-600 font-medium' 
-                                : 'text-slate-500'
-                            }`}>
-                              Vence: {conductor.licencia?.fechaCaducidad ? format(parseISO(toDateString(conductor.licencia.fechaCaducidad)), 'dd/MM/yyyy') : '-'}
-                            </span>
+                          <div className="text-sm">
+                            <p>{conductor.disponibilidad?.dias?.map(d => ['D','L','M','X','J','V','S'][d]).join(', ')}</p>
+                            <p className="text-slate-500">{conductor.disponibilidad?.horaInicio}-{conductor.disponibilidad?.horaFin}</p>
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <span className="font-medium">{conductor.tarifaHora}€/h</span>
-                        </TableCell>
+                        <TableCell><span className="font-medium">{conductor.tarifaHora}€/h</span></TableCell>
                         <TableCell>
                           <div className="w-24">
-                            <Progress 
-                              value={((conductor.totalHorasMes || 0) / 160) * 100} 
-                              className="h-2" 
-                            />
-                            <span className="text-xs text-slate-500">
-                              {conductor.totalHorasMes || 0}h
-                            </span>
+                            <Progress value={((conductor.totalHorasMes || 0) / 160) * 100} className="h-2" />
+                            <span className="text-xs text-slate-500">{conductor.totalHorasMes || 0}h</span>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -422,25 +785,17 @@ export default function Conductores() {
                         <TableCell className="text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
+                              <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => setConductorSeleccionado(conductor)}>
-                                <Eye className="mr-2 h-4 w-4" />
-                                Ver detalles
+                                <Eye className="mr-2 h-4 w-4" />Ver detalles
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => { setConductorSeleccionado(conductor); setIsEditarOpen(true); }}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Editar
+                                <Edit className="mr-2 h-4 w-4" />Editar
                               </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                className="text-red-600"
-                                onClick={() => handleEliminarConductor(String(conductor.id))}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Eliminar
+                              <DropdownMenuItem className="text-red-600" onClick={() => handleEliminarConductor(String(conductor.id))}>
+                                <Trash2 className="mr-2 h-4 w-4" />Eliminar
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -454,48 +809,86 @@ export default function Conductores() {
           </Card>
         </TabsContent>
 
+        {/* Tab Disponibilidad */}
+        <TabsContent value="disponibilidad">
+          <Card>
+            <CardHeader>
+              <CardTitle>Matriz de Disponibilidad</CardTitle>
+              <CardDescription>Vista semanal de disponibilidad de conductores activos</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {conductores.filter(c => c.estado === 'activo').map(conductor => (
+                  <div key={conductor.id} className="flex items-center gap-4 p-3 rounded-lg bg-slate-50">
+                    <div className="w-32 font-medium truncate">{conductor.nombre} {conductor.apellidos?.charAt(0)}.</div>
+                    <div className="flex-1 flex gap-1">
+                      {['L','M','X','J','V','S','D'].map((dia, idx) => {
+                        const disponible = conductor.disponibilidad?.dias?.includes(idx + 1) || (idx === 6 && conductor.disponibilidad?.dias?.includes(0));
+                        return (
+                          <div
+                            key={idx}
+                            className={`flex-1 h-8 rounded flex items-center justify-center text-xs font-medium ${
+                              disponible ? 'bg-green-200 text-green-800' : 'bg-slate-200 text-slate-500'
+                            }`}
+                          >
+                            {dia}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="w-32 text-sm text-slate-500">
+                      {conductor.disponibilidad?.horaInicio}-{conductor.disponibilidad?.horaFin}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab Alertas */}
         <TabsContent value="alertas">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5" />
-                Licencias Próximas a Caducar
-              </CardTitle>
-              <CardDescription>
-                Conductores con licencia en los próximos 30 días
-              </CardDescription>
+              <CardTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5" />Licencias Próximas a Caducar</CardTitle>
             </CardHeader>
             <CardContent>
-              {conductoresLicenciaProxima.length === 0 ? (
+              {stats.licenciasProximas === 0 ? (
                 <div className="text-center py-8 text-slate-500">
                   <CheckCircle2 className="mx-auto mb-2 h-8 w-8 text-green-500" />
                   <p>No hay licencias próximas a caducar</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {conductoresLicenciaProxima.map(conductor => (
-                    <div key={conductor.id} className="flex items-center justify-between p-4 rounded-lg bg-amber-50 border border-amber-200">
-                      <div className="flex items-center gap-4">
-                        <Avatar className="h-12 w-12">
-                          <AvatarFallback className="bg-amber-500 text-white">
-                            {conductor.nombre?.charAt(0)}{conductor.apellidos?.charAt(0)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{conductor.nombre} {conductor.apellidos}</p>
-                          <p className="text-sm text-slate-600">{conductor.codigo} • Licencia tipo {conductor.licencia?.tipo}</p>
+                  {conductores.filter(c => {
+                    const fecha = c.licencia?.fechaCaducidad ? parseISO(c.licencia.fechaCaducidad) : null;
+                    return fecha && differenceInDays(fecha, new Date()) <= 30;
+                  }).map(conductor => {
+                    const diasRestantes = differenceInDays(parseISO(conductor.licencia!.fechaCaducidad!), new Date());
+                    return (
+                      <div key={conductor.id} className={`flex items-center justify-between p-4 rounded-lg border ${
+                        diasRestantes <= 7 ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'
+                      }`}>
+                        <div className="flex items-center gap-4">
+                          <Avatar className="h-12 w-12">
+                            <AvatarFallback className={diasRestantes <= 7 ? 'bg-red-500' : 'bg-amber-500'}>
+                              {conductor.nombre?.charAt(0)}{conductor.apellidos?.charAt(0)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">{conductor.nombre} {conductor.apellidos}</p>
+                            <p className="text-sm text-slate-600">Licencia {conductor.licencia?.tipo} - {conductor.licencia?.numero}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className={`font-medium ${diasRestantes <= 7 ? 'text-red-700' : 'text-amber-700'}`}>
+                            Caduca: {format(parseISO(conductor.licencia!.fechaCaducidad!), 'dd/MM/yyyy')}
+                          </p>
+                          <p className="text-xs">{diasRestantes} días restantes</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-amber-700">
-                          Caduca: {conductor.licencia?.fechaCaducidad ? format(parseISO(toDateString(conductor.licencia.fechaCaducidad)), 'dd/MM/yyyy') : '-'}
-                        </p>
-                        <p className="text-xs text-amber-600">
-                          {differenceInDays(parseISO(toDateString(conductor.licencia?.fechaCaducidad) || new Date().toISOString()), new Date())} días restantes
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -503,7 +896,7 @@ export default function Conductores() {
         </TabsContent>
       </Tabs>
 
-      {/* Driver Detail Dialog */}
+      {/* Detail Dialog */}
       <Dialog open={!!conductorSeleccionado && !isEditarOpen} onOpenChange={() => setConductorSeleccionado(null)}>
         <DialogContent className="max-w-2xl">
           {conductorSeleccionado && (
@@ -517,57 +910,43 @@ export default function Conductores() {
                   </Avatar>
                   <div>
                     <DialogTitle>{conductorSeleccionado.nombre} {conductorSeleccionado.apellidos}</DialogTitle>
-                    <DialogDescription>
-                      {conductorSeleccionado.codigo} • {conductorSeleccionado.dni}
-                    </DialogDescription>
+                    <DialogDescription>{conductorSeleccionado.codigo} • {conductorSeleccionado.dni}</DialogDescription>
                   </div>
                 </div>
               </DialogHeader>
               <div className="space-y-4 py-4">
+                {/* Info de contacto */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-slate-500">Email</Label>
-                    <p className="flex items-center gap-2">
-                      <Mail className="h-4 w-4" />
-                      {conductorSeleccionado.email || '-'}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-slate-500">Teléfono</Label>
-                    <p className="flex items-center gap-2">
-                      <Phone className="h-4 w-4" />
-                      {conductorSeleccionado.telefono || '-'}
-                    </p>
-                  </div>
+                  <div><Label className="text-slate-500">Email</Label><p className="flex items-center gap-2"><Mail className="h-4 w-4" />{conductorSeleccionado.email || '-'}</p></div>
+                  <div><Label className="text-slate-500">Teléfono</Label><p className="flex items-center gap-2"><Phone className="h-4 w-4" />{conductorSeleccionado.telefono || '-'}</p></div>
                 </div>
+                {/* Licencia y tarifa */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-slate-500">Licencia</Label>
-                    <p className="flex items-center gap-2">
-                      <Award className="h-4 w-4" />
-                      Tipo {conductorSeleccionado.licencia?.tipo || '-'} - {conductorSeleccionado.licencia?.numero || '-'}
-                    </p>
-                    <p className="text-sm text-slate-500">
-                      Caduca: {conductorSeleccionado.licencia?.fechaCaducidad ? format(parseISO(toDateString(conductorSeleccionado.licencia.fechaCaducidad)), 'dd/MM/yyyy') : '-'}
-                    </p>
+                    <p className="flex items-center gap-2"><Award className="h-4 w-4" />Tipo {conductorSeleccionado.licencia?.tipo || '-'}</p>
+                    <p className="text-sm text-slate-500">Vence: {conductorSeleccionado.licencia?.fechaCaducidad ? format(parseISO(conductorSeleccionado.licencia.fechaCaducidad), 'dd/MM/yyyy') : '-'}</p>
                   </div>
                   <div>
-                    <Label className="text-slate-500">Tarifa/Hora</Label>
-                    <p className="flex items-center gap-2">
-                      <CreditCard className="h-4 w-4" />
-                      {conductorSeleccionado.tarifaHora}€/h
-                    </p>
+                    <Label className="text-slate-500">Tarifa y Prioridad</Label>
+                    <p className="flex items-center gap-2"><CreditCard className="h-4 w-4" />{conductorSeleccionado.tarifaHora}€/h</p>
+                    <p className="text-sm text-slate-500">Prioridad asignación: {conductorSeleccionado.prioridad || 50}/100</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-slate-500">Horas Este Mes</Label>
-                    <p>{conductorSeleccionado.totalHorasMes || 0} horas</p>
-                  </div>
-                  <div>
-                    <Label className="text-slate-500">Servicios Este Mes</Label>
-                    <p>{conductorSeleccionado.totalServiciosMes || 0} servicios</p>
-                  </div>
+                {/* Disponibilidad */}
+                <div>
+                  <Label className="text-slate-500">Disponibilidad</Label>
+                  <p className="text-sm">
+                    Días: {conductorSeleccionado.disponibilidad?.dias?.map(d => ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d]).join(', ')}
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    Horario: {conductorSeleccionado.disponibilidad?.horaInicio} - {conductorSeleccionado.disponibilidad?.horaFin}
+                  </p>
+                </div>
+                {/* Stats */}
+                <div className="grid grid-cols-2 gap-4 p-3 bg-slate-50 rounded-lg">
+                  <div><Label className="text-slate-500">Horas Este Mes</Label><p>{conductorSeleccionado.totalHorasMes || 0}h</p></div>
+                  <div><Label className="text-slate-500">Servicios Este Mes</Label><p>{conductorSeleccionado.totalServiciosMes || 0}</p></div>
                 </div>
                 {conductorSeleccionado.valoracion && (
                   <div>
@@ -577,12 +956,6 @@ export default function Conductores() {
                       <span className="text-lg font-medium">{conductorSeleccionado.valoracion}</span>
                       <span className="text-slate-500">/5</span>
                     </div>
-                  </div>
-                )}
-                {conductorSeleccionado.notas && (
-                  <div>
-                    <Label className="text-slate-500">Notas</Label>
-                    <p className="text-sm">{conductorSeleccionado.notas}</p>
                   </div>
                 )}
               </div>

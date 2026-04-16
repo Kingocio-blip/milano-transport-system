@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Boolean, Numeric, Date, Enum as SQLEnum, JSON
+from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Boolean, Numeric, Date, Enum as SQLEnum, JSON, Float
 from sqlalchemy.orm import relationship
 from database import Base
 import datetime
@@ -8,6 +8,9 @@ import enum
 class TipoCliente(str, enum.Enum):
     EMPRESA = "empresa"
     PARTICULAR = "particular"
+    FESTIVAL = "festival"
+    PROMOTOR = "promotor"
+    COLEGIO = "colegio"
 
 class EstadoCliente(str, enum.Enum):
     ACTIVO = "activo"
@@ -16,20 +19,23 @@ class EstadoCliente(str, enum.Enum):
 
 class EstadoConductor(str, enum.Enum):
     ACTIVO = "activo"
+    BAJA = "baja"
+    VACACIONES = "vacaciones"
+    DESCANSO = "descanso"
     INACTIVO = "inactivo"
     EN_RUTA = "en_ruta"
-    DESCANSO = "descanso"
 
 class EstadoVehiculo(str, enum.Enum):
-    ACTIVO = "activo"
-    INACTIVO = "inactivo"
-    EN_MANTENIMIENTO = "en_mantenimiento"
-    EN_RUTA = "en_ruta"
+    OPERATIVO = "operativo"
+    TALLER = "taller"
+    BAJA = "baja"
+    RESERVADO = "reservado"
 
 class TipoVehiculo(str, enum.Enum):
-    CAMION = "camion"
+    AUTOBUS = "autobus"
+    MINIBUS = "minibus"
     FURGONETA = "furgoneta"
-    TRAILER = "trailer"
+    COCHE = "coche"
 
 class UserRole(str, enum.Enum):
     ADMIN = "admin"
@@ -50,6 +56,10 @@ class User(Base):
     activo = Column(Boolean, default=True)
     fecha_creacion = Column(DateTime, default=datetime.datetime.utcnow)
     ultimo_acceso = Column(DateTime, nullable=True)
+    
+    # Relación con conductor (para panel de control)
+    conductor_id = Column(Integer, ForeignKey("conductores.id"), nullable=True)
+    conductor = relationship("Conductor", back_populates="usuario")
 
 # Cliente model
 class Cliente(Base):
@@ -84,6 +94,10 @@ class Cliente(Base):
     dias_pago = Column(Integer, nullable=True)
     limite_credito = Column(Numeric(10, 2), nullable=True)
     
+    # Estadísticas
+    total_servicios = Column(Integer, default=0)
+    total_facturado = Column(Numeric(12, 2), default=0)
+    
     # Metadatos
     fecha_creacion = Column(DateTime, default=datetime.datetime.utcnow)
     fecha_actualizacion = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
@@ -92,7 +106,7 @@ class Cliente(Base):
     # Relaciones
     servicios = relationship("Servicio", back_populates="cliente")
 
-# Conductor model
+# Conductor model (ACTUALIZADO)
 class Conductor(Base):
     __tablename__ = "conductores"
     
@@ -110,25 +124,46 @@ class Conductor(Base):
     email = Column(String(100), nullable=True)
     direccion = Column(String(200), nullable=True)
     
-    # Licencia
-    num_licencia = Column(String(50), nullable=True)
-    categoria_licencia = Column(String(20), nullable=True)
-    fecha_vencimiento_licencia = Column(Date, nullable=True)
+    # Licencia (estructura JSON flexible)
+    licencia_tipo = Column(String(20), nullable=True)
+    licencia_numero = Column(String(50), nullable=True)
+    licencia_fecha_expedicion = Column(Date, nullable=True)
+    licencia_fecha_caducidad = Column(Date, nullable=True)
+    licencia_permisos = Column(JSON, default=list)
     
-    # Documentacion
-    fecha_vencimiento_adr = Column(Date, nullable=True)
-    fecha_vencimiento_medico = Column(Date, nullable=True)
+    # Tarifas y prioridad
+    tarifa_hora = Column(Numeric(8, 2), default=18)
+    tarifa_servicio = Column(Numeric(10, 2), nullable=True)
+    prioridad = Column(Integer, default=50)  # 0-100 para orden de asignación
+    
+    # Disponibilidad horaria
+    disponibilidad_dias = Column(JSON, default=list)  # [1,2,3,4,5] = Lunes-Viernes
+    disponibilidad_hora_inicio = Column(String(10), default="08:00")
+    disponibilidad_hora_fin = Column(String(10), default="18:00")
+    disponibilidad_observaciones = Column(Text, nullable=True)
+    
+    # Credenciales para panel de control
+    credenciales_usuario = Column(String(50), nullable=True)
+    credenciales_password_hash = Column(String(255), nullable=True)
+    panel_activo = Column(Boolean, default=True)
+    
+    # Estadísticas
+    total_horas_mes = Column(Numeric(8, 2), default=0)
+    total_servicios_mes = Column(Integer, default=0)
+    valoracion = Column(Numeric(3, 2), nullable=True)  # 0-5
     
     # Estado
     estado = Column(SQLEnum(EstadoConductor), default=EstadoConductor.ACTIVO)
     
     # Metadatos
-    fecha_contratacion = Column(Date, nullable=True)
     fecha_creacion = Column(DateTime, default=datetime.datetime.utcnow)
     fecha_actualizacion = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
     notas = Column(Text, nullable=True)
+    
+    # Relaciones
+    usuario = relationship("User", back_populates="conductor", uselist=False)
 
-# Vehiculo model
+# Vehiculo model (ACTUALIZADO)
 class Vehiculo(Base):
     __tablename__ = "vehiculos"
     
@@ -137,31 +172,46 @@ class Vehiculo(Base):
     
     # Informacion del vehiculo
     matricula = Column(String(20), unique=True, nullable=False)
-    tipo = Column(SQLEnum(TipoVehiculo), default=TipoVehiculo.CAMION)
+    tipo = Column(SQLEnum(TipoVehiculo), default=TipoVehiculo.AUTOBUS)
     marca = Column(String(50), nullable=True)
     modelo = Column(String(50), nullable=True)
     anno_fabricacion = Column(Integer, nullable=True)
+    plazas = Column(Integer, default=0)
     
-    # Especificaciones tecnicas
-    capacidad_kg = Column(Numeric(10, 2), nullable=True)
-    volumen_m3 = Column(Numeric(8, 2), nullable=True)
-    longitud_m = Column(Numeric(5, 2), nullable=True)
+    # Kilometraje y consumo
+    kilometraje = Column(Integer, default=0)
+    kilometraje_ultima_revision = Column(Integer, nullable=True)
+    consumo_medio = Column(Numeric(5, 2), nullable=True)  # L/100km
+    combustible = Column(String(20), default="diesel")
     
-    # Documentacion
-    fecha_vencimiento_itv = Column(Date, nullable=True)
-    fecha_vencimiento_seguro = Column(Date, nullable=True)
-    num_poliza_seguro = Column(String(50), nullable=True)
+    # ITV (estructura plana para compatibilidad)
+    itv_fecha_ultima = Column(Date, nullable=True)
+    itv_fecha_proxima = Column(Date, nullable=True)
+    itv_resultado = Column(String(50), nullable=True)
+    itv_observaciones = Column(Text, nullable=True)
+    
+    # Seguro (estructura plana)
+    seguro_compania = Column(String(100), nullable=True)
+    seguro_poliza = Column(String(100), nullable=True)
+    seguro_tipo_cobertura = Column(String(50), nullable=True)
+    seguro_fecha_inicio = Column(Date, nullable=True)
+    seguro_fecha_vencimiento = Column(Date, nullable=True)
+    seguro_prima = Column(Numeric(10, 2), nullable=True)
+    
+    # Mantenimientos
+    mantenimientos = Column(JSON, default=list)
     
     # Estado
-    estado = Column(SQLEnum(EstadoVehiculo), default=EstadoVehiculo.ACTIVO)
+    estado = Column(SQLEnum(EstadoVehiculo), default=EstadoVehiculo.OPERATIVO)
+    ubicacion = Column(String(200), nullable=True)
     
     # Metadatos
-    fecha_adquisicion = Column(Date, nullable=True)
     fecha_creacion = Column(DateTime, default=datetime.datetime.utcnow)
     fecha_actualizacion = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
     notas = Column(Text, nullable=True)
+    imagen_url = Column(String(500), nullable=True)
 
-# Servicio model (NUEVO)
+# Servicio model (ACTUALIZADO)
 class Servicio(Base):
     __tablename__ = "servicios"
     
@@ -180,11 +230,16 @@ class Servicio(Base):
     titulo = Column(String(200), nullable=False)
     descripcion = Column(Text, nullable=True)
     
-    # Fechas
+    # Fechas y horas
     fecha_inicio = Column(DateTime, nullable=False)
     fecha_fin = Column(DateTime, nullable=True)
     hora_inicio = Column(String(10), nullable=True)
     hora_fin = Column(String(10), nullable=True)
+    
+    # Horas reales (fichaje conductor)
+    hora_inicio_real = Column(DateTime, nullable=True)
+    hora_fin_real = Column(DateTime, nullable=True)
+    horas_reales = Column(Float, nullable=True)
     
     # Ubicacion
     origen = Column(String(200), nullable=True)
@@ -213,6 +268,15 @@ class Servicio(Base):
     incidencias = Column(JSON, default=list)
     documentos = Column(JSON, default=list)
     
+    # NUEVO: Gastos registrados por conductor
+    gastos = Column(JSON, default=list)  # [{id, tipo, cantidad, precio, notas, fecha, conductor_id}]
+    
+    # NUEVO: Revisiones del vehiculo
+    revisiones = Column(JSON, default=list)  # [{id, tipo, estado, notas, fecha, conductor_id, vehiculo_id}]
+    
+    # NUEVO: Tracking de ruta
+    tracking = Column(JSON, default=dict)  # {kmInicio, kmFin, kmTotal, rutaTomada, duracionReal}
+    
     # Metadatos
     fecha_creacion = Column(DateTime, default=datetime.datetime.utcnow)
     fecha_modificacion = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
@@ -220,3 +284,49 @@ class Servicio(Base):
     
     # Relaciones
     cliente = relationship("Cliente", back_populates="servicios")
+
+# Factura model (NUEVO)
+class Factura(Base):
+    __tablename__ = "facturas"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    numero = Column(String(20), unique=True, nullable=False)
+    serie = Column(String(10), default="A")
+    
+    # Relaciones
+    cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=False)
+    cliente_nombre = Column(String(100), nullable=True)
+    servicio_id = Column(Integer, ForeignKey("servicios.id"), nullable=True)
+    servicio_codigo = Column(String(20), nullable=True)
+    
+    # Fechas
+    fecha_emision = Column(DateTime, default=datetime.datetime.utcnow)
+    fecha_vencimiento = Column(DateTime, nullable=False)
+    fecha_pago = Column(DateTime, nullable=True)
+    
+    # Totales
+    subtotal = Column(Numeric(10, 2), default=0)
+    descuento_total = Column(Numeric(10, 2), default=0)
+    base_imponible = Column(Numeric(10, 2), default=0)
+    impuestos = Column(Numeric(10, 2), default=0)
+    iva = Column(Numeric(5, 2), default=21)
+    total = Column(Numeric(10, 2), default=0)
+    
+    # Estado
+    estado = Column(String(20), default="pendiente")  # pendiente, enviada, pagada, vencida, anulada
+    metodo_pago = Column(String(50), nullable=True)
+    referencia_pago = Column(String(100), nullable=True)
+    
+    # Notas
+    notas = Column(Text, nullable=True)
+    condiciones = Column(Text, nullable=True)
+    
+    # Documentos
+    pdf_url = Column(String(500), nullable=True)
+    
+    # Conceptos (JSON)
+    conceptos = Column(JSON, default=list)
+    
+    # Metadatos
+    fecha_creacion = Column(DateTime, default=datetime.datetime.utcnow)
+    fecha_actualizacion = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
