@@ -1,6 +1,6 @@
 // ============================================
 // MILANO - Sistema de Gestión de Transporte
-// Stores Zustand con API Backend (ACTUALIZADO)
+// Stores Zustand con API Backend (ACTUALIZADO Y OPTIMIZADO)
 // ============================================
 
 import { create } from 'zustand';
@@ -80,6 +80,7 @@ export const useClientesStore = create<ClientesState>((set, get) => ({
       }));
       set({ clientes: clientesFormateados, isLoading: false });
     } catch (error: any) {
+      console.error('❌ Error fetchClientes:', error);
       set({ error: error.message, isLoading: false });
     }
   },
@@ -87,8 +88,11 @@ export const useClientesStore = create<ClientesState>((set, get) => ({
   addCliente: async (cliente) => {
     set({ isLoading: true, error: null });
     try {
+      // FIX: Generar código si no viene
+      const codigo = cliente.codigo || `CLI-${Date.now().toString().slice(-5)}`;
+      
       const clienteParaBackend: any = {
-        codigo: cliente.codigo,
+        codigo: codigo,
         nombre: cliente.nombre,
         tipo: cliente.tipo || 'empresa',
         razon_social: cliente.razonSocial || null,
@@ -110,7 +114,11 @@ export const useClientesStore = create<ClientesState>((set, get) => ({
         persona_contacto_cargo: null,
       };
 
+      console.log('📤 Enviando cliente:', clienteParaBackend);
+      
       const nuevo = await clientesApi.create(clienteParaBackend);
+      
+      console.log('✅ Cliente creado:', nuevo);
 
       const clienteFormateado: Cliente = {
         id: String(nuevo.id),
@@ -141,7 +149,8 @@ export const useClientesStore = create<ClientesState>((set, get) => ({
       }));
       return true;
     } catch (error: any) {
-      set({ error: error.message, isLoading: false });
+      console.error('❌ Error addCliente:', error);
+      set({ error: error.message || 'Error al crear cliente', isLoading: false });
       return false;
     }
   },
@@ -200,6 +209,7 @@ export const useClientesStore = create<ClientesState>((set, get) => ({
       }
       return !!actualizado;
     } catch (error: any) {
+      console.error('❌ Error updateCliente:', error);
       set({ error: error.message, isLoading: false });
       return false;
     }
@@ -215,6 +225,7 @@ export const useClientesStore = create<ClientesState>((set, get) => ({
       }));
       return true;
     } catch (error: any) {
+      console.error('❌ Error deleteCliente:', error);
       set({ error: error.message, isLoading: false });
       return false;
     }
@@ -228,7 +239,7 @@ export const useClientesStore = create<ClientesState>((set, get) => ({
 }));
 
 // ============================================
-// STORE DE VEHÍCULOS (FLOTA)
+// STORE DE VEHÍCULOS (FLOTA) - OPTIMIZADO
 // ============================================
 interface VehiculosState {
   vehiculos: Vehiculo[];
@@ -293,42 +304,62 @@ export const useVehiculosStore = create<VehiculosState>((set, get) => ({
       }));
       set({ vehiculos: vehiculosFormateados, isLoading: false });
     } catch (error: any) {
+      console.error('❌ Error fetchVehiculos:', error);
       set({ error: error.message, isLoading: false });
     }
   },
 
+  // FIX: addVehiculo optimizado con generación de código y mejor manejo de errores
   addVehiculo: async (vehiculo) => {
     set({ isLoading: true, error: null });
     try {
+      // Generar código si no viene
+      const codigo = vehiculo.codigo || `VH-${Date.now().toString().slice(-6)}`;
+      
       const vehiculoParaBackend: any = {
+        // Campos obligatorios
+        codigo: codigo,
         matricula: vehiculo.matricula,
-        bastidor: vehiculo.bastidor,
-        marca: vehiculo.marca,
-        modelo: vehiculo.modelo,
-        tipo: vehiculo.tipo,
-        plazas: vehiculo.plazas,
+        tipo: vehiculo.tipo || 'autobus',
+        plazas: vehiculo.plazas || 0,
+        estado: vehiculo.estado || 'operativo',
+        
+        // Campos opcionales con valores por defecto
+        bastidor: vehiculo.bastidor || '',
+        marca: vehiculo.marca || '',
+        modelo: vehiculo.modelo || '',
         anno_fabricacion: vehiculo.añoFabricacion,
-        kilometraje: vehiculo.kilometraje,
+        kilometraje: vehiculo.kilometraje || 0,
         kilometraje_ultima_revision: vehiculo.kilometrajeUltimaRevision,
         consumo_medio: vehiculo.consumoMedio,
-        combustible: vehiculo.combustible,
-        estado: vehiculo.estado,
+        combustible: vehiculo.combustible || 'diesel',
         ubicacion: vehiculo.ubicacion,
         notas: vehiculo.notas,
         imagen_url: vehiculo.imagenUrl,
-        itv_fecha_ultima: vehiculo.itv?.fechaUltima,
-        itv_fecha_proxima: vehiculo.itv?.fechaProxima,
-        itv_resultado: vehiculo.itv?.resultado,
-        itv_observaciones: vehiculo.itv?.observaciones,
-        seguro_compania: vehiculo.seguro?.compania,
-        seguro_poliza: vehiculo.seguro?.poliza,
-        seguro_tipo_cobertura: vehiculo.seguro?.tipoCobertura,
-        seguro_fecha_inicio: vehiculo.seguro?.fechaInicio,
-        seguro_fecha_vencimiento: vehiculo.seguro?.fechaVencimiento,
-        seguro_prima: vehiculo.seguro?.prima,
+        
+        // ITV
+        itv_fecha_ultima: vehiculo.itv?.fechaUltima || null,
+        itv_fecha_proxima: vehiculo.itv?.fechaProxima || null,
+        itv_resultado: vehiculo.itv?.resultado || null,
+        itv_observaciones: vehiculo.itv?.observaciones || null,
+        
+        // Seguro
+        seguro_compania: vehiculo.seguro?.compania || '',
+        seguro_poliza: vehiculo.seguro?.poliza || '',
+        seguro_tipo_cobertura: vehiculo.seguro?.tipoCobertura || null,
+        seguro_fecha_inicio: vehiculo.seguro?.fechaInicio || null,
+        seguro_fecha_vencimiento: vehiculo.seguro?.fechaVencimiento || null,
+        seguro_prima: vehiculo.seguro?.prima || null,
+        
+        // Mantenimientos como array vacío inicialmente
+        mantenimientos: vehiculo.mantenimientos || [],
       };
 
+      console.log('📤 Enviando vehículo:', vehiculoParaBackend);
+      
       const nuevo = await vehiculosApi.create(vehiculoParaBackend);
+      
+      console.log('✅ Vehículo creado:', nuevo);
 
       const vehiculoFormateado: Vehiculo = {
         id: String(nuevo.id),
@@ -367,7 +398,8 @@ export const useVehiculosStore = create<VehiculosState>((set, get) => ({
       set((state) => ({ vehiculos: [...state.vehiculos, vehiculoFormateado], isLoading: false }));
       return true;
     } catch (error: any) {
-      set({ error: error.message, isLoading: false });
+      console.error('❌ Error addVehiculo:', error);
+      set({ error: error.message || 'Error al crear vehículo', isLoading: false });
       return false;
     }
   },
@@ -451,6 +483,7 @@ export const useVehiculosStore = create<VehiculosState>((set, get) => ({
       }
       return !!actualizado;
     } catch (error: any) {
+      console.error('❌ Error updateVehiculo:', error);
       set({ error: error.message, isLoading: false });
       return false;
     }
@@ -466,6 +499,7 @@ export const useVehiculosStore = create<VehiculosState>((set, get) => ({
       }));
       return true;
     } catch (error: any) {
+      console.error('❌ Error deleteVehiculo:', error);
       set({ error: error.message, isLoading: false });
       return false;
     }
@@ -509,7 +543,7 @@ export const useVehiculosStore = create<VehiculosState>((set, get) => ({
 }));
 
 // ============================================
-// STORE DE CONDUCTORES (ACTUALIZADO)
+// STORE DE CONDUCTORES (ACTUALIZADO Y OPTIMIZADO)
 // ============================================
 interface ConductoresState {
   conductores: Conductor[];
@@ -577,40 +611,65 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
       }));
       set({ conductores: conductoresFormateados, isLoading: false });
     } catch (error: any) {
+      console.error('❌ Error fetchConductores:', error);
       set({ error: error.message, isLoading: false });
     }
   },
 
+  // FIX: addConductor optimizado con generación de código y mejor manejo de errores
   addConductor: async (conductor) => {
     set({ isLoading: true, error: null });
     try {
+      // Generar código si no viene
+      const codigo = conductor.codigo || `COND-${Date.now().toString().slice(-5)}`;
+      
       const conductorParaBackend: any = {
-        codigo: conductor.codigo,
+        // Campos obligatorios
+        codigo: codigo,
         nombre: conductor.nombre,
         apellidos: conductor.apellidos,
         dni: conductor.dni,
-        fecha_nacimiento: conductor.fechaNacimiento,
-        telefono: conductor.telefono,
-        email: conductor.email,
-        direccion: conductor.direccion,
-        licencia_tipo: conductor.licencia?.tipo,
-        licencia_numero: conductor.licencia?.numero,
-        licencia_fecha_expedicion: conductor.licencia?.fechaExpedicion,
-        licencia_fecha_caducidad: conductor.licencia?.fechaCaducidad,
-        licencia_permisos: conductor.licencia?.permisos,
+        estado: conductor.estado || 'activo',
+        
+        // Campos opcionales
+        telefono: conductor.telefono || null,
+        email: conductor.email || null,
+        direccion: conductor.direccion || null,
+        fecha_nacimiento: conductor.fechaNacimiento || null,
+        
+        // Tarifa y prioridad
         tarifa_hora: conductor.tarifaHora || 18,
         prioridad: conductor.prioridad || 50,
+        
+        // Licencia
+        licencia_tipo: conductor.licencia?.tipo || 'D',
+        licencia_numero: conductor.licencia?.numero || '',
+        licencia_fecha_expedicion: conductor.licencia?.fechaExpedicion || null,
+        licencia_fecha_caducidad: conductor.licencia?.fechaCaducidad || null,
+        licencia_permisos: conductor.licencia?.permisos || [],
+        
+        // Disponibilidad
         disponibilidad_dias: conductor.disponibilidad?.dias || [1, 2, 3, 4, 5],
         disponibilidad_hora_inicio: conductor.disponibilidad?.horaInicio || '08:00',
         disponibilidad_hora_fin: conductor.disponibilidad?.horaFin || '18:00',
-        disponibilidad_observaciones: conductor.disponibilidad?.observaciones,
-        credenciales: conductor.credenciales,
+        disponibilidad_observaciones: conductor.disponibilidad?.observaciones || null,
+        
+        // Credenciales y panel
+        credenciales: conductor.credenciales || null,
         panel_activo: conductor.panelActivo ?? true,
-        estado: conductor.estado || 'activo',
-        notas: conductor.notas,
+        
+        // Inicialización
+        total_horas_mes: 0,
+        total_servicios_mes: 0,
+        valoracion: 0,
+        notas: conductor.notas || null,
       };
 
+      console.log('📤 Enviando conductor:', conductorParaBackend);
+      
       const nuevo = await conductoresApi.create(conductorParaBackend);
+      
+      console.log('✅ Conductor creado:', nuevo);
 
       const conductorFormateado: Conductor = {
         id: String(nuevo.id),
@@ -649,7 +708,8 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
       set((state) => ({ conductores: [...state.conductores, conductorFormateado], isLoading: false }));
       return true;
     } catch (error: any) {
-      set({ error: error.message, isLoading: false });
+      console.error('❌ Error addConductor:', error);
+      set({ error: error.message || 'Error al crear conductor', isLoading: false });
       return false;
     }
   },
@@ -729,6 +789,7 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
       }
       return !!actualizado;
     } catch (error: any) {
+      console.error('❌ Error updateConductor:', error);
       set({ error: error.message, isLoading: false });
       return false;
     }
@@ -744,6 +805,7 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
       }));
       return true;
     } catch (error: any) {
+      console.error('❌ Error deleteConductor:', error);
       set({ error: error.message, isLoading: false });
       return false;
     }
@@ -774,7 +836,7 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
 }));
 
 // ============================================
-// STORE DE SERVICIOS (ACTUALIZADO)
+// STORE DE SERVICIOS (ACTUALIZADO Y OPTIMIZADO)
 // ============================================
 interface ServiciosState {
   servicios: Servicio[];
@@ -850,45 +912,54 @@ export const useServiciosStore = create<ServiciosState>((set, get) => ({
       }));
       set({ servicios: serviciosFormateados, isLoading: false });
     } catch (error: any) {
+      console.error('❌ Error fetchServicios:', error);
       set({ error: error.message, isLoading: false });
     }
   },
 
+  // FIX: addServicio optimizado con generación de código
   addServicio: async (servicio) => {
     set({ isLoading: true, error: null });
     try {
+      // Generar código si no viene
+      const codigo = servicio.codigo || `SRV-${Date.now().toString().slice(-6)}`;
+      
       const servicioParaBackend: any = {
-        codigo: servicio.codigo,
+        codigo: codigo,
         cliente_id: servicio.clienteId,
         cliente_nombre: servicio.clienteNombre,
-        tipo: servicio.tipo,
+        tipo: servicio.tipo || 'discrecional',
         estado: servicio.estado || 'planificando',
         titulo: servicio.titulo,
         descripcion: servicio.descripcion,
         fecha_inicio: servicio.fechaInicio,
         fecha_fin: servicio.fechaFin,
-        hora_inicio: servicio.horaInicio,
-        hora_fin: servicio.horaFin,
+        hora_inicio: servicio.horaInicio || null,
+        hora_fin: servicio.horaFin || null,
         numero_vehiculos: servicio.numeroVehiculos || 1,
         vehiculos_asignados: servicio.vehiculosAsignados || [],
         conductores_asignados: servicio.conductoresAsignados || [],
-        origen: servicio.origen,
-        destino: servicio.destino,
-        ubicacion_evento: servicio.ubicacionEvento,
+        origen: servicio.origen || null,
+        destino: servicio.destino || null,
+        ubicacion_evento: servicio.ubicacionEvento || null,
         coste_estimado: servicio.costeEstimado || 0,
-        coste_real: servicio.costeReal,
+        coste_real: servicio.costeReal || null,
         precio: servicio.precio || 0,
         facturado: servicio.facturado || false,
-        factura_id: servicio.facturaId,
-        notas_internas: servicio.notasInternas,
-        notas_cliente: servicio.notasCliente,
+        factura_id: servicio.facturaId || null,
+        notas_internas: servicio.notasInternas || null,
+        notas_cliente: servicio.notasCliente || null,
         rutas: servicio.rutas || [],
         tareas: servicio.tareas || [],
         incidencias: servicio.incidencias || [],
         documentos: servicio.documentos || [],
       };
 
+      console.log('📤 Enviando servicio:', servicioParaBackend);
+      
       const nuevo = await serviciosApi.create(servicioParaBackend);
+      
+      console.log('✅ Servicio creado:', nuevo);
 
       const servicioFormateado: Servicio = {
         id: String(nuevo.id),
@@ -934,7 +1005,8 @@ export const useServiciosStore = create<ServiciosState>((set, get) => ({
       set((state) => ({ servicios: [...state.servicios, servicioFormateado], isLoading: false }));
       return true;
     } catch (error: any) {
-      set({ error: error.message, isLoading: false });
+      console.error('❌ Error addServicio:', error);
+      set({ error: error.message || 'Error al crear servicio', isLoading: false });
       return false;
     }
   },
@@ -1026,6 +1098,7 @@ export const useServiciosStore = create<ServiciosState>((set, get) => ({
       }
       return !!actualizado;
     } catch (error: any) {
+      console.error('❌ Error updateServicio:', error);
       set({ error: error.message, isLoading: false });
       return false;
     }
@@ -1041,6 +1114,7 @@ export const useServiciosStore = create<ServiciosState>((set, get) => ({
       }));
       return true;
     } catch (error: any) {
+      console.error('❌ Error deleteServicio:', error);
       set({ error: error.message, isLoading: false });
       return false;
     }
@@ -1158,6 +1232,7 @@ export const useFacturasStore = create<FacturasState>((set, get) => ({
       const facturas = localStorageService.facturas.getAll();
       set({ facturas, isLoading: false });
     } catch (error: any) {
+      console.error('❌ Error fetchFacturas:', error);
       set({ error: error.message, isLoading: false });
     }
   },
@@ -1169,6 +1244,7 @@ export const useFacturasStore = create<FacturasState>((set, get) => ({
       set((state) => ({ facturas: [...state.facturas, nueva], isLoading: false }));
       return true;
     } catch (error: any) {
+      console.error('❌ Error addFactura:', error);
       set({ error: error.message, isLoading: false });
       return false;
     }
@@ -1186,6 +1262,7 @@ export const useFacturasStore = create<FacturasState>((set, get) => ({
       }
       return !!actualizado;
     } catch (error: any) {
+      console.error('❌ Error updateFactura:', error);
       set({ error: error.message, isLoading: false });
       return false;
     }
@@ -1203,6 +1280,7 @@ export const useFacturasStore = create<FacturasState>((set, get) => ({
       }
       return eliminado;
     } catch (error: any) {
+      console.error('❌ Error deleteFactura:', error);
       set({ error: error.message, isLoading: false });
       return false;
     }
@@ -1223,6 +1301,7 @@ export const useFacturasStore = create<FacturasState>((set, get) => ({
       }
       return !!actualizado;
     } catch (error: any) {
+      console.error('❌ Error marcarPagada:', error);
       set({ error: error.message, isLoading: false });
       return false;
     }
@@ -1483,6 +1562,7 @@ export const useOportunidadesStore = create<OportunidadesState>((set, get) => ({
       ];
       set({ oportunidades, isLoading: false });
     } catch (error: any) {
+      console.error('❌ Error fetchOportunidades:', error);
       set({ error: error.message, isLoading: false });
     }
   },
@@ -1497,6 +1577,7 @@ export const useOportunidadesStore = create<OportunidadesState>((set, get) => ({
       }));
       return true;
     } catch (error: any) {
+      console.error('❌ Error addOportunidad:', error);
       set({ error: error.message, isLoading: false });
       return false;
     }
@@ -1511,6 +1592,7 @@ export const useOportunidadesStore = create<OportunidadesState>((set, get) => ({
       }));
       return true;
     } catch (error: any) {
+      console.error('❌ Error updateOportunidad:', error);
       set({ error: error.message, isLoading: false });
       return false;
     }
@@ -1525,6 +1607,7 @@ export const useOportunidadesStore = create<OportunidadesState>((set, get) => ({
       }));
       return true;
     } catch (error: any) {
+      console.error('❌ Error deleteOportunidad:', error);
       set({ error: error.message, isLoading: false });
       return false;
     }
@@ -1627,6 +1710,7 @@ export const useDashboardStore = create<DashboardState>((set) => ({
       const stats = await dashboardApi.getStats();
       set({ kpi: stats, loading: false });
     } catch (error: any) {
+      console.error('❌ Error refreshKPI:', error);
       set({ loading: false });
       const stats = localStorageService.dashboard.getStats();
       set({ kpi: stats });

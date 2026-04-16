@@ -34,53 +34,79 @@ function getHeaders(): HeadersInit {
   return headers;
 }
 
-// Manejar errores
+// Manejar errores con mejor logging
 async function handleResponse(response: Response) {
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Error desconocido' }));
-    throw new Error(error.error || error.detail || `Error ${response.status}: ${response.statusText}`);
+    let errorData: any = {};
+    try {
+      errorData = await response.json();
+    } catch (e) {
+      errorData = { error: 'Error desconocido' };
+    }
+    
+    console.error('❌ API Error:', {
+      status: response.status,
+      statusText: response.statusText,
+      url: response.url,
+      error: errorData
+    });
+    
+    const errorMessage = errorData.detail || errorData.error || `Error ${response.status}: ${response.statusText}`;
+    throw new Error(errorMessage);
   }
   return response.json();
 }
 
-// API Client
+// API Client con logging
 export const api = {
   // GET
   get: async (endpoint: string) => {
+    console.log('📤 API GET:', `${API_URL}${endpoint}`);
     const response = await fetch(`${API_URL}${endpoint}`, {
       method: 'GET',
       headers: getHeaders(),
     });
-    return handleResponse(response);
+    const data = await handleResponse(response);
+    console.log('✅ API GET Response:', endpoint, data);
+    return data;
   },
   
-  // POST
+  // POST con logging
   post: async (endpoint: string, data: any) => {
+    console.log('📤 API POST:', `${API_URL}${endpoint}`, data);
     const response = await fetch(`${API_URL}${endpoint}`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(data),
     });
-    return handleResponse(response);
+    const result = await handleResponse(response);
+    console.log('✅ API POST Response:', endpoint, result);
+    return result;
   },
   
-  // PUT
+  // PUT con logging
   put: async (endpoint: string, data: any) => {
+    console.log('📤 API PUT:', `${API_URL}${endpoint}`, data);
     const response = await fetch(`${API_URL}${endpoint}`, {
       method: 'PUT',
       headers: getHeaders(),
       body: JSON.stringify(data),
     });
-    return handleResponse(response);
+    const result = await handleResponse(response);
+    console.log('✅ API PUT Response:', endpoint, result);
+    return result;
   },
   
-  // DELETE
+  // DELETE con logging
   delete: async (endpoint: string) => {
+    console.log('📤 API DELETE:', `${API_URL}${endpoint}`);
     const response = await fetch(`${API_URL}${endpoint}`, {
       method: 'DELETE',
       headers: getHeaders(),
     });
-    return handleResponse(response);
+    const result = await handleResponse(response);
+    console.log('✅ API DELETE Response:', endpoint, result);
+    return result;
   },
 };
 
