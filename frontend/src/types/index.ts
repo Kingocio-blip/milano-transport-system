@@ -153,9 +153,9 @@ export interface Vehiculo {
 // ============================================
 export interface Licencia {
   tipo: string;
-  numero: string;
+  numero?: string;           // <-- OPCIONAL
   fechaExpedicion?: Date | string;
-  fechaCaducidad: Date | string;
+  fechaCaducidad?: Date | string;  // <-- OPCIONAL
   permisos?: string[];
 }
 
