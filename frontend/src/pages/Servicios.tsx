@@ -82,6 +82,7 @@ const estadoServicioColors: Record<EstadoServicio, string> = {
   cancelado: 'bg-red-100 text-red-700',
 };
 
+// FIX: Helper seguro para formatear fechas
 const formatDateSafe = (date: string | Date | undefined, formatStr: string = 'dd/MM/yyyy'): string => {
   if (!date) return '-';
   try {
@@ -92,10 +93,31 @@ const formatDateSafe = (date: string | Date | undefined, formatStr: string = 'dd
   }
 };
 
-const calcularHorasServicio = (fechaInicio: string, horaInicio?: string, fechaFin?: string, horaFin?: string): number => {
+// FIX: Helper seguro para parsear fechas a string
+const dateToString = (date: string | Date | undefined): string => {
+  if (!date) return '';
+  if (typeof date === 'string') return date;
   try {
-    const inicio = new Date(`${fechaInicio}T${horaInicio || '00:00'}`);
-    const fin = new Date(`${fechaFin || fechaInicio}T${horaFin || '23:59'}`);
+    return date.toISOString().split('T')[0];
+  } catch {
+    return '';
+  }
+};
+
+// FIX: Función acepta string o Date, convierte internamente
+const calcularHorasServicio = (
+  fechaInicio: string | Date | undefined,
+  horaInicio?: string,
+  fechaFin?: string | Date | undefined,
+  horaFin?: string
+): number => {
+  try {
+    const fechaInicioStr = dateToString(fechaInicio);
+    const fechaFinStr = dateToString(fechaFin) || fechaInicioStr;
+    if (!fechaInicioStr) return 8;
+    
+    const inicio = new Date(`${fechaInicioStr}T${horaInicio || '00:00'}`);
+    const fin = new Date(`${fechaFinStr}T${horaFin || '23:59'}`);
     return Math.max(1, differenceInHours(fin, inicio));
   } catch {
     return 8;
