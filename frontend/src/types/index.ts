@@ -152,8 +152,8 @@ export interface Vehiculo {
 // CONDUCTOR / RRHH
 // ============================================
 export interface Licencia {
-  tipo?: string;           // <-- OPCIONAL
-  numero?: string;           // <-- OPCIONAL
+  tipo?: string; // <-- OPCIONAL
+  numero?: string; // <-- OPCIONAL
   fechaExpedicion?: Date | string;
   fechaCaducidad?: Date | string;
   permisos?: string[];
@@ -161,9 +161,9 @@ export interface Licencia {
 
 // FIX: Todos los campos opcionales para flexibilidad
 export interface Disponibilidad {
-  dias?: number[];      // <-- OPCIONAL
-  horaInicio?: string;  // <-- OPCIONAL
-  horaFin?: string;     // <-- OPCIONAL
+  dias?: number[]; // <-- OPCIONAL
+  horaInicio?: string; // <-- OPCIONAL
+  horaFin?: string; // <-- OPCIONAL
   observaciones?: string;
 }
 
@@ -282,6 +282,7 @@ export interface RevisionVehiculo {
   vehiculoId?: string;
 }
 
+// FIX: Campos de tracking para PanelConductor
 export interface TrackingRuta {
   kmInicio?: number;
   kmFin?: number;
@@ -315,6 +316,7 @@ export interface TareaServicio {
   tipo?: 'conductor' | 'sistema' | 'coordinador';
 }
 
+// FIX: Servicio con campos de tracking para PanelConductor
 export interface Servicio {
   id: string;
   codigo: string;
@@ -350,6 +352,11 @@ export interface Servicio {
   gastos?: GastoServicio[];
   revisiones?: RevisionVehiculo[];
   tracking?: TrackingRuta;
+  // FIX: Campos directos para compatibilidad con PanelConductor
+  kmInicio?: number;
+  kmFin?: number;
+  kmTotal?: number;
+  rutaTomada?: string;
   contratoUrl?: string;
   documentos: Documento[];
   notasInternas?: string;
