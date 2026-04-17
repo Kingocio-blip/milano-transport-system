@@ -54,6 +54,48 @@ class UserRole(str, enum.Enum):
     CONDUCTOR = "conductor"
 
 # ============================================
+# NUEVOS ENUMS PARA HISTORIAL VEHICULO
+# ============================================
+
+class TipoMantenimiento(str, enum.Enum):
+    PREVENTIVO = "preventivo"
+    CORRECTIVO = "correctivo"
+    ITV = "itv"
+    NEUMATICOS = "neumaticos"
+    ACEITE = "aceite"
+    FRENO = "freno"
+    ELECTRICO = "electrico"
+    CARROCERIA = "carroceria"
+    OTRO = "otro"
+
+class EstadoAveria(str, enum.Enum):
+    REPORTADA = "reportada"
+    EN_DIAGNOSTICO = "en_diagnostico"
+    EN_REPARACION = "en_reparacion"
+    RESUELTA = "resuelta"
+    CANCELADA = "cancelada"
+
+class GravedadAveria(str, enum.Enum):
+    LEVE = "leve"
+    MEDIA = "media"
+    GRAVE = "grave"
+    CRITICA = "critica"
+
+class TipoAnotacion(str, enum.Enum):
+    INCIDENCIA = "incidencia"
+    OBSERVACION = "observacion"
+    DANO = "dano"
+    LIMPIEZA = "limpieza"
+    COMBUSTIBLE = "combustible"
+    REVISION = "revision"
+    OTRO = "otro"
+
+class EstadoGeneral(str, enum.Enum):
+    BUENO = "bueno"
+    REGULAR = "regular"
+    MALO = "malo"
+
+# ============================================
 # USER MODEL
 # ============================================
 
@@ -169,6 +211,7 @@ class Conductor(Base):
     notas = Column(Text, nullable=True)
     
     usuario = relationship("User", back_populates="conductor", uselist=False)
+    anotaciones = relationship("AnotacionVehiculo", back_populates="conductor")
     
     __table_args__ = (
         Index('idx_conductor_estado', 'estado'),
@@ -183,7 +226,7 @@ class Conductor(Base):
         return value
 
 # ============================================
-# VEHICULO MODEL
+# VEHICULO MODEL (ACTUALIZADO)
 # ============================================
 
 class Vehiculo(Base):
@@ -216,8 +259,6 @@ class Vehiculo(Base):
     seguro_fecha_vencimiento = Column(Date, nullable=True)
     seguro_prima = Column(Numeric(10, 2), nullable=True)
     
-    mantenimientos = Column(JSON, default=list)
-    
     estado = Column(SQLEnum(EstadoVehiculo), default=EstadoVehiculo.OPERATIVO)
     ubicacion = Column(String(200), nullable=True)
     
@@ -226,10 +267,114 @@ class Vehiculo(Base):
     notas = Column(Text, nullable=True)
     imagen_url = Column(String(500), nullable=True)
     
+    # NUEVAS RELACIONES
+    mantenimientos = relationship("Mantenimiento", back_populates="vehiculo", order_by="desc(Mantenimiento.fecha)")
+    averias = relationship("Averia", back_populates="vehiculo", order_by="desc(Averia.fecha_inicio)")
+    anotaciones = relationship("AnotacionVehiculo", back_populates="vehiculo", order_by="desc(AnotacionVehiculo.fecha)")
+    
     __table_args__ = (
         Index('idx_vehiculo_estado', 'estado'),
         Index('idx_vehiculo_tipo', 'tipo'),
         Index('idx_vehiculo_itv', 'itv_fecha_proxima'),
+    )
+
+# ============================================
+# NUEVOS MODELOS - HISTORIAL VEHICULO
+# ============================================
+
+class Mantenimiento(Base):
+    __tablename__ = "mantenimientos"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    vehiculo_id = Column(Integer, ForeignKey("vehiculos.id"), nullable=False)
+    
+    tipo = Column(SQLEnum(TipoMantenimiento), nullable=False)
+    fecha = Column(Date, nullable=False)
+    kilometraje = Column(Integer, nullable=True)
+    
+    descripcion = Column(Text, nullable=True)
+    taller = Column(String(100), nullable=True)
+    coste = Column(Numeric(10, 2), nullable=True)
+    
+    documento_url = Column(String(500), nullable=True)
+    realizado_por = Column(String(100), nullable=True)  # conductor o mecanico
+    notas = Column(Text, nullable=True)
+    
+    fecha_creacion = Column(DateTime, default=datetime.datetime.utcnow)
+    fecha_actualizacion = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    
+    vehiculo = relationship("Vehiculo", back_populates="mantenimientos")
+    
+    __table_args__ = (
+        Index('idx_mantenimiento_vehiculo', 'vehiculo_id'),
+        Index('idx_mantenimiento_fecha', 'fecha'),
+        Index('idx_mantenimiento_tipo', 'tipo'),
+    )
+
+class Averia(Base):
+    __tablename__ = "averias"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    vehiculo_id = Column(Integer, ForeignKey("vehiculos.id"), nullable=False)
+    
+    fecha_inicio = Column(DateTime, default=datetime.datetime.utcnow)
+    fecha_fin = Column(DateTime, nullable=True)
+    
+    descripcion = Column(Text, nullable=False)
+    gravedad = Column(SQLEnum(GravedadAveria), default=GravedadAveria.MEDIA)
+    estado = Column(SQLEnum(EstadoAveria), default=EstadoAveria.REPORTADA)
+    
+    taller = Column(String(100), nullable=True)
+    coste_reparacion = Column(Numeric(10, 2), nullable=True)
+    piezas_cambiadas = Column(JSON, default=list)
+    
+    diagnostico = Column(Text, nullable=True)
+    solucion = Column(Text, nullable=True)
+    
+    reportado_por_id = Column(Integer, ForeignKey("conductores.id"), nullable=True)
+    reportado_por_nombre = Column(String(100), nullable=True)
+    
+    fecha_creacion = Column(DateTime, default=datetime.datetime.utcnow)
+    fecha_actualizacion = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    
+    vehiculo = relationship("Vehiculo", back_populates="averias")
+    
+    __table_args__ = (
+        Index('idx_averia_vehiculo', 'vehiculo_id'),
+        Index('idx_averia_estado', 'estado'),
+        Index('idx_averia_gravedad', 'gravedad'),
+    )
+
+class AnotacionVehiculo(Base):
+    __tablename__ = "anotaciones_vehiculo"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    vehiculo_id = Column(Integer, ForeignKey("vehiculos.id"), nullable=False)
+    servicio_id = Column(Integer, ForeignKey("servicios.id"), nullable=True)
+    conductor_id = Column(Integer, ForeignKey("conductores.id"), nullable=True)
+    
+    fecha = Column(DateTime, default=datetime.datetime.utcnow)
+    tipo = Column(SQLEnum(TipoAnotacion), default=TipoAnotacion.OBSERVACION)
+    
+    descripcion = Column(Text, nullable=False)
+    kilometraje = Column(Integer, nullable=True)
+    nivel_combustible = Column(Integer, nullable=True)  # porcentaje 0-100
+    estado_general = Column(SQLEnum(EstadoGeneral), default=EstadoGeneral.BUENO)
+    
+    fotos = Column(JSON, default=list)  # URLs de fotos
+    
+    fecha_creacion = Column(DateTime, default=datetime.datetime.utcnow)
+    fecha_actualizacion = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    
+    vehiculo = relationship("Vehiculo", back_populates="anotaciones")
+    conductor = relationship("Conductor", back_populates="anotaciones")
+    
+    __table_args__ = (
+        Index('idx_anotacion_vehiculo', 'vehiculo_id'),
+        Index('idx_anotacion_servicio', 'servicio_id'),
+        Index('idx_anotacion_conductor', 'conductor_id'),
+        Index('idx_anotacion_fecha', 'fecha'),
     )
 
 # ============================================
@@ -291,6 +436,7 @@ class Servicio(Base):
     creado_por = Column(String(50), nullable=True)
     
     cliente = relationship("Cliente", back_populates="servicios")
+    anotaciones = relationship("AnotacionVehiculo", back_populates="servicio")
     
     __table_args__ = (
         Index('idx_servicio_estado', 'estado'),

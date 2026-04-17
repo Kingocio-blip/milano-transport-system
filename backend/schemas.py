@@ -713,3 +713,179 @@ class LoginRequest(BaseModel):
     
     username: str
     password: str
+
+# ============== NUEVOS ENUMS - HISTORIAL VEHICULO ==============
+
+class TipoMantenimiento(str, enum.Enum):
+    PREVENTIVO = "preventivo"
+    CORRECTIVO = "correctivo"
+    ITV = "itv"
+    NEUMATICOS = "neumaticos"
+    ACEITE = "aceite"
+    FRENO = "freno"
+    ELECTRICO = "electrico"
+    CARROCERIA = "carroceria"
+    OTRO = "otro"
+
+class EstadoAveria(str, enum.Enum):
+    REPORTADA = "reportada"
+    EN_DIAGNOSTICO = "en_diagnostico"
+    EN_REPARACION = "en_reparacion"
+    RESUELTA = "resuelta"
+    CANCELADA = "cancelada"
+
+class GravedadAveria(str, enum.Enum):
+    LEVE = "leve"
+    MEDIA = "media"
+    GRAVE = "grave"
+    CRITICA = "critica"
+
+class TipoAnotacion(str, enum.Enum):
+    INCIDENCIA = "incidencia"
+    OBSERVACION = "observacion"
+    DANO = "dano"
+    LIMPIEZA = "limpieza"
+    COMBUSTIBLE = "combustible"
+    REVISION = "revision"
+    OTRO = "otro"
+
+class EstadoGeneral(str, enum.Enum):
+    BUENO = "bueno"
+    REGULAR = "regular"
+    MALO = "malo"
+
+# ============== MANTENIMIENTO SCHEMAS ==============
+
+class MantenimientoBase(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    tipo: TipoMantenimiento
+    fecha: date
+    kilometraje: Optional[int] = None
+    descripcion: Optional[str] = None
+    taller: Optional[str] = None
+    coste: Optional[Decimal] = None
+    documento_url: Optional[str] = None
+    realizado_por: Optional[str] = None
+    notas: Optional[str] = None
+
+class MantenimientoCreate(MantenimientoBase):
+    vehiculo_id: int
+
+class MantenimientoUpdate(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    tipo: Optional[TipoMantenimiento] = None
+    fecha: Optional[date] = None
+    kilometraje: Optional[int] = None
+    descripcion: Optional[str] = None
+    taller: Optional[str] = None
+    coste: Optional[Decimal] = None
+    documento_url: Optional[str] = None
+    realizado_por: Optional[str] = None
+    notas: Optional[str] = None
+
+class MantenimientoResponse(MantenimientoBase):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    vehiculo_id: int
+    fecha_creacion: datetime
+    fecha_actualizacion: datetime
+
+# ============== AVERIA SCHEMAS ==============
+
+class AveriaBase(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    fecha_inicio: datetime
+    fecha_fin: Optional[datetime] = None
+    descripcion: str
+    gravedad: GravedadAveria = GravedadAveria.MEDIA
+    estado: EstadoAveria = EstadoAveria.REPORTADA
+    taller: Optional[str] = None
+    coste_reparacion: Optional[Decimal] = None
+    piezas_cambiadas: List[str] = []
+    diagnostico: Optional[str] = None
+    solucion: Optional[str] = None
+    reportado_por_id: Optional[int] = None
+    reportado_por_nombre: Optional[str] = None
+
+class AveriaCreate(AveriaBase):
+    vehiculo_id: int
+
+class AveriaUpdate(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    fecha_inicio: Optional[datetime] = None
+    fecha_fin: Optional[datetime] = None
+    descripcion: Optional[str] = None
+    gravedad: Optional[GravedadAveria] = None
+    estado: Optional[EstadoAveria] = None
+    taller: Optional[str] = None
+    coste_reparacion: Optional[Decimal] = None
+    piezas_cambiadas: Optional[List[str]] = None
+    diagnostico: Optional[str] = None
+    solucion: Optional[str] = None
+
+class AveriaResponse(AveriaBase):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    vehiculo_id: int
+    fecha_creacion: datetime
+    fecha_actualizacion: datetime
+
+# ============== ANOTACION VEHICULO SCHEMAS ==============
+
+class AnotacionVehiculoBase(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    fecha: datetime
+    tipo: TipoAnotacion = TipoAnotacion.OBSERVACION
+    descripcion: str
+    kilometraje: Optional[int] = None
+    nivel_combustible: Optional[int] = Field(None, ge=0, le=100)
+    estado_general: EstadoGeneral = EstadoGeneral.BUENO
+    fotos: List[str] = []
+
+class AnotacionVehiculoCreate(AnotacionVehiculoBase):
+    vehiculo_id: int
+    servicio_id: Optional[int] = None
+    conductor_id: Optional[int] = None
+
+class AnotacionVehiculoUpdate(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    fecha: Optional[datetime] = None
+    tipo: Optional[TipoAnotacion] = None
+    descripcion: Optional[str] = None
+    kilometraje: Optional[int] = None
+    nivel_combustible: Optional[int] = Field(None, ge=0, le=100)
+    estado_general: Optional[EstadoGeneral] = None
+    fotos: Optional[List[str]] = None
+
+class AnotacionVehiculoResponse(AnotacionVehiculoBase):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    vehiculo_id: int
+    servicio_id: Optional[int] = None
+    conductor_id: Optional[int] = None
+    conductor_nombre: Optional[str] = None
+    fecha_creacion: datetime
+    fecha_actualizacion: datetime
+
+# ============== VEHICULO CON HISTORIAL ==============
+
+class VehiculoHistorial(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    mantenimientos: List[MantenimientoResponse] = []
+    averias: List[AveriaResponse] = []
+    anotaciones: List[AnotacionVehiculoResponse] = []
+
+class VehiculoDetalleResponse(VehiculoResponse):
+    model_config = ConfigDict(from_attributes=True)
+    
+    historial: VehiculoHistorial = VehiculoHistorial()
