@@ -47,8 +47,8 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="MILANO Transport Management API",
-    version="1.1.0",
-    description="API para gestión de transporte MILANO",
+    version="1.2.0",
+    description="API para gestión de transporte MILANO con permisos granulares",
     docs_url="/docs",
     redoc_url="/redoc"
 )
@@ -88,7 +88,7 @@ async def startup_event():
     
     db = SessionLocal()
     try:
-        # Inicializar permisos y roles del sistema (NUEVO)
+        # Inicializar permisos y roles del sistema
         inicializar_permisos_sistema(db)
         inicializar_roles_sistema(db)
         
@@ -160,7 +160,7 @@ def read_users_me(current_user: models.User = Depends(get_current_user)):
     return current_user
 
 # ============================================
-# USER ENDPOINTS
+# USER ENDPOINTS (PERMISOS GRANULARES)
 # ============================================
 
 @app.get("/users", response_model=List[schemas.User])
@@ -168,7 +168,7 @@ def get_users(
     skip: int = 0, 
     limit: int = 100, 
     db: Session = Depends(get_db), 
-    current_user: models.User = Depends(get_admin_user)
+    current_user: models.User = Depends(require_permission("usuarios.ver"))
 ):
     users = db.query(models.User).offset(skip).limit(limit).all()
     return users
@@ -177,7 +177,7 @@ def get_users(
 def create_user(
     user: schemas.UserCreate, 
     db: Session = Depends(get_db), 
-    current_user: models.User = Depends(get_admin_user)
+    current_user: models.User = Depends(require_permission("usuarios.crear"))
 ):
     # Check username
     db_user = db.query(models.User).filter(models.User.username == user.username).first()
@@ -213,16 +213,23 @@ def update_user(
     user_id: int,
     user_update: schemas.UserUpdate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_admin_user)
+    current_user: models.User = Depends(require_permission("usuarios.editar"))
 ):
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # FIX: Pydantic v2 - usar model_dump en lugar de dict
-    update_data = user_update.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        if value is not None:  # FIX: Solo actualizar si hay valor
+    # No permitir editar a uno mismo (evitar bloqueos)
+    if db_user.id == current_user.id:
+        # Solo permitir cambiar ciertos campos
+        allowed_fields = ['nombre_completo', 'email']
+        update_data = user_update.model_dump(exclude_unset=True)
+        filtered_data = {k: v for k, v in update_data.items() if k in allowed_fields}
+    else:
+        filtered_data = user_update.model_dump(exclude_unset=True)
+    
+    for key, value in filtered_data.items():
+        if value is not None:
             setattr(db_user, key, value)
     
     db.commit()
@@ -233,8 +240,12 @@ def update_user(
 def delete_user(
     user_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_admin_user)
+    current_user: models.User = Depends(require_permission("usuarios.eliminar"))
 ):
+    # No permitir eliminarse a sí mismo
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="No puedes eliminar tu propio usuario")
+    
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -244,7 +255,7 @@ def delete_user(
     return {"message": "User deleted successfully"}
 
 # ============================================
-# CLIENTE ENDPOINTS
+# CLIENTE ENDPOINTS (PERMISOS GRANULARES)
 # ============================================
 
 @app.get("/clientes", response_model=List[schemas.Cliente])
@@ -272,7 +283,7 @@ def get_cliente(
 def create_cliente(
     cliente: schemas.ClienteCreate, 
     db: Session = Depends(get_db), 
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(require_permission("clientes.crear"))
 ):
     # Check codigo
     if cliente.codigo:
@@ -280,7 +291,6 @@ def create_cliente(
         if existing:
             raise HTTPException(status_code=400, detail="Codigo already exists")
     
-    # FIX: Pydantic v2 - usar model_dump en lugar de dict
     db_cliente = models.Cliente(**cliente.model_dump())
     db.add(db_cliente)
     db.commit()
@@ -292,13 +302,12 @@ def update_cliente(
     cliente_id: int, 
     cliente: schemas.ClienteUpdate, 
     db: Session = Depends(get_db), 
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(require_permission("clientes.editar"))
 ):
     db_cliente = db.query(models.Cliente).filter(models.Cliente.id == cliente_id).first()
     if not db_cliente:
         raise HTTPException(status_code=404, detail="Cliente not found")
     
-    # FIX: Pydantic v2 - usar model_dump en lugar de dict
     update_data = cliente.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         if value is not None:
@@ -313,7 +322,7 @@ def update_cliente(
 def delete_cliente(
     cliente_id: int, 
     db: Session = Depends(get_db), 
-    current_user: models.User = Depends(get_admin_user)
+    current_user: models.User = Depends(require_permission("clientes.eliminar"))
 ):
     db_cliente = db.query(models.Cliente).filter(models.Cliente.id == cliente_id).first()
     if not db_cliente:
@@ -324,7 +333,7 @@ def delete_cliente(
     return {"message": "Cliente deleted successfully"}
 
 # ============================================
-# CONDUCTOR ENDPOINTS
+# CONDUCTOR ENDPOINTS (PERMISOS GRANULARES)
 # ============================================
 
 @app.get("/conductores", response_model=List[schemas.Conductor])
@@ -352,7 +361,7 @@ def get_conductor(
 def create_conductor(
     conductor: schemas.ConductorCreate, 
     db: Session = Depends(get_db), 
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(require_permission("conductores.crear"))
 ):
     logger.info(f"📥 Creando conductor: {conductor.codigo} - {conductor.nombre} {conductor.apellidos}")
     
@@ -370,7 +379,6 @@ def create_conductor(
         raise HTTPException(status_code=400, detail="DNI already exists")
     
     try:
-        # FIX: Pydantic v2 - usar model_dump
         db_conductor = models.Conductor(**conductor.model_dump())
         db.add(db_conductor)
         db.commit()
@@ -387,13 +395,12 @@ def update_conductor(
     conductor_id: int, 
     conductor: schemas.ConductorUpdate, 
     db: Session = Depends(get_db), 
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(require_permission("conductores.editar"))
 ):
     db_conductor = db.query(models.Conductor).filter(models.Conductor.id == conductor_id).first()
     if not db_conductor:
         raise HTTPException(status_code=404, detail="Conductor not found")
     
-    # FIX: Pydantic v2 - usar model_dump
     update_data = conductor.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         if value is not None:
@@ -408,7 +415,7 @@ def update_conductor(
 def delete_conductor(
     conductor_id: int, 
     db: Session = Depends(get_db), 
-    current_user: models.User = Depends(get_admin_user)
+    current_user: models.User = Depends(require_permission("conductores.eliminar"))
 ):
     db_conductor = db.query(models.Conductor).filter(models.Conductor.id == conductor_id).first()
     if not db_conductor:
@@ -419,7 +426,7 @@ def delete_conductor(
     return {"message": "Conductor deleted successfully"}
 
 # ============================================
-# VEHICULO ENDPOINTS
+# VEHICULO ENDPOINTS (PERMISOS GRANULARES)
 # ============================================
 
 @app.get("/vehiculos", response_model=List[schemas.Vehiculo])
@@ -447,7 +454,7 @@ def get_vehiculo(
 def create_vehiculo(
     vehiculo: schemas.VehiculoCreate, 
     db: Session = Depends(get_db), 
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(require_permission("vehiculos.crear"))
 ):
     logger.info(f"📥 Creando vehículo: {vehiculo.codigo} - {vehiculo.matricula}")
     
@@ -463,7 +470,6 @@ def create_vehiculo(
         raise HTTPException(status_code=400, detail="Matricula already exists")
     
     try:
-        # FIX: Pydantic v2 - usar model_dump
         db_vehiculo = models.Vehiculo(**vehiculo.model_dump())
         db.add(db_vehiculo)
         db.commit()
@@ -480,13 +486,12 @@ def update_vehiculo(
     vehiculo_id: int, 
     vehiculo: schemas.VehiculoUpdate, 
     db: Session = Depends(get_db), 
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(require_permission("vehiculos.editar"))
 ):
     db_vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
     if not db_vehiculo:
         raise HTTPException(status_code=404, detail="Vehiculo not found")
     
-    # FIX: Pydantic v2 - usar model_dump
     update_data = vehiculo.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         if value is not None:
@@ -501,7 +506,7 @@ def update_vehiculo(
 def delete_vehiculo(
     vehiculo_id: int, 
     db: Session = Depends(get_db), 
-    current_user: models.User = Depends(get_admin_user)
+    current_user: models.User = Depends(require_permission("vehiculos.eliminar"))
 ):
     db_vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
     if not db_vehiculo:
@@ -512,14 +517,14 @@ def delete_vehiculo(
     return {"message": "Vehiculo deleted successfully"}
 
 # ============================================
-# VEHICULO HISTORIAL ENDPOINTS (NUEVOS)
+# VEHICULO HISTORIAL ENDPOINTS (PERMISOS GRANULARES)
 # ============================================
 
 @app.get("/vehiculos/{vehiculo_id}/historial")
 def get_vehiculo_historial(
     vehiculo_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(require_permission("vehiculos.historial"))
 ):
     """Obtener historial completo de un vehículo (mantenimientos, averías, anotaciones)"""
     vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
@@ -554,11 +559,11 @@ def get_vehiculo_historial(
                 "descripcion": m.descripcion,
                 "taller": m.taller,
                 "coste": float(m.coste) if m.coste else None,
-                "factura_numero": m.factura_numero,
+                "factura_numero": getattr(m, 'factura_numero', None),
                 "realizado_por": m.realizado_por,
-                "proxima_fecha": m.proxima_fecha.isoformat() if m.proxima_fecha else None,
-                "proximo_kilometraje": m.proximo_kilometraje,
-                "estado": m.estado.value if m.estado else None,
+                "proxima_fecha": getattr(m, 'proxima_fecha', None).isoformat() if getattr(m, 'proxima_fecha', None) else None,
+                "proximo_kilometraje": getattr(m, 'proximo_kilometraje', None),
+                "estado": getattr(m, 'estado', None),
             } for m in mantenimientos
         ],
         "averias": [
@@ -612,7 +617,7 @@ def create_mantenimiento(
     vehiculo_id: int,
     mantenimiento: schemas.MantenimientoCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(require_permission("vehiculos.editar"))
 ):
     """Registrar nuevo mantenimiento"""
     vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
@@ -657,7 +662,7 @@ def create_averia(
     vehiculo_id: int,
     averia: schemas.AveriaCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(require_permission("vehiculos.editar"))
 ):
     """Reportar nueva avería"""
     vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
@@ -666,7 +671,7 @@ def create_averia(
     
     # Si la gravedad es crítica, cambiar estado del vehículo
     if averia.gravedad == models.GravedadAveria.CRITICA:
-        vehiculo.estado = "taller"
+        vehiculo.estado = models.EstadoVehiculo.TALLER
     
     db_averia = models.Averia(
         vehiculo_id=vehiculo_id,
@@ -685,7 +690,7 @@ def update_averia(
     averia_id: int,
     averia_update: schemas.AveriaUpdate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(require_permission("vehiculos.editar"))
 ):
     """Actualizar avería (resolver, etc.)"""
     db_averia = db.query(models.Averia).filter(
@@ -715,7 +720,7 @@ def update_averia(
         # Si no hay más, poner vehículo como operativo
         if averias_abiertas == 0:
             vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
-            vehiculo.estado = "operativo"
+            vehiculo.estado = models.EstadoVehiculo.OPERATIVO
     
     for key, value in update_data.items():
         setattr(db_averia, key, value)
@@ -792,7 +797,7 @@ def get_alertas_vehiculos(
     # ITV próxima a vencer
     vehiculos_itv = db.query(models.Vehiculo).filter(
         models.Vehiculo.itv_fecha_proxima <= fecha_limite.date(),
-        models.Vehiculo.estado != "baja"
+        models.Vehiculo.estado != models.EstadoVehiculo.BAJA
     ).all()
     
     for v in vehiculos_itv:
@@ -833,7 +838,7 @@ def get_alertas_vehiculos(
     return alertas
 
 # ============================================
-# SERVICIO ENDPOINTS
+# SERVICIO ENDPOINTS (PERMISOS GRANULARES)
 # ============================================
 
 @app.get("/servicios", response_model=List[schemas.Servicio])
@@ -861,7 +866,7 @@ def get_servicio(
 def create_servicio(
     servicio: schemas.ServicioCreate, 
     db: Session = Depends(get_db), 
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(require_permission("servicios.crear"))
 ):
     # Check codigo
     if servicio.codigo:
@@ -876,7 +881,6 @@ def create_servicio(
         if cliente:
             cliente_nombre = cliente.nombre
     
-    # FIX: Pydantic v2 - usar model_dump
     servicio_data = servicio.model_dump()
     servicio_data["cliente_nombre"] = cliente_nombre
     
@@ -891,13 +895,12 @@ def update_servicio(
     servicio_id: int, 
     servicio: schemas.ServicioUpdate, 
     db: Session = Depends(get_db), 
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(require_permission("servicios.editar"))
 ):
     db_servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
     if not db_servicio:
         raise HTTPException(status_code=404, detail="Servicio not found")
     
-    # FIX: Pydantic v2 - usar model_dump
     update_data = servicio.model_dump(exclude_unset=True)
     
     # Update cliente_nombre if cliente_id changed
@@ -919,7 +922,7 @@ def update_servicio(
 def delete_servicio(
     servicio_id: int, 
     db: Session = Depends(get_db), 
-    current_user: models.User = Depends(get_admin_user)
+    current_user: models.User = Depends(require_permission("servicios.eliminar"))
 ):
     db_servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
     if not db_servicio:
@@ -936,7 +939,7 @@ def delete_servicio(
 @app.get("/dashboard/stats")
 def get_dashboard_stats(
     db: Session = Depends(get_db), 
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(require_permission("dashboard.ver"))
 ):
     # Servicios activos
     servicios_activos = db.query(models.Servicio).filter(
@@ -960,20 +963,20 @@ def get_dashboard_stats(
     
     # Conductores
     conductores_disponibles = db.query(models.Conductor).filter(
-        models.Conductor.estado == 'activo'
+        models.Conductor.estado == models.EstadoConductor.ACTIVO
     ).count()
     
     conductores_ocupados = db.query(models.Conductor).filter(
-        models.Conductor.estado == 'en_ruta'
+        models.Conductor.estado == models.EstadoConductor.EN_RUTA
     ).count()
     
     # Vehículos
     vehiculos_operativos = db.query(models.Vehiculo).filter(
-        models.Vehiculo.estado == 'operativo'
+        models.Vehiculo.estado == models.EstadoVehiculo.OPERATIVO
     ).count()
     
     vehiculos_taller = db.query(models.Vehiculo).filter(
-        models.Vehiculo.estado == 'taller'
+        models.Vehiculo.estado == models.EstadoVehiculo.TALLER
     ).count()
     
     # Facturación
@@ -1006,13 +1009,35 @@ def get_dashboard_stats(
 def get_servicios_recientes(
     limit: int = 5,
     db: Session = Depends(get_db), 
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(require_permission("dashboard.ver"))
 ):
     servicios = db.query(models.Servicio).order_by(
         models.Servicio.fecha_creacion.desc()
     ).limit(limit).all()
     
     return servicios
+
+# ============================================
+# PERMISSIONS INFO ENDPOINT (NUEVO)
+# ============================================
+
+@app.get("/auth/permissions")
+def get_my_permissions(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Obtener lista de permisos del usuario actual (para frontend)"""
+    from permissions import get_permisos_usuario
+    
+    permisos = get_permisos_usuario(current_user, db)
+    
+    return {
+        "user_id": current_user.id,
+        "username": current_user.username,
+        "rol": current_user.rol.value,
+        "rol_custom": current_user.rol_custom_obj.nombre if current_user.rol_custom_obj else None,
+        "permisos": permisos
+    }
 
 # ============================================
 # HEALTH CHECK
@@ -1025,14 +1050,14 @@ def health_check():
         "status": "healthy" if db_status else "unhealthy",
         "database": "connected" if db_status else "disconnected",
         "timestamp": datetime.utcnow(),
-        "version": "1.1.0"
+        "version": "1.2.0"
     }
 
 @app.get("/")
 def root():
     return {
         "message": "MILANO Transport Management API",
-        "version": "1.1.0",
+        "version": "1.2.0",
         "docs": "/docs",
         "health": "/health"
     }
