@@ -612,3 +612,9 @@ export interface ApiError {
   message: string;
   code?: string;
 }
+
+// ============================================
+// PERMISOS Y ROLES (Barrel Export)
+// ============================================
+
+export * from './permisos';
