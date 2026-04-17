@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { User, Role, Permission } from '../../types';
+import { User, Role, Permission } from '../../types/permisos';
 import { api } from '../../lib/api';
 import { PermisosChecklist } from '../../components/permisos/PermisosChecklist';
 import { RolBadge, PermisosLista } from '../../components/permisos/PermisosBadge';
