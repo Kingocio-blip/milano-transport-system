@@ -211,7 +211,6 @@ class Conductor(Base):
     notas = Column(Text, nullable=True)
     
     usuario = relationship("User", back_populates="conductor", uselist=False)
-    anotaciones = relationship("AnotacionVehiculo", back_populates="conductor")
     
     __table_args__ = (
         Index('idx_conductor_estado', 'estado'),
@@ -368,7 +367,6 @@ class AnotacionVehiculo(Base):
     fecha_actualizacion = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
     
     vehiculo = relationship("Vehiculo", back_populates="anotaciones")
-    conductor = relationship("Conductor", back_populates="anotaciones")
     
     __table_args__ = (
         Index('idx_anotacion_vehiculo', 'vehiculo_id'),
@@ -436,7 +434,6 @@ class Servicio(Base):
     creado_por = Column(String(50), nullable=True)
     
     cliente = relationship("Cliente", back_populates="servicios")
-    anotaciones = relationship("AnotacionVehiculo", back_populates="servicio")
     
     __table_args__ = (
         Index('idx_servicio_estado', 'estado'),
