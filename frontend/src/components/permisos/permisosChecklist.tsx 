@@ -1,0 +1,107 @@
+import React, { useMemo } from 'react';
+import { Permission, CATEGORIAS_PERMISOS } from '../../types/permisos';
+
+interface PermisosChecklistProps {
+  permisos: Permission[];
+  seleccionados: number[];  // IDs de permisos seleccionados
+  onChange: (permisoId: number, seleccionado: boolean) => void;
+  disabled?: boolean;
+}
+
+export function PermisosChecklist({ 
+  permisos, 
+  seleccionados, 
+  onChange,
+  disabled = false 
+}: PermisosChecklistProps) {
+  
+  // Agrupar permisos por categoría
+  const permisosPorCategoria = useMemo(() => {
+    const agrupado: Record<string, Permission[]> = {};
+    
+    CATEGORIAS_PERMISOS.forEach(cat => {
+      agrupado[cat.id] = permisos.filter(p => p.categoria === cat.id);
+    });
+    
+    return agrupado;
+  }, [permisos]);
+
+  // Verificar si todos los de una categoría están seleccionados
+  const categoriaCompleta = (categoriaId: string): boolean => {
+    const permisosCat = permisosPorCategoria[categoriaId] || [];
+    if (permisosCat.length === 0) return false;
+    return permisosCat.every(p => seleccionados.includes(p.id));
+  };
+
+  // Seleccionar/deseleccionar toda una categoría
+  const toggleCategoria = (categoriaId: string) => {
+    const permisosCat = permisosPorCategoria[categoriaId] || [];
+    const todosSeleccionados = categoriaCompleta(categoriaId);
+    
+    permisosCat.forEach(p => {
+      onChange(p.id, !todosSeleccionados);
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      {CATEGORIAS_PERMISOS.map(categoria => {
+        const permisosCat = permisosPorCategoria[categoria.id] || [];
+        if (permisosCat.length === 0) return null;
+
+        return (
+          <div key={categoria.id} className="border rounded-lg p-4 bg-gray-50">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-semibold text-gray-800 flex items-center gap-2">
+                <span>{categoria.nombre}</span>
+              </h4>
+              
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={categoriaCompleta(categoria.id)}
+                  onChange={() => toggleCategoria(categoria.id)}
+                  disabled={disabled}
+                  className="rounded border-gray-300"
+                />
+                <span className="text-gray-600">Seleccionar todo</span>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {permisosCat.map(permiso => (
+                <label 
+                  key={permiso.id} 
+                  className="flex items-start gap-2 p-2 rounded hover:bg-white transition-colors cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={seleccionados.includes(permiso.id)}
+                    onChange={(e) => onChange(permiso.id, e.target.checked)}
+                    disabled={disabled || permiso.es_sistema}
+                    className="mt-1 rounded border-gray-300"
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium text-sm text-gray-800">
+                      {permiso.nombre}
+                    </div>
+                    {permiso.descripcion && (
+                      <div className="text-xs text-gray-500">
+                        {permiso.descripcion}
+                      </div>
+                    )}
+                    {permiso.es_sistema && (
+                      <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                        Sistema
+                      </span>
+                    )}
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}

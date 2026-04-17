@@ -12,6 +12,7 @@ from permissions import (
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from sqlalchemy.orm import joinedload
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime, timedelta
@@ -1061,3 +1062,146 @@ def root():
         "docs": "/docs",
         "health": "/health"
     }
+
+# ============================================
+# ROLES Y PERMISOS ENDPOINTS (para frontend)
+# ============================================
+
+@app.get("/permissions", response_model=List[schemas.Permission])
+def get_permissions(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Lista todos los permisos disponibles (para crear roles)"""
+    permisos = db.query(models.Permission).filter(
+        models.Permission.activo == True
+    ).order_by(models.Permission.categoria, models.Permission.nombre).all()
+    return permisos
+
+@app.get("/roles", response_model=List[schemas.Role])
+def get_roles(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Lista todos los roles (sistema + custom de la empresa del usuario)"""
+    # TODO: Filtrar por empresa_id cuando implementemos multi-tenant
+    roles = db.query(models.Role).options(
+        joinedload(models.Role.permissions).joinedload(models.RolePermission.permission)
+    ).all()
+    return roles
+
+@app.get("/roles/{role_id}", response_model=schemas.Role)
+def get_role(
+    role_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Obtener un rol específico con sus permisos"""
+    rol = db.query(models.Role).options(
+        joinedload(models.Role.permissions).joinedload(models.RolePermission.permission)
+    ).filter(models.Role.id == role_id).first()
+    
+    if not rol:
+        raise HTTPException(status_code=404, detail="Rol no encontrado")
+    
+    return rol
+
+@app.post("/roles", response_model=schemas.Role)
+def create_role(
+    role_data: schemas.RoleCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("configuracion.roles"))
+):
+    """Crear un nuevo rol custom"""
+    # Verificar código único
+    existing = db.query(models.Role).filter(
+        models.Role.codigo == role_data.codigo,
+        models.Role.empresa_id == current_user.empresa_id  # o None si no hay multi-tenant
+    ).first()
+    
+    if existing:
+        raise HTTPException(status_code=400, detail="Código de rol ya existe")
+    
+    # Crear rol
+    rol = models.Role(
+        codigo=role_data.codigo,
+        nombre=role_data.nombre,
+        descripcion=role_data.descripcion,
+        es_sistema=False,
+        empresa_id=current_user.empresa_id,  # Asociar a empresa del creador
+        activo=True
+    )
+    db.add(rol)
+    db.flush()  # Obtener ID
+    
+    # Asignar permisos
+    for permiso_id in role_data.permisos_ids:
+        rp = models.RolePermission(role_id=rol.id, permission_id=permiso_id)
+        db.add(rp)
+    
+    db.commit()
+    db.refresh(rol)
+    return rol
+
+@app.put("/roles/{role_id}", response_model=schemas.Role)
+def update_role(
+    role_id: int,
+    role_data: schemas.RoleUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("configuracion.roles"))
+):
+    """Actualizar un rol custom (no se pueden editar roles del sistema)"""
+    rol = db.query(models.Role).filter(models.Role.id == role_id).first()
+    
+    if not rol:
+        raise HTTPException(status_code=404, detail="Rol no encontrado")
+    
+    if rol.es_sistema:
+        raise HTTPException(status_code=403, detail="No se pueden editar roles del sistema")
+    
+    # Actualizar datos básicos
+    rol.nombre = role_data.nombre
+    rol.descripcion = role_data.descripcion
+    
+    # Eliminar permisos actuales y agregar nuevos (más simple que diff)
+    db.query(models.RolePermission).filter(
+        models.RolePermission.role_id == role_id
+    ).delete()
+    
+    for permiso_id in role_data.permisos_ids:
+        rp = models.RolePermission(role_id=rol.id, permission_id=permiso_id)
+        db.add(rp)
+    
+    db.commit()
+    db.refresh(rol)
+    return rol
+
+@app.delete("/roles/{role_id}")
+def delete_role(
+    role_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("configuracion.roles"))
+):
+    """Eliminar un rol custom"""
+    rol = db.query(models.Role).filter(models.Role.id == role_id).first()
+    
+    if not rol:
+        raise HTTPException(status_code=404, detail="Rol no encontrado")
+    
+    if rol.es_sistema:
+        raise HTTPException(status_code=403, detail="No se pueden eliminar roles del sistema")
+    
+    # Verificar si hay usuarios con este rol
+    usuarios_con_rol = db.query(models.User).filter(
+        models.User.rol_custom_id == role_id
+    ).count()
+    
+    if usuarios_con_rol > 0:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"No se puede eliminar: {usuarios_con_rol} usuarios tienen este rol"
+        )
+    
+    db.delete(rol)
+    db.commit()
+    return {"message": "Rol eliminado"}
