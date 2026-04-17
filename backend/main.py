@@ -35,28 +35,6 @@ logger = logging.getLogger(__name__)
 models.Base.metadata.create_all(bind=engine)
 
 # ============================================
-# TEMP: Endpoint para crear tablas (quitar en producción)
-# ============================================
-
-@app.get("/init-db")
-def init_database():
-    """Inicializar base de datos - crear todas las tablas"""
-    try:
-        models.Base.metadata.create_all(bind=engine)
-        return {"message": "✅ Tablas creadas correctamente", "status": "success"}
-    except Exception as e:
-        return {"message": f"❌ Error: {str(e)}", "status": "error"}
-
-@app.get("/drop-db")
-def drop_database():
-    """⚠️ ELIMINAR todas las tablas - solo para desarrollo"""
-    try:
-        models.Base.metadata.drop_all(bind=engine)
-        return {"message": "⚠️ Tablas eliminadas", "status": "success"}
-    except Exception as e:
-        return {"message": f"❌ Error: {str(e)}", "status": "error"}
-
-# ============================================
 # FASTAPI APP CONFIGURATION
 # ============================================
 
@@ -1045,3 +1023,25 @@ def root():
         "docs": "/docs",
         "health": "/health"
     }
+
+# ============================================
+# TEMP: Endpoints para inicializar BD (quitar en producción)
+# ============================================
+
+@app.get("/init-db")
+def init_database():
+    """Inicializar base de datos - crear todas las tablas"""
+    try:
+        models.Base.metadata.create_all(bind=engine)
+        return {"message": "✅ Tablas creadas correctamente", "status": "success"}
+    except Exception as e:
+        return {"message": f"❌ Error: {str(e)}", "status": "error"}
+
+@app.get("/drop-db")
+def drop_database():
+    """⚠️ ELIMINAR todas las tablas - solo para desarrollo"""
+    try:
+        models.Base.metadata.drop_all(bind=engine)
+        return {"message": "⚠️ Tablas eliminadas", "status": "success"}
+    except Exception as e:
+        return {"message": f"❌ Error: {str(e)}", "status": "error"}
