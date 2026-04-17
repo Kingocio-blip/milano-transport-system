@@ -144,7 +144,7 @@ export default function Flota() {
     taller: vehiculos.filter(v => v.estado === 'taller').length,
     reservados: vehiculos.filter(v => v.estado === 'reservado').length,
     itvProxima: vehiculos.filter(v => {
-      const dias = getDiasRestantes(v.itv_fecha);
+      const dias = getDiasRestantes(v.itv?.fechaProxima);  // ← Así
       return dias !== null && dias <= 30;
     }).length,
   }), [vehiculos]);
