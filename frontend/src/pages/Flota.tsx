@@ -514,7 +514,7 @@ export default function Flota() {
                 </TabsList>
 
                 {/* TAB INFO */}
-                <TabsContent value="info" className="space-y-4">
+                <TabsContent value="info" className="space-y-4" forceMount>
                   <div className="grid grid-cols-2 gap-4">
                     <Card className="p-4">
                       <h3 className="font-medium mb-3 flex items-center gap-2"><Bus className="h-4 w-4" /> Datos del Vehículo</h3>
@@ -545,7 +545,7 @@ export default function Flota() {
                 </TabsContent>
 
                 {/* TAB MANTENIMIENTO */}
-                <TabsContent value="mantenimiento" className="space-y-4">
+                <TabsContent value="mantenimiento" className="space-y-4" forceMount>
                   <div className="flex justify-between items-center">
                     <h3 className="font-medium flex items-center gap-2"><Settings className="h-4 w-4" /> Historial de Mantenimiento</h3>
                     <Button size="sm" onClick={() => setShowNuevoMantenimiento(true)} className="bg-[#1e3a5f] hover:bg-[#152a45]"><Plus className="mr-1 h-3 w-3" /> Añadir</Button>
@@ -579,7 +579,7 @@ export default function Flota() {
                 </TabsContent>
 
                 {/* TAB AVERÍAS */}
-                <TabsContent value="averias" className="space-y-4">
+                <TabsContent value="averias" className="space-y-4" forceMount>
                   <div className="flex justify-between items-center">
                     <h3 className="font-medium flex items-center gap-2"><AlertCircle className="h-4 w-4" /> Averías y Reparaciones</h3>
                     <Button size="sm" onClick={() => setShowNuevaAveria(true)} className="bg-[#1e3a5f] hover:bg-[#152a45]"><Plus className="mr-1 h-3 w-3" /> Reportar Avería</Button>
@@ -618,7 +618,7 @@ export default function Flota() {
                 </TabsContent>
 
                 {/* TAB ANOTACIONES */}
-                <TabsContent value="anotaciones" className="space-y-4">
+                <TabsContent value="anotaciones" className="space-y-4" forceMount>
                   <div className="flex justify-between items-center">
                     <h3 className="font-medium flex items-center gap-2"><ClipboardList className="h-4 w-4" /> Anotaciones del Personal</h3>
                     <Button size="sm" onClick={() => setShowNuevaAnotacion(true)} className="bg-[#1e3a5f] hover:bg-[#152a45]"><Plus className="mr-1 h-3 w-3" /> Añadir Anotación</Button>
@@ -652,7 +652,7 @@ export default function Flota() {
                 </TabsContent>
 
                 {/* TAB GASTOS */}
-                <TabsContent value="gastos" className="space-y-4">
+                <TabsContent value="gastos" className="space-y-4" forceMount>
                   <div className="flex justify-between items-center">
                     <h3 className="font-medium flex items-center gap-2"><Euro className="h-4 w-4" /> Gastos y Facturas</h3>
                     <Button size="sm" onClick={() => setShowNuevoGasto(true)} className="bg-[#1e3a5f] hover:bg-[#152a45]"><Plus className="mr-1 h-3 w-3" /> Añadir Gasto</Button>
