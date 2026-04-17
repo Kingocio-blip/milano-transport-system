@@ -885,7 +885,7 @@ class VehiculoHistorial(BaseModel):
     averias: List[AveriaResponse] = []
     anotaciones: List[AnotacionVehiculoResponse] = []
 
-class VehiculoDetalleResponse(VehiculoResponse):
+class VehiculoDetalleResponse(Vehiculo):
     model_config = ConfigDict(from_attributes=True)
     
     historial: VehiculoHistorial = VehiculoHistorial()
