@@ -2,6 +2,13 @@
 # MILANO - Backend Main (COMPLETO - Pydantic v2)
 # ============================================
 
+from permissions import (
+    require_permission, 
+    has_permission, 
+    inicializar_permisos_sistema, 
+    inicializar_roles_sistema,
+    user_can
+)
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -70,7 +77,7 @@ app.add_middleware(
 )
 
 # ============================================
-# STARTUP - Crear admin y verificar DB
+# STARTUP - Crear admin, permisos y verificar DB
 # ============================================
 
 @app.on_event("startup")
@@ -81,6 +88,11 @@ async def startup_event():
     
     db = SessionLocal()
     try:
+        # Inicializar permisos y roles del sistema (NUEVO)
+        inicializar_permisos_sistema(db)
+        inicializar_roles_sistema(db)
+        
+        # Crear admin si no existe
         admin = db.query(models.User).filter(models.User.username == "admin").first()
         if not admin:
             hashed = get_password_hash("admin123")
@@ -97,6 +109,7 @@ async def startup_event():
             logger.info("✅ Usuario admin creado: admin / admin123")
         else:
             logger.info("ℹ️ Usuario admin ya existe")
+            
     except Exception as e:
         logger.error(f"⚠️ Error en startup: {e}")
     finally:

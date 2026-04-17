@@ -107,7 +107,7 @@ export default function Flota() {
     }
   }, [vehiculoSeleccionado?.id]);
 
-  const cargarHistorial = async (vehiculoId: number) => {
+  const cargarHistorial = async (vehiculoId: string) => {  // ← cambia number a string
     setLoadingHistorial(true);
     try {
       const token = localStorage.getItem('milano_token');
