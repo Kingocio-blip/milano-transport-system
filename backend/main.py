@@ -499,7 +499,7 @@ def delete_vehiculo(
     return {"message": "Vehiculo deleted successfully"}
 
 # ============================================
-# VEHICULO HISTORIAL ENDPOINTS
+# VEHICULO HISTORIAL ENDPOINTS (NUEVOS)
 # ============================================
 
 @app.get("/vehiculos/{vehiculo_id}/historial")
