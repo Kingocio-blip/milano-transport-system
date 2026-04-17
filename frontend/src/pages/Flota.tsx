@@ -103,7 +103,7 @@ export default function Flota() {
 
   useEffect(() => {
     if (vehiculoSeleccionado?.id) {
-      cargarHistorial(vehiculoSeleccionado.id);
+      cargarHistorial(Number(vehiculoSeleccionado.id));
     }
   }, [vehiculoSeleccionado?.id]);
 
