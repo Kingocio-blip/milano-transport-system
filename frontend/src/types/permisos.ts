@@ -26,7 +26,7 @@ export interface RoleCreate {
   codigo: string;
   nombre: string;
   descripcion?: string;
-  permisos_ids: number[];  // IDs de permisos asignados
+  permisos_ids: number[];
 }
 
 export interface UserPermissionsResponse {
@@ -34,7 +34,7 @@ export interface UserPermissionsResponse {
   username: string;
   rol: string;
   rol_custom?: string;
-  permisos: string[];  // Lista de códigos como "clientes.crear", "servicios.*"
+  permisos: string[];
 }
 
 export interface PermisoCategoria {
@@ -55,3 +55,14 @@ export const CATEGORIAS_PERMISOS = [
   { id: 'configuracion', nombre: 'Configuración', icono: 'Settings' },
   { id: 'admin', nombre: 'Administración', icono: 'Shield' },
 ] as const;
+
+// Tipo User básico para permisos
+export interface User {
+  id: number;
+  username: string;
+  email: string;
+  nombre_completo: string;
+  rol: string;
+  rol_custom_id?: number;
+  activo: boolean;
+}
