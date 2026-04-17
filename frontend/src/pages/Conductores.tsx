@@ -1,5 +1,5 @@
 // ============================================
-// MILANO - Conductores Page (OPTIMIZADO CON AUTO-ASIGNACIÓN)
+// MILANO - Conductores Page (FIX BOTONES DIRECTOS)
 // ============================================
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -26,12 +26,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from '../components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '../components/ui/dropdown-menu';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -40,7 +34,6 @@ import {
   UserCircle,
   Search,
   Plus,
-  MoreVertical,
   Edit,
   Trash2,
   Eye,
@@ -82,7 +75,7 @@ const generarPassword = (): string => {
   return pass;
 };
 
-// Helper seguro para convertir fecha a string y parsear
+// Helper seguro para convertir fecha
 const parseDateSafe = (date: string | Date | undefined): Date | null => {
   if (!date) return null;
   try {
@@ -94,7 +87,7 @@ const parseDateSafe = (date: string | Date | undefined): Date | null => {
   }
 };
 
-// Helper para asegurar que disponibilidad tenga valores por defecto
+// Helper disponibilidad
 const ensureDisponibilidad = (d: Partial<Conductor>['disponibilidad']): NonNullable<Conductor['disponibilidad']> => ({
   dias: d?.dias ?? [1, 2, 3, 4, 5],
   horaInicio: d?.horaInicio ?? '08:00',
@@ -102,7 +95,7 @@ const ensureDisponibilidad = (d: Partial<Conductor>['disponibilidad']): NonNulla
   observaciones: d?.observaciones,
 });
 
-// Helper para asegurar que licencia tenga valores por defecto
+// Helper licencia
 const ensureLicencia = (l: Partial<Conductor>['licencia']): NonNullable<Conductor['licencia']> => ({
   tipo: l?.tipo ?? 'D',
   numero: l?.numero ?? '',
@@ -110,53 +103,6 @@ const ensureLicencia = (l: Partial<Conductor>['licencia']): NonNullable<Conducto
   fechaCaducidad: l?.fechaCaducidad ?? addDays(new Date(), 365).toISOString(),
   permisos: l?.permisos ?? [],
 });
-
-// Verificar si un conductor está disponible en una fecha/hora específica
-const estaDisponible = (
-  conductor: Conductor,
-  fechaInicio: string,
-  horaInicio?: string,
-  fechaFin?: string,
-  horaFin?: string,
-  serviciosAsignados: any[] = []
-): boolean => {
-  if (['baja', 'vacaciones', 'descanso', 'inactivo'].includes(conductor.estado)) return false;
-  
-  const diaSemana = new Date(fechaInicio).getDay();
-  const disponibleDia = conductor.disponibilidad?.dias?.includes(diaSemana) ?? true;
-  if (!disponibleDia) return false;
-  
-  const inicioNuevo = new Date(`${fechaInicio}T${horaInicio || '00:00'}`);
-  const finNuevo = new Date(`${fechaFin || fechaInicio}T${horaFin || '23:59'}`);
-  
-  for (const servicio of serviciosAsignados) {
-    if (!servicio.conductoresAsignados?.includes(conductor.id)) continue;
-    
-    const inicioExistente = new Date(servicio.fechaInicio);
-    const finExistente = new Date(servicio.fechaFin || servicio.fechaInicio);
-    
-    if (isWithinInterval(inicioNuevo, { start: inicioExistente, end: finExistente }) ||
-        isWithinInterval(finNuevo, { start: inicioExistente, end: finExistente }) ||
-        isWithinInterval(inicioExistente, { start: inicioNuevo, end: finNuevo })) {
-      return false;
-    }
-  }
-  
-  return true;
-};
-
-// Calcular puntuación de preferencia para orden de asignación
-const calcularPuntuacion = (conductor: Conductor): number => {
-  let score = conductor.prioridad || 0;
-  
-  if (conductor.valoracion && conductor.valoracion >= 4.5) score += 10;
-  else if (conductor.valoracion && conductor.valoracion >= 4) score += 5;
-  
-  score += (conductor.totalServiciosMes || 0) * 0.5;
-  score -= (conductor.totalHorasMes || 0) * 0.1;
-  
-  return score;
-};
 
 export default function Conductores() {
   const { conductores, isLoading, error, addConductor, updateConductor, deleteConductor, fetchConductores } = useConductoresStore();
@@ -168,6 +114,7 @@ export default function Conductores() {
   const [conductorSeleccionado, setConductorSeleccionado] = useState<Conductor | null>(null);
   const [isNuevoConductorOpen, setIsNuevoConductorOpen] = useState(false);
   const [isEditarOpen, setIsEditarOpen] = useState(false);
+  const [isDetalleOpen, setIsDetalleOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [credencialesGeneradas, setCredencialesGeneradas] = useState<{usuario: string, password: string} | null>(null);
 
@@ -189,27 +136,6 @@ export default function Conductores() {
   useEffect(() => {
     if (error) showToast(error, 'error');
   }, [error, showToast]);
-
-  const conductoresPriorizados = useMemo(() => {
-    return [...conductores]
-      .filter(c => c.estado === 'activo')
-      .map(c => ({ ...c, score: calcularPuntuacion(c) }))
-      .sort((a, b) => b.score - a.score);
-  }, [conductores]);
-
-  const encontrarMejorConductor = useCallback((
-    fechaInicio: string,
-    horaInicio?: string,
-    fechaFin?: string,
-    horaFin?: string
-  ): Conductor | null => {
-    for (const conductor of conductoresPriorizados) {
-      if (estaDisponible(conductor, fechaInicio, horaInicio, fechaFin, horaFin, servicios)) {
-        return conductor;
-      }
-    }
-    return null;
-  }, [conductoresPriorizados, servicios]);
 
   const conductoresFiltrados = useMemo(() => {
     return conductores.filter(conductor => {
@@ -236,7 +162,6 @@ export default function Conductores() {
     }).length,
   }), [conductores]);
 
-  // FIX: Handler con preventDefault y stopPropagation
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -264,10 +189,7 @@ export default function Conductores() {
         prioridad: nuevoConductor.prioridad || 50,
         disponibilidad: ensureDisponibilidad(nuevoConductor.disponibilidad),
         licencia: ensureLicencia(nuevoConductor.licencia),
-        credenciales: {
-          usuario: usuario,
-          password_hash: password,
-        },
+        credenciales: { usuario, password_hash: password },
         panel_activo: true,
         total_horas_mes: 0,
         total_servicios_mes: 0,
@@ -282,7 +204,7 @@ export default function Conductores() {
         setNuevoConductor(initialConductorState);
         showToast('Conductor creado correctamente', 'success');
         await fetchConductores();
-        setTimeout(() => setCredencialesGeneradas(null), 10000);
+        setTimeout(() => setCredencialesGeneradas(null), 30000); // 30 segundos para ver la contraseña
       } else {
         showToast('Error al crear conductor', 'error');
       }
@@ -296,7 +218,6 @@ export default function Conductores() {
   const handleEditarConductor = async () => {
     if (!conductorSeleccionado) return;
     setIsSubmitting(true);
-    
     try {
       const success = await updateConductor(String(conductorSeleccionado.id), conductorSeleccionado);
       if (success) {
@@ -311,13 +232,17 @@ export default function Conductores() {
     }
   };
 
-  const handleEliminarConductor = async (id: string) => {
+  const handleEliminarConductor = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     if (!window.confirm('¿Eliminar este conductor?')) return;
     try {
       const success = await deleteConductor(id);
       if (success) {
         showToast('Conductor eliminado', 'success');
-        if (conductorSeleccionado?.id === id) setConductorSeleccionado(null);
+        if (conductorSeleccionado?.id === id) {
+          setIsDetalleOpen(false);
+          setConductorSeleccionado(null);
+        }
         await fetchConductores();
       }
     } catch (err: any) {
@@ -331,21 +256,23 @@ export default function Conductores() {
     setCredencialesGeneradas(null);
   };
 
-  // FIX: Helper para toggle de días con tipo correcto
+  const verDetalle = (conductor: Conductor) => {
+    setConductorSeleccionado(conductor);
+    setIsDetalleOpen(true);
+  };
+
+  const abrirEditar = (conductor: Conductor, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setConductorSeleccionado(conductor);
+    setIsEditarOpen(true);
+  };
+
   const toggleDia = (idx: number, checked: boolean | 'indeterminate') => {
     if (checked === 'indeterminate') return;
-    
     const currentDisp = ensureDisponibilidad(nuevoConductor.disponibilidad);
     const currentDias = currentDisp.dias || [];
-    
-    const newDias = checked
-      ? [...currentDias, idx]
-      : currentDias.filter(d => d !== idx);
-    
-    setNuevoConductor({
-      ...nuevoConductor,
-      disponibilidad: { ...currentDisp, dias: newDias }
-    });
+    const newDias = checked ? [...currentDias, idx] : currentDias.filter(d => d !== idx);
+    setNuevoConductor({ ...nuevoConductor, disponibilidad: { ...currentDisp, dias: newDias } });
   };
 
   if (isLoading && conductores.length === 0) {
@@ -358,6 +285,7 @@ export default function Conductores() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-4 rounded-lg border shadow-sm">
         <div>
           <h2 className="text-xl font-bold text-slate-900">Conductores</h2>
@@ -369,74 +297,7 @@ export default function Conductores() {
         </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-5">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500">Activos</p>
-                <p className="text-3xl font-bold">{stats.activos}</p>
-              </div>
-              <div className="rounded-full bg-green-100 p-3">
-                <CheckCircle2 className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500">En Ruta</p>
-                <p className="text-3xl font-bold">{stats.enRuta}</p>
-              </div>
-              <div className="rounded-full bg-purple-100 p-3">
-                <Briefcase className="h-6 w-6 text-purple-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500">Vacaciones</p>
-                <p className="text-3xl font-bold">{stats.vacaciones}</p>
-              </div>
-              <div className="rounded-full bg-blue-100 p-3">
-                <Calendar className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500">Horas Mes</p>
-                <p className="text-3xl font-bold">{stats.totalHorasMes}</p>
-              </div>
-              <div className="rounded-full bg-purple-100 p-3">
-                <Clock className="h-6 w-6 text-purple-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500">Licencias ⚠️</p>
-                <p className="text-3xl font-bold">{stats.licenciasProximas}</p>
-              </div>
-              <div className="rounded-full bg-amber-100 p-3">
-                <AlertTriangle className="h-6 w-6 text-amber-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
+      {/* Dialog Nuevo */}
       <Dialog open={isNuevoConductorOpen} onOpenChange={setIsNuevoConductorOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -448,147 +309,81 @@ export default function Conductores() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Nombre *</Label>
-                <Input
-                  value={nuevoConductor.nombre || ''}
-                  onChange={(e) => setNuevoConductor({...nuevoConductor, nombre: e.target.value})}
-                  placeholder="Nombre"
-                  required
-                />
+                <Input value={nuevoConductor.nombre || ''} onChange={(e) => setNuevoConductor({...nuevoConductor, nombre: e.target.value})} placeholder="Nombre" required />
               </div>
               <div className="space-y-2">
                 <Label>Apellidos *</Label>
-                <Input
-                  value={nuevoConductor.apellidos || ''}
-                  onChange={(e) => setNuevoConductor({...nuevoConductor, apellidos: e.target.value})}
-                  placeholder="Apellidos"
-                  required
-                />
+                <Input value={nuevoConductor.apellidos || ''} onChange={(e) => setNuevoConductor({...nuevoConductor, apellidos: e.target.value})} placeholder="Apellidos" required />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>DNI *</Label>
-                <Input
-                  value={nuevoConductor.dni || ''}
-                  onChange={(e) => setNuevoConductor({...nuevoConductor, dni: e.target.value.toUpperCase()})}
-                  placeholder="12345678A"
-                  required
-                />
+                <Input value={nuevoConductor.dni || ''} onChange={(e) => setNuevoConductor({...nuevoConductor, dni: e.target.value.toUpperCase()})} placeholder="12345678A" required />
               </div>
               <div className="space-y-2">
                 <Label>Teléfono</Label>
-                <Input
-                  value={nuevoConductor.telefono || ''}
-                  onChange={(e) => setNuevoConductor({...nuevoConductor, telefono: e.target.value})}
-                  placeholder="+34 600 000 000"
-                />
+                <Input value={nuevoConductor.telefono || ''} onChange={(e) => setNuevoConductor({...nuevoConductor, telefono: e.target.value})} placeholder="+34 600 000 000" />
               </div>
             </div>
 
             <div className="space-y-2">
               <Label>Email (para panel de control)</Label>
-              <Input
-                type="email"
-                value={nuevoConductor.email || ''}
-                onChange={(e) => setNuevoConductor({...nuevoConductor, email: e.target.value})}
-                placeholder="conductor@ejemplo.com"
-              />
+              <Input type="email" value={nuevoConductor.email || ''} onChange={(e) => setNuevoConductor({...nuevoConductor, email: e.target.value})} placeholder="conductor@ejemplo.com" />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Tarifa/Hora (€)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  step={0.5}
-                  value={nuevoConductor.tarifaHora}
-                  onChange={(e) => setNuevoConductor({...nuevoConductor, tarifaHora: parseFloat(e.target.value)})}
-                />
+                <Input type="number" min={0} step={0.5} value={nuevoConductor.tarifaHora} onChange={(e) => setNuevoConductor({...nuevoConductor, tarifaHora: parseFloat(e.target.value)})} />
               </div>
               <div className="space-y-2">
                 <Label>Prioridad Asignación (0-100)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={nuevoConductor.prioridad}
-                  onChange={(e) => setNuevoConductor({...nuevoConductor, prioridad: parseInt(e.target.value)})}
-                />
+                <Input type="number" min={0} max={100} value={nuevoConductor.prioridad} onChange={(e) => setNuevoConductor({...nuevoConductor, prioridad: parseInt(e.target.value)})} />
                 <p className="text-xs text-slate-500">Mayor = preferencia en auto-asignación</p>
               </div>
             </div>
 
+            {/* Disponibilidad */}
             <div className="space-y-3 p-3 bg-slate-50 rounded-lg border">
-              <Label className="flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                Disponibilidad Horaria
-              </Label>
-              
+              <Label className="flex items-center gap-2"><Calendar className="h-4 w-4" /> Disponibilidad Horaria</Label>
               <div className="flex flex-wrap gap-2">
                 {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((dia, idx) => (
                   <div key={idx} className="flex items-center gap-1">
-                    <Checkbox
-                      id={`dia-${idx}`}
-                      checked={nuevoConductor.disponibilidad?.dias?.includes(idx) || false}
-                      onCheckedChange={(checked) => toggleDia(idx, checked)}
-                    />
+                    <Checkbox id={`dia-${idx}`} checked={nuevoConductor.disponibilidad?.dias?.includes(idx) || false} onCheckedChange={(checked) => toggleDia(idx, checked)} />
                     <Label htmlFor={`dia-${idx}`} className="text-sm cursor-pointer">{dia}</Label>
                   </div>
                 ))}
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Hora Inicio</Label>
-                  <Input
-                    type="time"
-                    value={nuevoConductor.disponibilidad?.horaInicio || '08:00'}
-                    onChange={(e) => {
-                      const currentDisp = ensureDisponibilidad(nuevoConductor.disponibilidad);
-                      setNuevoConductor({
-                        ...nuevoConductor,
-                        disponibilidad: { ...currentDisp, horaInicio: e.target.value }
-                      });
-                    }}
-                  />
+                  <Input type="time" value={nuevoConductor.disponibilidad?.horaInicio || '08:00'} onChange={(e) => {
+                    const currentDisp = ensureDisponibilidad(nuevoConductor.disponibilidad);
+                    setNuevoConductor({ ...nuevoConductor, disponibilidad: { ...currentDisp, horaInicio: e.target.value } });
+                  }} />
                 </div>
                 <div className="space-y-2">
                   <Label>Hora Fin</Label>
-                  <Input
-                    type="time"
-                    value={nuevoConductor.disponibilidad?.horaFin || '18:00'}
-                    onChange={(e) => {
-                      const currentDisp = ensureDisponibilidad(nuevoConductor.disponibilidad);
-                      setNuevoConductor({
-                        ...nuevoConductor,
-                        disponibilidad: { ...currentDisp, horaFin: e.target.value }
-                      });
-                    }}
-                  />
+                  <Input type="time" value={nuevoConductor.disponibilidad?.horaFin || '18:00'} onChange={(e) => {
+                    const currentDisp = ensureDisponibilidad(nuevoConductor.disponibilidad);
+                    setNuevoConductor({ ...nuevoConductor, disponibilidad: { ...currentDisp, horaFin: e.target.value } });
+                  }} />
                 </div>
               </div>
             </div>
 
+            {/* Licencia */}
             <div className="space-y-3 p-3 bg-slate-50 rounded-lg border">
-              <Label className="flex items-center gap-2">
-                <Award className="h-4 w-4" />
-                Licencia
-              </Label>
+              <Label className="flex items-center gap-2"><Award className="h-4 w-4" /> Licencia</Label>
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Tipo</Label>
-                  <Select
-                    value={nuevoConductor.licencia?.tipo || 'D'}
-                    onValueChange={(v) => {
-                      const currentLic = ensureLicencia(nuevoConductor.licencia);
-                      setNuevoConductor({
-                        ...nuevoConductor,
-                        licencia: { ...currentLic, tipo: v }
-                      });
-                    }}
-                  >
+                  <Select value={nuevoConductor.licencia?.tipo || 'D'} onValueChange={(v) => {
+                    const currentLic = ensureLicencia(nuevoConductor.licencia);
+                    setNuevoConductor({ ...nuevoConductor, licencia: { ...currentLic, tipo: v } });
+                  }}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="D">D (Autobuses)</SelectItem>
@@ -599,41 +394,25 @@ export default function Conductores() {
                 </div>
                 <div className="space-y-2 col-span-2">
                   <Label>Número Licencia</Label>
-                  <Input
-                    value={nuevoConductor.licencia?.numero || ''}
-                    onChange={(e) => {
-                      const currentLic = ensureLicencia(nuevoConductor.licencia);
-                      setNuevoConductor({
-                        ...nuevoConductor,
-                        licencia: { ...currentLic, numero: e.target.value }
-                      });
-                    }}
-                    placeholder="Número de licencia"
-                  />
+                  <Input value={nuevoConductor.licencia?.numero || ''} onChange={(e) => {
+                    const currentLic = ensureLicencia(nuevoConductor.licencia);
+                    setNuevoConductor({ ...nuevoConductor, licencia: { ...currentLic, numero: e.target.value } });
+                  }} placeholder="Número de licencia" />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>Fecha Caducidad</Label>
-                <Input
-                  type="date"
-                  value={nuevoConductor.licencia?.fechaCaducidad ? format(new Date(nuevoConductor.licencia.fechaCaducidad), 'yyyy-MM-dd') : ''}
-                  onChange={(e) => {
-                    const currentLic = ensureLicencia(nuevoConductor.licencia);
-                    setNuevoConductor({
-                      ...nuevoConductor,
-                      licencia: { ...currentLic, fechaCaducidad: e.target.value }
-                    });
-                  }}
-                />
+                <Input type="date" value={nuevoConductor.licencia?.fechaCaducidad ? format(new Date(nuevoConductor.licencia.fechaCaducidad), 'yyyy-MM-dd') : ''} onChange={(e) => {
+                  const currentLic = ensureLicencia(nuevoConductor.licencia);
+                  setNuevoConductor({ ...nuevoConductor, licencia: { ...currentLic, fechaCaducidad: e.target.value } });
+                }} />
               </div>
             </div>
 
+            {/* Estado */}
             <div className="space-y-2">
               <Label>Estado Inicial</Label>
-              <Select
-                value={nuevoConductor.estado}
-                onValueChange={(v) => setNuevoConductor({...nuevoConductor, estado: v as EstadoConductor})}
-              >
+              <Select value={nuevoConductor.estado} onValueChange={(v) => setNuevoConductor({...nuevoConductor, estado: v as EstadoConductor})}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="activo">Activo</SelectItem>
@@ -645,20 +424,16 @@ export default function Conductores() {
               </Select>
             </div>
 
+            {/* Credenciales Info */}
             <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <Label className="flex items-center gap-2 text-blue-700">
-                <Key className="h-4 w-4" />
-                Panel de Control - Credenciales
-              </Label>
+              <Label className="flex items-center gap-2 text-blue-700"><Key className="h-4 w-4" /> Panel de Control - Credenciales</Label>
               <p className="text-sm text-blue-600 mt-1">Se generarán automáticamente al crear el conductor</p>
             </div>
 
+            {/* Credenciales Generadas - AHORA DURA 30 SEGUNDOS */}
             {credencialesGeneradas && (
               <div className="p-4 bg-green-50 rounded-lg border border-green-200 space-y-2">
-                <p className="font-medium text-green-700 flex items-center gap-2">
-                  <Shield className="h-4 w-4" />
-                  Credenciales Generadas (guarde estas)
-                </p>
+                <p className="font-medium text-green-700 flex items-center gap-2"><Shield className="h-4 w-4" /> Credenciales Generadas (guarde estas)</p>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <Label className="text-green-600">Usuario:</Label>
@@ -669,14 +444,12 @@ export default function Conductores() {
                     <p className="font-mono bg-white p-2 rounded border">{credencialesGeneradas.password}</p>
                   </div>
                 </div>
-                <p className="text-xs text-green-600">Estas credenciales desaparecerán en 10 segundos. Asegúrese de guardarlas.</p>
+                <p className="text-xs text-green-600">⚠️ Estas credenciales desaparecerán en 30 segundos. Asegúrese de guardarlas.</p>
               </div>
             )}
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={handleCloseDialog} disabled={isSubmitting}>
-                Cancelar
-              </Button>
+              <Button type="button" variant="outline" onClick={handleCloseDialog} disabled={isSubmitting}>Cancelar</Button>
               <Button type="submit" disabled={isSubmitting} className="bg-[#1e3a5f] hover:bg-[#152a45]">
                 {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Creando...</> : 'Crear Conductor'}
               </Button>
@@ -685,6 +458,16 @@ export default function Conductores() {
         </DialogContent>
       </Dialog>
 
+      {/* Stats */}
+      <div className="grid gap-4 md:grid-cols-5">
+        <Card><CardContent className="p-6"><div className="flex justify-between"><div><p className="text-sm text-slate-500">Activos</p><p className="text-3xl font-bold">{stats.activos}</p></div><div className="rounded-full bg-green-100 p-3"><CheckCircle2 className="h-6 w-6 text-green-600"/></div></div></CardContent></Card>
+        <Card><CardContent className="p-6"><div className="flex justify-between"><div><p className="text-sm text-slate-500">En Ruta</p><p className="text-3xl font-bold">{stats.enRuta}</p></div><div className="rounded-full bg-purple-100 p-3"><Briefcase className="h-6 w-6 text-purple-600"/></div></div></CardContent></Card>
+        <Card><CardContent className="p-6"><div className="flex justify-between"><div><p className="text-sm text-slate-500">Vacaciones</p><p className="text-3xl font-bold">{stats.vacaciones}</p></div><div className="rounded-full bg-blue-100 p-3"><Calendar className="h-6 w-6 text-blue-600"/></div></div></CardContent></Card>
+        <Card><CardContent className="p-6"><div className="flex justify-between"><div><p className="text-sm text-slate-500">Horas Mes</p><p className="text-3xl font-bold">{stats.totalHorasMes}</p></div><div className="rounded-full bg-purple-100 p-3"><Clock className="h-6 w-6 text-purple-600"/></div></div></CardContent></Card>
+        <Card><CardContent className="p-6"><div className="flex justify-between"><div><p className="text-sm text-slate-500">Licencias ⚠️</p><p className="text-3xl font-bold">{stats.licenciasProximas}</p></div><div className="rounded-full bg-amber-100 p-3"><AlertTriangle className="h-6 w-6 text-amber-600"/></div></div></CardContent></Card>
+      </div>
+
+      {/* Tabs */}
       <Tabs defaultValue="conductores" className="space-y-4">
         <TabsList>
           <TabsTrigger value="conductores">Conductores ({conductoresFiltrados.length})</TabsTrigger>
@@ -693,20 +476,14 @@ export default function Conductores() {
         </TabsList>
 
         <TabsContent value="conductores" className="space-y-4">
+          {/* Filters */}
           <div className="flex gap-4">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input
-                placeholder="Buscar conductores..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
+              <Input placeholder="Buscar conductores..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
             </div>
             <Select value={estadoFiltro} onValueChange={(v) => setEstadoFiltro(v as EstadoConductor | 'todos')}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Filtrar por estado" />
-              </SelectTrigger>
+              <SelectTrigger className="w-48"><SelectValue placeholder="Filtrar por estado" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos los estados</SelectItem>
                 <SelectItem value="activo">Activo</SelectItem>
@@ -718,6 +495,7 @@ export default function Conductores() {
             </Select>
           </div>
 
+          {/* Table - FIX: Botones directos */}
           <Card>
             <CardContent className="p-0">
               <Table>
@@ -734,20 +512,14 @@ export default function Conductores() {
                 </TableHeader>
                 <TableBody>
                   {conductoresFiltrados.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-slate-500">
-                        No se encontraron conductores
-                      </TableCell>
-                    </TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-slate-500">No se encontraron conductores</TableCell></TableRow>
                   ) : (
                     conductoresFiltrados.map((conductor) => (
-                      <TableRow key={conductor.id}>
+                      <TableRow key={conductor.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => verDetalle(conductor)}>
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <Avatar className="h-10 w-10">
-                              <AvatarFallback className="bg-[#1e3a5f] text-white">
-                                {conductor.nombre?.charAt(0)}{conductor.apellidos?.charAt(0)}
-                              </AvatarFallback>
+                              <AvatarFallback className="bg-[#1e3a5f] text-white">{conductor.nombre?.charAt(0)}{conductor.apellidos?.charAt(0)}</AvatarFallback>
                             </Avatar>
                             <div>
                               <p className="font-medium">{conductor.nombre} {conductor.apellidos}</p>
@@ -775,27 +547,14 @@ export default function Conductores() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge className={estadoConductorColors[conductor.estado || 'activo']}>
-                            {conductor.estado}
-                          </Badge>
+                          <Badge className={estadoConductorColors[conductor.estado || 'activo']}>{conductor.estado}</Badge>
                         </TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => setConductorSeleccionado(conductor)}>
-                                <Eye className="mr-2 h-4 w-4" />Ver detalles
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => { setConductorSeleccionado(conductor); setIsEditarOpen(true); }}>
-                                <Edit className="mr-2 h-4 w-4" />Editar
-                              </DropdownMenuItem>
-                              <DropdownMenuItem className="text-red-600" onClick={() => handleEliminarConductor(String(conductor.id))}>
-                                <Trash2 className="mr-2 h-4 w-4" />Eliminar
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="icon" onClick={() => verDetalle(conductor)} title="Ver"><Eye className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={(e) => abrirEditar(conductor, e)} title="Editar"><Edit className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={(e) => handleEliminarConductor(String(conductor.id), e)} title="Eliminar" className="text-red-600 hover:text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" /></Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -821,20 +580,11 @@ export default function Conductores() {
                       {['L','M','X','J','V','S','D'].map((dia, idx) => {
                         const disponible = conductor.disponibilidad?.dias?.includes(idx + 1) || (idx === 6 && conductor.disponibilidad?.dias?.includes(0));
                         return (
-                          <div
-                            key={idx}
-                            className={`flex-1 h-8 rounded flex items-center justify-center text-xs font-medium ${
-                              disponible ? 'bg-green-200 text-green-800' : 'bg-slate-200 text-slate-500'
-                            }`}
-                          >
-                            {dia}
-                          </div>
+                          <div key={idx} className={`flex-1 h-8 rounded flex items-center justify-center text-xs font-medium ${disponible ? 'bg-green-200 text-green-800' : 'bg-slate-200 text-slate-500'}`}>{dia}</div>
                         );
                       })}
                     </div>
-                    <div className="w-32 text-sm text-slate-500">
-                      {conductor.disponibilidad?.horaInicio}-{conductor.disponibilidad?.horaFin}
-                    </div>
+                    <div className="w-32 text-sm text-slate-500">{conductor.disponibilidad?.horaInicio}-{conductor.disponibilidad?.horaFin}</div>
                   </div>
                 ))}
               </div>
@@ -845,14 +595,11 @@ export default function Conductores() {
         <TabsContent value="alertas">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5" />Licencias Próximas a Caducar</CardTitle>
+              <CardTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5" /> Licencias Próximas a Caducar</CardTitle>
             </CardHeader>
             <CardContent>
               {stats.licenciasProximas === 0 ? (
-                <div className="text-center py-8 text-slate-500">
-                  <CheckCircle2 className="mx-auto mb-2 h-8 w-8 text-green-500" />
-                  <p>No hay licencias próximas a caducar</p>
-                </div>
+                <div className="text-center py-8 text-slate-500"><CheckCircle2 className="mx-auto mb-2 h-8 w-8 text-green-500" /><p>No hay licencias próximas a caducar</p></div>
               ) : (
                 <div className="space-y-3">
                   {conductores.filter(c => {
@@ -862,14 +609,10 @@ export default function Conductores() {
                     const fechaCaducidad = parseDateSafe(conductor.licencia!.fechaCaducidad)!;
                     const diasRestantes = differenceInDays(fechaCaducidad, new Date());
                     return (
-                      <div key={conductor.id} className={`flex items-center justify-between p-4 rounded-lg border ${
-                        diasRestantes <= 7 ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'
-                      }`}>
+                      <div key={conductor.id} className={`flex items-center justify-between p-4 rounded-lg border ${diasRestantes <= 7 ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'}`}>
                         <div className="flex items-center gap-4">
                           <Avatar className="h-12 w-12">
-                            <AvatarFallback className={diasRestantes <= 7 ? 'bg-red-500' : 'bg-amber-500'}>
-                              {conductor.nombre?.charAt(0)}{conductor.apellidos?.charAt(0)}
-                            </AvatarFallback>
+                            <AvatarFallback className={diasRestantes <= 7 ? 'bg-red-500' : 'bg-amber-500'}>{conductor.nombre?.charAt(0)}{conductor.apellidos?.charAt(0)}</AvatarFallback>
                           </Avatar>
                           <div>
                             <p className="font-medium">{conductor.nombre} {conductor.apellidos}</p>
@@ -877,9 +620,7 @@ export default function Conductores() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className={`font-medium ${diasRestantes <= 7 ? 'text-red-700' : 'text-amber-700'}`}>
-                            Caduca: {format(fechaCaducidad, 'dd/MM/yyyy')}
-                          </p>
+                          <p className={`font-medium ${diasRestantes <= 7 ? 'text-red-700' : 'text-amber-700'}`}>Caduca: {format(fechaCaducidad, 'dd/MM/yyyy')}</p>
                           <p className="text-xs">{diasRestantes} días restantes</p>
                         </div>
                       </div>
@@ -892,70 +633,84 @@ export default function Conductores() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={!!conductorSeleccionado && !isEditarOpen} onOpenChange={() => setConductorSeleccionado(null)}>
+      {/* Dialog Detalle */}
+      <Dialog open={isDetalleOpen} onOpenChange={setIsDetalleOpen}>
         <DialogContent className="max-w-2xl">
           {conductorSeleccionado && (
             <>
               <DialogHeader>
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-16 w-16">
-                    <AvatarFallback className="bg-[#1e3a5f] text-white text-xl">
-                      {conductorSeleccionado.nombre?.charAt(0)}{conductorSeleccionado.apellidos?.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <DialogTitle>{conductorSeleccionado.nombre} {conductorSeleccionado.apellidos}</DialogTitle>
-                    <DialogDescription>{conductorSeleccionado.codigo} • {conductorSeleccionado.dni}</DialogDescription>
-                  </div>
-                </div>
+                <DialogTitle className="flex items-center gap-3">
+                  <Avatar className="h-12 w-12"><AvatarFallback className="bg-[#1e3a5f] text-white">{conductorSeleccionado.nombre?.charAt(0)}{conductorSeleccionado.apellidos?.charAt(0)}</AvatarFallback></Avatar>
+                  <div>{conductorSeleccionado.nombre} {conductorSeleccionado.apellidos}<p className="text-sm font-normal text-slate-500">{conductorSeleccionado.codigo}</p></div>
+                </DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div><Label className="text-slate-500">Email</Label><p className="flex items-center gap-2"><Mail className="h-4 w-4" />{conductorSeleccionado.email || '-'}</p></div>
-                  <div><Label className="text-slate-500">Teléfono</Label><p className="flex items-center gap-2"><Phone className="h-4 w-4" />{conductorSeleccionado.telefono || '-'}</p></div>
+                  <div><Label className="text-slate-500">DNI</Label><p>{conductorSeleccionado.dni}</p></div>
+                  <div><Label className="text-slate-500">Estado</Label><Badge className={estadoConductorColors[conductorSeleccionado.estado]}>{conductorSeleccionado.estado}</Badge></div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-slate-500">Licencia</Label>
-                    <p className="flex items-center gap-2"><Award className="h-4 w-4" />Tipo {conductorSeleccionado.licencia?.tipo || '-'}</p>
-                    <p className="text-sm text-slate-500">
-                      Vence: {(() => {
-                        const fecha = parseDateSafe(conductorSeleccionado.licencia?.fechaCaducidad);
-                        return fecha ? format(fecha, 'dd/MM/yyyy') : '-';
-                      })()}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-slate-500">Tarifa y Prioridad</Label>
-                    <p className="flex items-center gap-2"><CreditCard className="h-4 w-4" />{conductorSeleccionado.tarifaHora}€/h</p>
-                    <p className="text-sm text-slate-500">Prioridad asignación: {conductorSeleccionado.prioridad || 50}/100</p>
-                  </div>
+                  <div><Label className="text-slate-500">Teléfono</Label><p className="flex items-center gap-2"><Phone className="h-4 w-4" />{conductorSeleccionado.telefono || '-'}</p></div>
+                  <div><Label className="text-slate-500">Email</Label><p className="flex items-center gap-2"><Mail className="h-4 w-4" />{conductorSeleccionado.email || '-'}</p></div>
                 </div>
-                <div>
-                  <Label className="text-slate-500">Disponibilidad</Label>
-                  <p className="text-sm">
-                    Días: {conductorSeleccionado.disponibilidad?.dias?.map(d => ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d]).join(', ')}
-                  </p>
-                  <p className="text-sm text-slate-500">
-                    Horario: {conductorSeleccionado.disponibilidad?.horaInicio} - {conductorSeleccionado.disponibilidad?.horaFin}
-                  </p>
+                <div className="grid grid-cols-3 gap-4 rounded-lg bg-slate-50 p-4">
+                  <div><Label className="text-slate-500">Tarifa/Hora</Label><p className="text-lg font-medium">{conductorSeleccionado.tarifaHora}€</p></div>
+                  <div><Label className="text-slate-500">Horas Mes</Label><p className="text-lg font-medium">{conductorSeleccionado.totalHorasMes || 0}h</p></div>
+                  <div><Label className="text-slate-500">Servicios Mes</Label><p className="text-lg font-medium">{conductorSeleccionado.totalServiciosMes || 0}</p></div>
                 </div>
-                <div className="grid grid-cols-2 gap-4 p-3 bg-slate-50 rounded-lg">
-                  <div><Label className="text-slate-500">Horas Este Mes</Label><p>{conductorSeleccionado.totalHorasMes || 0}h</p></div>
-                  <div><Label className="text-slate-500">Servicios Este Mes</Label><p>{conductorSeleccionado.totalServiciosMes || 0}</p></div>
-                </div>
-                {conductorSeleccionado.valoracion && (
-                  <div>
-                    <Label className="text-slate-500">Valoración</Label>
-                    <div className="flex items-center gap-1">
-                      <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
-                      <span className="text-lg font-medium">{conductorSeleccionado.valoracion}</span>
-                      <span className="text-slate-500">/5</span>
-                    </div>
+                {conductorSeleccionado.licencia && (
+                  <div className="p-3 bg-slate-50 rounded-lg">
+                    <Label className="text-slate-500 flex items-center gap-2"><Award className="h-4 w-4" /> Licencia</Label>
+                    <p>Tipo {conductorSeleccionado.licencia.tipo} - {conductorSeleccionado.licencia.numero}</p>
+                    <p className="text-sm text-slate-500">Caduca: {conductorSeleccionado.licencia.fechaCaducidad ? format(new Date(conductorSeleccionado.licencia.fechaCaducidad), 'dd/MM/yyyy') : '-'}</p>
                   </div>
                 )}
               </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsDetalleOpen(false)}>Cerrar</Button>
+                <Button onClick={() => { setIsDetalleOpen(false); setIsEditarOpen(true); }} className="bg-[#1e3a5f] hover:bg-[#152a45]"><Edit className="mr-2 h-4 w-4" />Editar</Button>
+              </DialogFooter>
             </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Editar */}
+      <Dialog open={isEditarOpen} onOpenChange={setIsEditarOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Conductor</DialogTitle>
+            <DialogDescription>Modifique los datos del conductor</DialogDescription>
+          </DialogHeader>
+          {conductorSeleccionado && (
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2"><Label>Nombre</Label><Input value={conductorSeleccionado.nombre} onChange={(e) => setConductorSeleccionado({...conductorSeleccionado, nombre: e.target.value})} /></div>
+                <div className="space-y-2"><Label>Apellidos</Label><Input value={conductorSeleccionado.apellidos} onChange={(e) => setConductorSeleccionado({...conductorSeleccionado, apellidos: e.target.value})} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2"><Label>Teléfono</Label><Input value={conductorSeleccionado.telefono || ''} onChange={(e) => setConductorSeleccionado({...conductorSeleccionado, telefono: e.target.value})} /></div>
+                <div className="space-y-2"><Label>Email</Label><Input value={conductorSeleccionado.email || ''} onChange={(e) => setConductorSeleccionado({...conductorSeleccionado, email: e.target.value})} /></div>
+              </div>
+              <div className="space-y-2">
+                <Label>Estado</Label>
+                <Select value={conductorSeleccionado.estado} onValueChange={(v) => setConductorSeleccionado({...conductorSeleccionado, estado: v as EstadoConductor})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="activo">Activo</SelectItem>
+                    <SelectItem value="vacaciones">Vacaciones</SelectItem>
+                    <SelectItem value="descanso">Descanso</SelectItem>
+                    <SelectItem value="baja">Baja</SelectItem>
+                    <SelectItem value="inactivo">Inactivo</SelectItem>
+                    <SelectItem value="en_ruta">En Ruta</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsEditarOpen(false)}>Cancelar</Button>
+                <Button onClick={handleEditarConductor} disabled={isSubmitting} className="bg-[#1e3a5f] hover:bg-[#152a45]">{isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Guardando...</> : 'Guardar Cambios'}</Button>
+              </DialogFooter>
+            </div>
           )}
         </DialogContent>
       </Dialog>

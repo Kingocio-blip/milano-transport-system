@@ -26,12 +26,6 @@ import {
   DialogFooter,
   DialogTrigger,
 } from '../components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '../components/ui/dropdown-menu';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
@@ -39,7 +33,6 @@ import {
   Bus,
   Search,
   Plus,
-  MoreVertical,
   Edit,
   Trash2,
   Eye,
@@ -590,7 +583,11 @@ export default function Flota() {
                     </TableRow>
                   ) : (
                     vehiculosFiltrados.map((vehiculo) => (
-                      <TableRow key={vehiculo.id} className="hover:bg-slate-50">
+                      <TableRow 
+                      key={vehiculo.id} 
+                      className="hover:bg-slate-50 cursor-pointer"
+                      onClick={() => setVehiculoSeleccionado(vehiculo)}
+                    >
                         <TableCell className="font-medium">{vehiculo.matricula}</TableCell>
                         <TableCell>
                           <div>
@@ -628,31 +625,34 @@ export default function Flota() {
                             {vehiculo.estado}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => setVehiculoSeleccionado(vehiculo)}>
-                                <Eye className="mr-2 h-4 w-4" />
-                                Ver detalles
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => { setVehiculoSeleccionado(vehiculo); setIsEditarOpen(true); }}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Editar
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-red-600"
-                                onClick={() => handleEliminarVehiculo(vehiculo.id)}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Eliminar
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={(e) => { e.stopPropagation(); setVehiculoSeleccionado(vehiculo); }}
+                              title="Ver detalles"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={(e) => { e.stopPropagation(); setVehiculoSeleccionado(vehiculo); setIsEditarOpen(true); }}
+                              title="Editar"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={(e) => { e.stopPropagation(); handleEliminarVehiculo(vehiculo.id); }}
+                              title="Eliminar"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))

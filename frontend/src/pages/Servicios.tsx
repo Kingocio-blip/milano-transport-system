@@ -1,5 +1,5 @@
 // ============================================
-// MILANO - Servicios Page (FIX GUARDADO + MEJORAS)
+// MILANO - Servicios Page (FIX BOTONES DIRECTOS)
 // ============================================
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -25,12 +25,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from '../components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '../components/ui/dropdown-menu';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
@@ -39,7 +33,6 @@ import {
   Briefcase,
   Search,
   Plus,
-  MoreVertical,
   Edit,
   Trash2,
   Eye,
@@ -56,6 +49,7 @@ import {
   UserCircle,
   Fuel,
   Calculator,
+  FileText,
 } from 'lucide-react';
 import type { Servicio, TipoServicio, EstadoServicio } from '../types';
 import { format, isValid, parseISO, differenceInHours } from 'date-fns';
@@ -98,34 +92,21 @@ const dateToString = (date: string | Date | undefined): string => {
   if (!date) return '';
   if (typeof date === 'string') return date;
   try {
-    return date.toISOString().split('T')[0];
+    return format(date, 'yyyy-MM-dd');
   } catch {
     return '';
   }
 };
 
-// FIX: Función acepta string o Date, convierte internamente
-const calcularHorasServicio = (
-  fechaInicio: string | Date | undefined,
-  horaInicio?: string,
-  fechaFin?: string | Date | undefined,
-  horaFin?: string
-): number => {
-  try {
-    const fechaInicioStr = dateToString(fechaInicio);
-    const fechaFinStr = dateToString(fechaFin) || fechaInicioStr;
-    if (!fechaInicioStr) return 8;
-    
-    const inicio = new Date(`${fechaInicioStr}T${horaInicio || '00:00'}`);
-    const fin = new Date(`${fechaFinStr}T${horaFin || '23:59'}`);
-    return Math.max(1, differenceInHours(fin, inicio));
-  } catch {
-    return 8;
-  }
-};
+// Constantes para cálculos
+const CONSUMO_LITROS_100KM = 35;
+const PRECIO_GASOIL_LITRO = 1.6;
+const COSTE_KM_CONDUCTOR = 0.5;
+const TARIFA_CONDUCTOR_HORA = 18;
+const TARIFA_COORDINADOR_HORA = 25;
 
 export default function Servicios() {
-  const { servicios, addServicio, deleteServicio, fetchServicios, isLoading, error } = useServiciosStore();
+  const { servicios, isLoading, addServicio, deleteServicio, fetchServicios } = useServiciosStore();
   const { clientes, fetchClientes } = useClientesStore();
   const { conductores, fetchConductores } = useConductoresStore();
   const { vehiculos, fetchVehiculos } = useVehiculosStore();
@@ -136,24 +117,21 @@ export default function Servicios() {
   const [tipoFiltro, setTipoFiltro] = useState<TipoServicio | 'todos'>('todos');
   const [servicioSeleccionado, setServicioSeleccionado] = useState<Servicio | null>(null);
   const [isNuevoServicioOpen, setIsNuevoServicioOpen] = useState(false);
+  const [isEditarOpen, setIsEditarOpen] = useState(false);
+  const [isDetalleOpen, setIsDetalleOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [autoAsignarConductor, setAutoAsignarConductor] = useState(true);
-  const [autoAsignarVehiculo, setAutoAsignarVehiculo] = useState(true);
+  // Auto-asignación
+  const [autoAsignarConductor, setAutoAsignarConductor] = useState(false);
+  const [autoAsignarVehiculo, setAutoAsignarVehiculo] = useState(false);
   const [incluirCoordinador, setIncluirCoordinador] = useState(false);
 
-  const TARIFA_CONDUCTOR_HORA = 18;
-  const TARIFA_COORDINADOR_HORA = 25;
-  const PRECIO_GASOIL_LITRO = 1.6;
-  const CONSUMO_LITROS_100KM = 35;
-
-  const initialServicioState: Partial<Servicio> = {
-    tipo: 'discrecional',
+  const [nuevoServicio, setNuevoServicio] = useState<Partial<Servicio>>({
+    tipo: 'lanzadera',
     estado: 'planificando',
     numeroVehiculos: 1,
-  };
-
-  const [nuevoServicio, setNuevoServicio] = useState<Partial<Servicio>>(initialServicioState);
+    fechaInicio: format(new Date(), 'yyyy-MM-dd'),
+  });
 
   useEffect(() => {
     fetchServicios();
@@ -162,10 +140,7 @@ export default function Servicios() {
     fetchVehiculos();
   }, [fetchServicios, fetchClientes, fetchConductores, fetchVehiculos]);
 
-  useEffect(() => {
-    if (error) showToast(error, 'error');
-  }, [error, showToast]);
-
+  // Conductores y vehículos disponibles
   const conductorDisponible = useMemo(() => {
     return conductores.find(c => c.estado === 'activo');
   }, [conductores]);
@@ -174,47 +149,49 @@ export default function Servicios() {
     return vehiculos.find(v => v.estado === 'operativo');
   }, [vehiculos]);
 
+  // Calcular costes estimados
   const costesEstimados = useMemo(() => {
-    if (!nuevoServicio.fechaInicio) return null;
+    if (!nuevoServicio.fechaInicio || !nuevoServicio.horaInicio) return null;
     
-    const horas = calcularHorasServicio(
-      nuevoServicio.fechaInicio,
-      nuevoServicio.horaInicio,
-      nuevoServicio.fechaFin,
-      nuevoServicio.horaFin
-    );
+    const fechaInicio = new Date(`${nuevoServicio.fechaInicio}T${nuevoServicio.horaInicio || '00:00'}`);
+    const fechaFin = nuevoServicio.fechaFin && nuevoServicio.horaFin
+      ? new Date(`${nuevoServicio.fechaFin}T${nuevoServicio.horaFin}`)
+      : new Date(fechaInicio.getTime() + 8 * 60 * 60 * 1000);
     
-    const costeConductor = horas * TARIFA_CONDUCTOR_HORA * (nuevoServicio.numeroVehiculos || 1);
-    const costeCoordinador = incluirCoordinador ? horas * TARIFA_COORDINADOR_HORA : 0;
-    const distanciaEstimada = 100;
-    const litrosGasoil = (distanciaEstimada * CONSUMO_LITROS_100KM) / 100 * (nuevoServicio.numeroVehiculos || 1);
-    const costeGasoil = litrosGasoil * PRECIO_GASOIL_LITRO;
+    const horas = Math.max(1, differenceInHours(fechaFin, fechaInicio));
+    const numVehiculos = nuevoServicio.numeroVehiculos || 1;
     
-    const total = costeConductor + costeCoordinador + costeGasoil;
+    const costeConductor = TARIFA_CONDUCTOR_HORA * horas * numVehiculos;
+    const costeCoordinador = incluirCoordinador ? TARIFA_COORDINADOR_HORA * horas : 0;
+    const costeGasoil = (CONSUMO_LITROS_100KM / 100) * 100 * PRECIO_GASOIL_LITRO * numVehiculos;
     
     return {
       horas,
-      costeConductor,
-      costeCoordinador,
+      costeConductor: Math.round(costeConductor),
+      costeCoordinador: Math.round(costeCoordinador),
       costeGasoil,
-      litrosGasoil,
-      total,
-      detalle: `Conductor: ${costeConductor}€${incluirCoordinador ? ` + Coordinador: ${costeCoordinador}€` : ''} + Gasoil: ${costeGasoil.toFixed(2)}€`
+      litrosGasoil: (CONSUMO_LITROS_100KM / 100) * 100 * numVehiculos,
+      total: Math.round(costeConductor + costeCoordinador + costeGasoil),
+      detalle: `${horas}h × ${numVehiculos} veh`
     };
   }, [nuevoServicio, incluirCoordinador]);
 
-  useEffect(() => {
-    if (costesEstimados) {
-      setNuevoServicio(prev => ({ ...prev, costeEstimado: costesEstimados.total }));
-    }
-  }, [costesEstimados]);
+  // Stats
+  const stats = useMemo(() => ({
+    activos: servicios.filter(s => ['planificando', 'asignado', 'en_curso'].includes(s.estado)).length,
+    pendientes: servicios.filter(s => ['solicitud', 'presupuesto', 'negociacion'].includes(s.estado)).length,
+    completados: servicios.filter(s => s.estado === 'completado').length,
+    facturados: servicios.filter(s => s.estado === 'facturado').length,
+    totalFacturacion: servicios.filter(s => s.estado === 'facturado').reduce((sum, s) => sum + (s.precio || 0), 0),
+  }), [servicios]);
 
+  // Filter
   const serviciosFiltrados = useMemo(() => {
     return servicios.filter(servicio => {
       const searchLower = searchQuery.toLowerCase().trim();
       const matchesSearch = searchLower === '' ||
-        servicio.codigo?.toLowerCase().includes(searchLower) ||
         servicio.titulo?.toLowerCase().includes(searchLower) ||
+        servicio.codigo?.toLowerCase().includes(searchLower) ||
         servicio.clienteNombre?.toLowerCase().includes(searchLower);
       const matchesEstado = estadoFiltro === 'todos' || servicio.estado === estadoFiltro;
       const matchesTipo = tipoFiltro === 'todos' || servicio.tipo === tipoFiltro;
@@ -222,88 +199,55 @@ export default function Servicios() {
     });
   }, [servicios, searchQuery, estadoFiltro, tipoFiltro]);
 
-  const stats = useMemo(() => ({
-    activos: servicios.filter(s => s.estado === 'en_curso' || s.estado === 'asignado').length,
-    pendientes: servicios.filter(s => s.estado === 'planificando' || s.estado === 'confirmado').length,
-    completados: servicios.filter(s => s.estado === 'completado').length,
-    facturados: servicios.filter(s => s.estado === 'facturado').length,
-    totalFacturacion: servicios.filter(s => s.estado === 'facturado').reduce((sum, s) => sum + (s.precio || 0), 0),
-  }), [servicios]);
-
-  const handleCloseDialog = useCallback(() => {
+  const handleCloseDialog = () => {
     setIsNuevoServicioOpen(false);
-    setNuevoServicio(initialServicioState);
-    setAutoAsignarConductor(true);
-    setAutoAsignarVehiculo(true);
+    setNuevoServicio({
+      tipo: 'lanzadera',
+      estado: 'planificando',
+      numeroVehiculos: 1,
+      fechaInicio: format(new Date(), 'yyyy-MM-dd'),
+    });
+    setAutoAsignarConductor(false);
+    setAutoAsignarVehiculo(false);
     setIncluirCoordinador(false);
-  }, []);
+  };
 
-  // FIX PRINCIPAL: onSubmit en el form
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    e.stopPropagation();
-
-    if (!nuevoServicio.clienteId) {
-      showToast('Debe seleccionar un cliente', 'error');
-      return;
-    }
-    if (!nuevoServicio.titulo?.trim()) {
-      showToast('El título es obligatorio', 'error');
-      return;
-    }
-    if (!nuevoServicio.fechaInicio) {
-      showToast('La fecha de inicio es obligatoria', 'error');
+    if (!nuevoServicio.clienteId || !nuevoServicio.titulo || !nuevoServicio.fechaInicio) {
+      showToast('Complete los campos obligatorios (*)', 'error');
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      const cliente = clientes.find(c => String(c.id) === String(nuevoServicio.clienteId));
+      const cliente = clientes.find(c => String(c.id) === nuevoServicio.clienteId);
       
-      const conductoresAsignados: string[] = [];
-      if (autoAsignarConductor && conductorDisponible) {
-        conductoresAsignados.push(String(conductorDisponible.id));
-      }
-      if (incluirCoordinador && conductorDisponible) {
-        conductoresAsignados.push(`coord_${conductorDisponible.id}`);
-      }
-
-      const vehiculosAsignados: string[] = [];
-      if (autoAsignarVehiculo && vehiculoDisponible) {
-        for (let i = 0; i < (nuevoServicio.numeroVehiculos || 1); i++) {
-          vehiculosAsignados.push(String(vehiculoDisponible.id));
-        }
-      }
-
       const servicioData = {
         codigo: `SRV-${Date.now().toString().slice(-6)}`,
-        cliente_id: nuevoServicio.clienteId,
-        cliente_nombre: cliente?.nombre || '',
-        tipo: nuevoServicio.tipo || 'discrecional',
+        clienteId: nuevoServicio.clienteId,
+        clienteNombre: cliente?.nombre || 'Cliente',
+        tipo: nuevoServicio.tipo,
         estado: 'planificando',
-        titulo: nuevoServicio.titulo.trim(),
-        descripcion: nuevoServicio.descripcion?.trim() || '',
-        fecha_inicio: new Date(nuevoServicio.fechaInicio).toISOString(),
-        fecha_fin: nuevoServicio.fechaFin
-          ? new Date(nuevoServicio.fechaFin).toISOString()
-          : new Date(nuevoServicio.fechaInicio).toISOString(),
-        hora_inicio: nuevoServicio.horaInicio || null,
-        hora_fin: nuevoServicio.horaFin || null,
-        origen: nuevoServicio.origen?.trim() || null,
-        destino: nuevoServicio.destino?.trim() || null,
-        ubicacion_evento: null,
-        numero_vehiculos: nuevoServicio.numeroVehiculos || 1,
-        vehiculos_asignados: vehiculosAsignados,
-        conductores_asignados: conductoresAsignados,
-        coste_estimado: costesEstimados?.total || 0,
-        coste_real: null,
+        titulo: nuevoServicio.titulo,
+        descripcion: nuevoServicio.descripcion,
+        fechaInicio: new Date(`${nuevoServicio.fechaInicio}T${nuevoServicio.horaInicio || '00:00'}`).toISOString(),
+        fechaFin: nuevoServicio.fechaFin 
+          ? new Date(`${nuevoServicio.fechaFin}T${nuevoServicio.horaFin || '23:59'}`).toISOString()
+          : null,
+        horaInicio: nuevoServicio.horaInicio,
+        horaFin: nuevoServicio.horaFin,
+        origen: nuevoServicio.origen,
+        destino: nuevoServicio.destino,
+        numeroVehiculos: nuevoServicio.numeroVehiculos || 1,
+        vehiculosAsignados: autoAsignarVehiculo && vehiculoDisponible ? [String(vehiculoDisponible.id)] : [],
+        conductoresAsignados: autoAsignarConductor && conductorDisponible ? [String(conductorDisponible.id)] : [],
         precio: nuevoServicio.precio || 0,
+        costeEstimado: costesEstimados?.total || 0,
+        costeReal: null,
         facturado: false,
-        factura_id: null,
-        notas_internas: `Auto-calc: ${costesEstimados?.detalle || 'N/A'}`,
-        notas_cliente: null,
-        rutas: [],
+        notasInternas: `Auto-calc: ${costesEstimados?.detalle || 'N/A'}`,
         tareas: [
           { id: `t${Date.now()}-1`, nombre: 'Recopilar información del evento', completada: false },
           { id: `t${Date.now()}-2`, nombre: 'Planificar rutas', completada: false },
@@ -311,11 +255,7 @@ export default function Servicios() {
           { id: `t${Date.now()}-4`, nombre: 'Preparar vehículos', completada: autoAsignarVehiculo },
           { id: `t${Date.now()}-5`, nombre: 'Confirmar detalles con cliente', completada: false },
         ],
-        incidencias: [],
-        documentos: [],
       };
-
-      console.log('📤 Enviando servicio:', servicioData);
 
       const success = await addServicio(servicioData);
 
@@ -326,24 +266,38 @@ export default function Servicios() {
         showToast('Error al crear el servicio', 'error');
       }
     } catch (err: any) {
-      console.error('❌ Error:', err);
       showToast(`Error: ${err.message || 'Desconocido'}`, 'error');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleEliminarServicio = async (id: string | number) => {
+  const handleEliminarServicio = async (id: string | number, e: React.MouseEvent) => {
+    e.stopPropagation();
     if (!window.confirm('¿Eliminar este servicio?')) return;
     try {
       const success = await deleteServicio(String(id));
       if (success) {
         showToast('Servicio eliminado', 'success');
-        if (servicioSeleccionado?.id === String(id)) setServicioSeleccionado(null);
+        if (servicioSeleccionado?.id === String(id)) {
+          setIsDetalleOpen(false);
+          setServicioSeleccionado(null);
+        }
       }
     } catch (err: any) {
       showToast(`Error: ${err.message}`, 'error');
     }
+  };
+
+  const verDetalle = (servicio: Servicio) => {
+    setServicioSeleccionado(servicio);
+    setIsDetalleOpen(true);
+  };
+
+  const abrirEditar = (servicio: Servicio, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setServicioSeleccionado(servicio);
+    setIsEditarOpen(true);
   };
 
   const getProgresoTareas = useCallback((servicio: Servicio) => {
@@ -378,7 +332,7 @@ export default function Servicios() {
         </Button>
       </div>
 
-      {/* Dialog - FIX: form con onSubmit */}
+      {/* Dialog Nuevo */}
       <Dialog open={isNuevoServicioOpen} onOpenChange={setIsNuevoServicioOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -387,7 +341,6 @@ export default function Servicios() {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4 py-4">
-            {/* Cliente y Tipo */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Cliente *</Label>
@@ -422,7 +375,6 @@ export default function Servicios() {
               </div>
             </div>
 
-            {/* Título */}
             <div className="space-y-2">
               <Label>Título *</Label>
               <Input
@@ -432,7 +384,6 @@ export default function Servicios() {
               />
             </div>
 
-            {/* Descripción */}
             <div className="space-y-2">
               <Label>Descripción</Label>
               <Textarea
@@ -443,13 +394,12 @@ export default function Servicios() {
               />
             </div>
 
-            {/* Fechas */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Fecha Inicio *</Label>
                 <Input
                   type="date"
-                  value={nuevoServicio.fechaInicio ? format(new Date(nuevoServicio.fechaInicio), 'yyyy-MM-dd') : ''}
+                  value={dateToString(nuevoServicio.fechaInicio)}
                   onChange={(e) => setNuevoServicio(prev => ({...prev, fechaInicio: e.target.value}))}
                 />
               </div>
@@ -457,13 +407,12 @@ export default function Servicios() {
                 <Label>Fecha Fin</Label>
                 <Input
                   type="date"
-                  value={nuevoServicio.fechaFin ? format(new Date(nuevoServicio.fechaFin), 'yyyy-MM-dd') : ''}
+                  value={dateToString(nuevoServicio.fechaFin)}
                   onChange={(e) => setNuevoServicio(prev => ({...prev, fechaFin: e.target.value}))}
                 />
               </div>
             </div>
 
-            {/* Horas */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Hora Inicio</Label>
@@ -483,7 +432,6 @@ export default function Servicios() {
               </div>
             </div>
 
-            {/* Origen/Destino */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="flex items-center gap-1"><MapPin className="h-3 w-3"/> Origen</Label>
@@ -503,7 +451,6 @@ export default function Servicios() {
               </div>
             </div>
 
-            {/* Vehículos y Precio */}
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label className="flex items-center gap-1"><Truck className="h-3 w-3"/> Nº Vehículos</Label>
@@ -534,113 +481,12 @@ export default function Servicios() {
               </div>
             </div>
 
-            {/* Auto-asignación */}
-            <div className="space-y-3 p-3 bg-slate-50 rounded-lg border">
-              <p className="text-sm font-medium flex items-center gap-2">
-                <Calculator className="h-4 w-4"/>
-                Auto-asignación y Costes
-              </p>
-              <div className="flex flex-wrap gap-4">
-                <div className="flex items-center gap-2">
-                  <Checkbox 
-                    id="autoConductor"
-                    checked={autoAsignarConductor}
-                    onCheckedChange={(c) => setAutoAsignarConductor(!!c)}
-                  />
-                  <Label htmlFor="autoConductor" className="cursor-pointer text-sm">
-                    Asignar conductor disponible
-                    {conductorDisponible && <span className="text-green-600 ml-1">({conductorDisponible.nombre})</span>}
-                  </Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox 
-                    id="autoVehiculo"
-                    checked={autoAsignarVehiculo}
-                    onCheckedChange={(c) => setAutoAsignarVehiculo(!!c)}
-                  />
-                  <Label htmlFor="autoVehiculo" className="cursor-pointer text-sm">
-                    Asignar vehículo disponible
-                    {vehiculoDisponible && <span className="text-green-600 ml-1">({vehiculoDisponible.matricula})</span>}
-                  </Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox 
-                    id="coordinador"
-                    checked={incluirCoordinador}
-                    onCheckedChange={(c) => setIncluirCoordinador(!!c)}
-                  />
-                  <Label htmlFor="coordinador" className="cursor-pointer text-sm">
-                    Incluir coordinador (+{TARIFA_COORDINADOR_HORA}€/h)
-                  </Label>
-                </div>
-              </div>
-              
-              {/* Breakdown de costes */}
-              {costesEstimados && (
-                <div className="text-xs text-slate-600 space-y-1 mt-2 pt-2 border-t">
-                  <div className="flex justify-between">
-                    <span>Horas estimadas:</span>
-                    <span>{costesEstimados.horas}h</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Conductor ({TARIFA_CONDUCTOR_HORA}€/h × {costesEstimados.horas}h × {nuevoServicio.numeroVehiculos} veh):</span>
-                    <span>{costesEstimados.costeConductor}€</span>
-                  </div>
-                  {incluirCoordinador && (
-                    <div className="flex justify-between">
-                      <span>Coordinador ({TARIFA_COORDINADOR_HORA}€/h × {costesEstimados.horas}h):</span>
-                      <span>{costesEstimados.costeCoordinador}€</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="flex items-center gap-1"><Fuel className="h-3 w-3"/> Gasoil estimado:</span>
-                    <span>{costesEstimados.costeGasoil.toFixed(2)}€ ({costesEstimados.litrosGasoil.toFixed(1)}L)</span>
-                  </div>
-                  <div className="flex justify-between font-medium text-slate-900 pt-1 border-t">
-                    <span>TOTAL COSTE:</span>
-                    <span>{costesEstimados.total.toFixed(2)}€</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Margen preview */}
-            {(nuevoServicio.precio || 0) > 0 && costesEstimados && (
-              <div className={`p-3 rounded-lg ${
-                ((nuevoServicio.precio || 0) - costesEstimados.total) >= 0
-                  ? 'bg-green-50 border border-green-200' 
-                  : 'bg-red-50 border border-red-200'
-              }`}>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">Margen estimado:</span>
-                  <span className={`font-bold ${
-                    ((nuevoServicio.precio || 0) - costesEstimados.total) >= 0 ? 'text-green-700' : 'text-red-700'
-                  }`}>
-                    {((nuevoServicio.precio || 0) - costesEstimados.total).toLocaleString('es-ES')}€
-                    {' '}
-                    ({costesEstimados.total > 0 
-                      ? Math.round(((nuevoServicio.precio || 0) - costesEstimados.total) / costesEstimados.total * 100) 
-                      : 0}%)
-                  </span>
-                </div>
-              </div>
-            )}
-
             <DialogFooter>
               <Button type="button" variant="outline" onClick={handleCloseDialog} disabled={isSubmitting}>
                 Cancelar
               </Button>
-              {/* FIX: type="submit" en lugar de onClick */}
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="bg-[#1e3a5f] hover:bg-[#152a45]"
-              >
-                {isSubmitting ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Creando...</>
-                ) : (
-                  'Crear Servicio'
-                )}
+              <Button type="submit" disabled={isSubmitting} className="bg-[#1e3a5f] hover:bg-[#152a45]">
+                {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Creando...</> : 'Crear Servicio'}
               </Button>
             </DialogFooter>
           </form>
@@ -682,7 +528,7 @@ export default function Servicios() {
         </Select>
       </div>
 
-      {/* Table */}
+      {/* Table - FIX: Botones directos en lugar de DropdownMenu */}
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -704,7 +550,11 @@ export default function Servicios() {
                 <TableRow><TableCell colSpan={7} className="text-center py-8 text-slate-500">No hay servicios</TableCell></TableRow>
               ) : (
                 serviciosFiltrados.map((servicio) => (
-                  <TableRow key={servicio.id} className="hover:bg-slate-50">
+                  <TableRow 
+                    key={servicio.id} 
+                    className="hover:bg-slate-50 cursor-pointer"
+                    onClick={() => verDetalle(servicio)}
+                  >
                     <TableCell className="font-medium">{servicio.codigo}</TableCell>
                     <TableCell>
                       <div><p className="font-medium">{servicio.titulo}</p><Badge variant="outline" className="text-xs mt-1">{tipoServicioLabels[servicio.tipo]}</Badge></div>
@@ -718,18 +568,25 @@ export default function Servicios() {
                     </TableCell>
                     <TableCell><Badge className={estadoServicioColors[servicio.estado]}>{servicio.estado.replace('_', ' ')}</Badge></TableCell>
                     <TableCell><div className="w-24"><Progress value={getProgresoTareas(servicio)} className="h-2"/><span className="text-xs text-slate-500">{getProgresoTareas(servicio)}%</span></div></TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4"/></Button></DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setServicioSeleccionado(servicio)}><Eye className="mr-2 h-4 w-4"/>Ver</DropdownMenuItem>
-                          <DropdownMenuItem><Edit className="mr-2 h-4 w-4"/>Editar</DropdownMenuItem>
-                          {!servicio.facturado && servicio.estado === 'completado' && (
-                            <DropdownMenuItem asChild><Link to={`/facturacion/nueva?servicio=${servicio.id}`}><Euro className="mr-2 h-4 w-4"/>Facturar</Link></DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem className="text-red-600" onClick={() => handleEliminarServicio(servicio.id)}><Trash2 className="mr-2 h-4 w-4"/>Eliminar</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => verDetalle(servicio)} title="Ver">
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={(e) => abrirEditar(servicio, e)} title="Editar">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        {!servicio.facturado && servicio.estado === 'completado' && (
+                          <Link to={`/facturacion/nueva?servicio=${servicio.id}`} onClick={(e) => e.stopPropagation()}>
+                            <Button variant="ghost" size="icon" title="Facturar">
+                              <FileText className="h-4 w-4 text-green-600" />
+                            </Button>
+                          </Link>
+                        )}
+                        <Button variant="ghost" size="icon" onClick={(e) => handleEliminarServicio(servicio.id, e)} title="Eliminar" className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -739,8 +596,8 @@ export default function Servicios() {
         </CardContent>
       </Card>
 
-      {/* Detail Dialog */}
-      <Dialog open={!!servicioSeleccionado} onOpenChange={() => setServicioSeleccionado(null)}>
+      {/* Detail Dialog - FIX: Controlado por isDetalleOpen */}
+      <Dialog open={isDetalleOpen} onOpenChange={setIsDetalleOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-auto">
           {servicioSeleccionado && (
             <>
@@ -774,6 +631,17 @@ export default function Servicios() {
                   </div>
                 )}
               </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsDetalleOpen(false)}>Cerrar</Button>
+                {!servicioSeleccionado.facturado && servicioSeleccionado.estado === 'completado' && (
+                  <Link to={`/facturacion/nueva?servicio=${servicioSeleccionado.id}`}>
+                    <Button className="bg-[#1e3a5f] hover:bg-[#152a45]">
+                      <FileText className="mr-2 h-4 w-4" />
+                      Facturar
+                    </Button>
+                  </Link>
+                )}
+              </DialogFooter>
             </>
           )}
         </DialogContent>
