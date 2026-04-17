@@ -353,6 +353,7 @@ class VehiculoBase(BaseModel):
     
     codigo: Optional[str] = Field(None, max_length=20)
     matricula: str = Field(..., max_length=20)
+    bastidor: Optional[str] = Field(None, max_length=50)
     tipo: TipoVehiculo = TipoVehiculo.AUTOBUS
     marca: Optional[str] = Field(None, max_length=50)
     modelo: Optional[str] = Field(None, max_length=50)
@@ -395,6 +396,7 @@ class VehiculoUpdate(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
     matricula: Optional[str] = Field(None, max_length=20)
+    bastidor: Optional[str] = Field(None, max_length=50)
     tipo: Optional[TipoVehiculo] = None
     marca: Optional[str] = Field(None, max_length=50)
     modelo: Optional[str] = Field(None, max_length=50)

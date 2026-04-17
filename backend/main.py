@@ -568,13 +568,11 @@ def get_vehiculo_historial(
                 "id": an.id,
                 "tipo": an.tipo.value if an.tipo else None,
                 "fecha": an.fecha.isoformat() if an.fecha else None,
-                "contenido": an.contenido,
+                "contenido": an.descripcion,
                 "conductor_id": an.conductor_id,
                 "conductor_nombre": an.conductor_nombre,
                 "servicio_id": an.servicio_id,
                 "kilometraje": an.kilometraje,
-                "urgente": an.urgente,
-                "resuelta": an.resuelta,
             } for an in anotaciones
         ]
     }

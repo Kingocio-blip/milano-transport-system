@@ -235,6 +235,7 @@ class Vehiculo(Base):
     codigo = Column(String(20), unique=True, index=True, nullable=True)
     
     matricula = Column(String(20), unique=True, nullable=False)
+    bastidor = Column(String(50), nullable=True)
     tipo = Column(SQLEnum(TipoVehiculo), default=TipoVehiculo.AUTOBUS)
     marca = Column(String(50), nullable=True)
     modelo = Column(String(50), nullable=True)
