@@ -53,10 +53,6 @@ class UserRole(str, enum.Enum):
     OPERADOR = "operador"
     CONDUCTOR = "conductor"
 
-# ============================================
-# NUEVOS ENUMS PARA HISTORIAL VEHICULO
-# ============================================
-
 class TipoMantenimiento(str, enum.Enum):
     PREVENTIVO = "preventivo"
     CORRECTIVO = "correctivo"
@@ -96,7 +92,7 @@ class EstadoGeneral(str, enum.Enum):
     MALO = "malo"
 
 # ============================================
-# USER MODEL
+# USER MODEL (MODIFICADO CON PERMISOS Y SaaS)
 # ============================================
 
 class User(Base):
@@ -114,6 +110,15 @@ class User(Base):
     
     conductor_id = Column(Integer, ForeignKey("conductores.id"), nullable=True)
     conductor = relationship("Conductor", back_populates="usuario")
+    
+    # NUEVOS CAMPOS PARA SISTEMA DE PERMISOS Y SaaS
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=True, index=True)
+    rol_custom_id = Column(Integer, ForeignKey("roles.id"), nullable=True)
+    
+    # NUEVAS RELACIONES
+    empresa = relationship("Empresa", back_populates="usuarios")
+    rol_custom_obj = relationship("Role", back_populates="users")
+    permisos_override = relationship("UserPermission", foreign_keys="UserPermission.user_id", back_populates="user")
 
 # ============================================
 # CLIENTE MODEL
@@ -162,7 +167,7 @@ class Cliente(Base):
     )
 
 # ============================================
-# CONDUCTOR MODEL (ACTUALIZADO)
+# CONDUCTOR MODEL
 # ============================================
 
 class Conductor(Base):
@@ -195,7 +200,6 @@ class Conductor(Base):
     disponibilidad_hora_fin = Column(String(10), default="18:00")
     disponibilidad_observaciones = Column(Text, nullable=True)
     
-    # FIX: Credenciales como JSON
     credenciales = Column(JSON, nullable=True)
     
     panel_activo = Column(Boolean, default=True)
@@ -225,7 +229,7 @@ class Conductor(Base):
         return value
 
 # ============================================
-# VEHICULO MODEL (ACTUALIZADO)
+# VEHICULO MODEL
 # ============================================
 
 class Vehiculo(Base):
@@ -267,7 +271,6 @@ class Vehiculo(Base):
     notas = Column(Text, nullable=True)
     imagen_url = Column(String(500), nullable=True)
     
-    # NUEVAS RELACIONES
     mantenimientos = relationship("Mantenimiento", back_populates="vehiculo", order_by="desc(Mantenimiento.fecha)")
     averias = relationship("Averia", back_populates="vehiculo", order_by="desc(Averia.fecha_inicio)")
     anotaciones = relationship("AnotacionVehiculo", back_populates="vehiculo", order_by="desc(AnotacionVehiculo.fecha)")
@@ -279,7 +282,7 @@ class Vehiculo(Base):
     )
 
 # ============================================
-# NUEVOS MODELOS - HISTORIAL VEHICULO
+# MANTENIMIENTO MODEL
 # ============================================
 
 class Mantenimiento(Base):
@@ -295,10 +298,13 @@ class Mantenimiento(Base):
     descripcion = Column(Text, nullable=True)
     taller = Column(String(100), nullable=True)
     coste = Column(Numeric(10, 2), nullable=True)
+    factura_numero = Column(String(50), nullable=True)
     
     documento_url = Column(String(500), nullable=True)
-    realizado_por = Column(String(100), nullable=True)  # conductor o mecanico
-    notas = Column(Text, nullable=True)
+    realizado_por = Column(String(100), nullable=True)
+    proxima_fecha = Column(Date, nullable=True)
+    proximo_kilometraje = Column(Integer, nullable=True)
+    estado = Column(String(20), default="completado")
     
     fecha_creacion = Column(DateTime, default=datetime.datetime.utcnow)
     fecha_actualizacion = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
@@ -310,6 +316,10 @@ class Mantenimiento(Base):
         Index('idx_mantenimiento_fecha', 'fecha'),
         Index('idx_mantenimiento_tipo', 'tipo'),
     )
+
+# ============================================
+# AVERIA MODEL
+# ============================================
 
 class Averia(Base):
     __tablename__ = "averias"
@@ -332,7 +342,7 @@ class Averia(Base):
     solucion = Column(Text, nullable=True)
     
     reportado_por_id = Column(Integer, ForeignKey("conductores.id"), nullable=True)
-    reportado_por_nombre = Column(String(100), nullable=True)
+    reportado_por = Column(String(100), nullable=True)
     
     fecha_creacion = Column(DateTime, default=datetime.datetime.utcnow)
     fecha_actualizacion = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
@@ -344,6 +354,10 @@ class Averia(Base):
         Index('idx_averia_estado', 'estado'),
         Index('idx_averia_gravedad', 'gravedad'),
     )
+
+# ============================================
+# ANOTACION VEHICULO MODEL
+# ============================================
 
 class AnotacionVehiculo(Base):
     __tablename__ = "anotaciones_vehiculo"
@@ -359,10 +373,11 @@ class AnotacionVehiculo(Base):
     
     descripcion = Column(Text, nullable=False)
     kilometraje = Column(Integer, nullable=True)
-    nivel_combustible = Column(Integer, nullable=True)  # porcentaje 0-100
+    nivel_combustible = Column(Integer, nullable=True)
     estado_general = Column(SQLEnum(EstadoGeneral), default=EstadoGeneral.BUENO)
     
-    fotos = Column(JSON, default=list)  # URLs de fotos
+    fotos = Column(JSON, default=list)
+    conductor_nombre = Column(String(100), nullable=True)
     
     fecha_creacion = Column(DateTime, default=datetime.datetime.utcnow)
     fecha_actualizacion = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
@@ -489,4 +504,114 @@ class Factura(Base):
         Index('idx_factura_fecha', 'fecha_emision'),
         Index('idx_factura_cliente', 'cliente_id'),
         Index('idx_factura_vencimiento', 'fecha_vencimiento', 'estado'),
+    )
+
+# ============================================
+# SISTEMA DE PERMISOS GRANULAR (NUEVO - SaaS Ready)
+# ============================================
+
+class Permission(Base):
+    __tablename__ = "permissions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    codigo = Column(String(100), unique=True, nullable=False, index=True)
+    nombre = Column(String(200), nullable=False)
+    descripcion = Column(Text, nullable=True)
+    categoria = Column(String(50), nullable=False, index=True)
+    es_sistema = Column(Boolean, default=False)
+    activo = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    roles = relationship("RolePermission", back_populates="permission", cascade="all, delete-orphan")
+    
+    __table_args__ = (
+        Index('idx_permission_categoria', 'categoria'),
+        Index('idx_permission_activo', 'activo'),
+    )
+
+class Role(Base):
+    __tablename__ = "roles"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=True, index=True)
+    codigo = Column(String(50), nullable=False)
+    nombre = Column(String(100), nullable=False)
+    descripcion = Column(Text, nullable=True)
+    es_sistema = Column(Boolean, default=False)
+    rol_base = Column(SQLEnum(UserRole), nullable=True)
+    activo = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    
+    empresa = relationship("Empresa", back_populates="roles")
+    permissions = relationship("RolePermission", back_populates="role", cascade="all, delete-orphan")
+    users = relationship("User", back_populates="rol_custom_obj")
+    
+    __table_args__ = (
+        Index('idx_role_empresa_codigo', 'empresa_id', 'codigo', unique=True),
+        Index('idx_role_activo', 'activo'),
+    )
+
+class RolePermission(Base):
+    __tablename__ = "role_permissions"
+    
+    id = Column(Integer, primary_key=True)
+    role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
+    permission_id = Column(Integer, ForeignKey("permissions.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    role = relationship("Role", back_populates="permissions")
+    permission = relationship("Permission", back_populates="roles")
+    
+    __table_args__ = (
+        Index('idx_role_perm_unique', 'role_id', 'permission_id', unique=True),
+    )
+
+class UserPermission(Base):
+    __tablename__ = "user_permissions"
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    permission_id = Column(Integer, ForeignKey("permissions.id"), nullable=False)
+    tipo = Column(String(20), default="allow")
+    razon = Column(String(255), nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    expires_at = Column(DateTime, nullable=True)
+    
+    user = relationship("User", foreign_keys=[user_id], back_populates="permisos_override")
+    permission = relationship("Permission")
+    creador = relationship("User", foreign_keys=[created_by])
+
+class Empresa(Base):
+    __tablename__ = "empresas"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String(200), nullable=False)
+    razon_social = Column(String(200), nullable=True)
+    cif = Column(String(20), nullable=True, unique=True)
+    email = Column(String(100), nullable=True)
+    telefono = Column(String(20), nullable=True)
+    direccion = Column(Text, nullable=True)
+    codigo_tenant = Column(String(50), unique=True, nullable=False, index=True)
+    plan = Column(String(20), default="trial")
+    estado = Column(String(20), default="activa")
+    max_usuarios = Column(Integer, default=5)
+    max_vehiculos = Column(Integer, default=10)
+    max_conductores = Column(Integer, default=10)
+    fecha_registro = Column(DateTime, default=datetime.datetime.utcnow)
+    fecha_inicio_plan = Column(DateTime, nullable=True)
+    fecha_fin_plan = Column(DateTime, nullable=True)
+    configuracion = Column(JSON, default=dict)
+    logo_url = Column(String(500), nullable=True)
+    color_primario = Column(String(7), nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    
+    roles = relationship("Role", back_populates="empresa")
+    usuarios = relationship("User", back_populates="empresa")
+    
+    __table_args__ = (
+        Index('idx_empresa_estado', 'estado'),
+        Index('idx_empresa_plan', 'plan'),
     )
