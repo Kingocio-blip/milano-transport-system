@@ -28,11 +28,9 @@ export function usePermisos() {
   const tienePermiso = useCallback((codigo: string): boolean => {
     if (permisos.includes('admin.todo')) return true;
     if (permisos.includes(codigo)) return true;
-    
     const partes = codigo.split('.');
     const categoria = partes[0];
     if (permisos.includes(`${categoria}.*`)) return true;
-    
     return false;
   }, [permisos]);
 
@@ -57,7 +55,6 @@ export function usePermisos() {
 
 export function useProtegerPermiso(codigo: string) {
   const { tienePermiso, loading } = usePermisos();
-  
   return {
     permitido: tienePermiso(codigo),
     loading

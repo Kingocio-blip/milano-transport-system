@@ -34,7 +34,6 @@ export function Roles() {
 
   const eliminarRol = async (id: number) => {
     if (!confirm('¿Eliminar este rol? Los usuarios con este rol perderán acceso.')) return;
-    
     try {
       await api.delete(`/roles/${id}`);
       setRoles(roles.filter(r => r.id !== id));
@@ -57,20 +56,14 @@ export function Roles() {
           <h1 className="text-2xl font-bold text-gray-900">Roles y Permisos</h1>
           <p className="text-gray-600">Gestiona los roles de usuario y sus permisos</p>
         </div>
-        
-        <button
-          onClick={() => navigate('/configuracion/roles/nuevo')}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-        >
-          <Plus size={20} />
-          Nuevo Rol
+        <button onClick={() => navigate('/configuracion/roles/nuevo')} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+          <Plus size={20} /> Nuevo Rol
         </button>
       </div>
 
       <div className="mb-8">
         <h2 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
-          <Shield size={20} className="text-blue-600" />
-          Roles del Sistema
+          <Shield size={20} className="text-blue-600" /> Roles del Sistema
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {roles.filter(r => r.es_sistema).map(rol => (
@@ -82,12 +75,8 @@ export function Roles() {
                 </div>
                 <Shield size={16} className="text-blue-600" />
               </div>
-              <div className="mt-3 text-sm text-blue-800">
-                {contarPermisos(rol)} permisos asignados
-              </div>
-              <div className="mt-2 text-xs text-blue-600 uppercase font-medium">
-                {rol.rol_base}
-              </div>
+              <div className="mt-3 text-sm text-blue-800">{contarPermisos(rol)} permisos asignados</div>
+              <div className="mt-2 text-xs text-blue-600 uppercase font-medium">{rol.rol_base}</div>
             </div>
           ))}
         </div>
@@ -95,19 +84,12 @@ export function Roles() {
 
       <div>
         <h2 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
-          <Users size={20} className="text-gray-600" />
-          Roles Personalizados
+          <Users size={20} className="text-gray-600" /> Roles Personalizados
         </h2>
-        
         {roles.filter(r => !r.es_sistema).length === 0 ? (
           <div className="text-center py-12 bg-gray-50 rounded-lg">
             <p className="text-gray-500">No hay roles personalizados</p>
-            <button
-              onClick={() => navigate('/configuracion/roles/nuevo')}
-              className="mt-2 text-blue-600 hover:underline"
-            >
-              Crear el primero
-            </button>
+            <button onClick={() => navigate('/configuracion/roles/nuevo')} className="mt-2 text-blue-600 hover:underline">Crear el primero</button>
           </div>
         ) : (
           <div className="bg-white rounded-lg border overflow-hidden">
@@ -127,30 +109,14 @@ export function Roles() {
                       <div className="font-medium text-gray-900">{rol.nombre}</div>
                       <div className="text-sm text-gray-500">{rol.codigo}</div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      {rol.descripcion || '-'}
-                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{rol.descripcion || '-'}</td>
                     <td className="px-4 py-3 text-center">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        {contarPermisos(rol)} permisos
-                      </span>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">{contarPermisos(rol)} permisos</span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex justify-center gap-2">
-                        <button
-                          onClick={() => navigate(`/configuracion/roles/${rol.id}/editar`)}
-                          className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                          title="Editar"
-                        >
-                          <Edit size={18} />
-                        </button>
-                        <button
-                          onClick={() => eliminarRol(rol.id)}
-                          className="p-1 text-red-600 hover:bg-red-50 rounded"
-                          title="Eliminar"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                        <button onClick={() => navigate(`/configuracion/roles/${rol.id}/editar`)} className="p-1 text-blue-600 hover:bg-blue-50 rounded" title="Editar"><Edit size={18} /></button>
+                        <button onClick={() => eliminarRol(rol.id)} className="p-1 text-red-600 hover:bg-red-50 rounded" title="Eliminar"><Trash2 size={18} /></button>
                       </div>
                     </td>
                   </tr>
@@ -162,12 +128,8 @@ export function Roles() {
       </div>
 
       <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-        <h3 className="font-medium text-gray-800 mb-2">
-          Permisos disponibles en el sistema: {permisos.length}
-        </h3>
-        <div className="text-sm text-gray-600">
-          Organizados en {new Set(permisos.map(p => p.categoria)).size} categorías
-        </div>
+        <h3 className="font-medium text-gray-800 mb-2">Permisos disponibles en el sistema: {permisos.length}</h3>
+        <div className="text-sm text-gray-600">Organizados en {new Set(permisos.map(p => p.categoria)).size} categorías</div>
       </div>
     </div>
   );
