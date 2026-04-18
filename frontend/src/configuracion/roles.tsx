@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Role, Permission } from '../../types/permisos';
+import { Role, Permission } from '@/types/permisos';
 import { api } from '../../lib/api';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Edit, Trash2, Shield, Users } from 'lucide-react';

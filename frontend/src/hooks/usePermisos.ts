@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { UserPermissionsResponse } from '../../types/permisos';
+import { UserPermissionsResponse } from '@/types/permisos';
 import { api } from '../lib/api';
 
 export function usePermisos() {
