@@ -1,8 +1,9 @@
 // ============================================
-// MILANO - Configuración Page
+// MILANO - Configuración Page (CON ROLES)
 // ============================================
 
 import { useState } from 'react';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -22,6 +23,13 @@ import {
 } from 'lucide-react';
 
 export default function Configuracion() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Determinar si estamos en sub-ruta de roles
+  const isRolesRoute = location.pathname.includes('/configuracion/roles') || 
+                       location.pathname.includes('/configuracion/usuarios');
+
   const [configuracion, setConfiguracion] = useState({
     empresa: {
       nombre: 'MILANO Transporte S.L.',
@@ -54,9 +62,13 @@ export default function Configuracion() {
   });
 
   const handleGuardar = () => {
-    // Aquí se guardaría la configuración
     alert('Configuración guardada correctamente');
   };
+
+  // Si estamos en ruta de roles, renderizar solo el Outlet
+  if (isRolesRoute) {
+    return <Outlet />;
+  }
 
   return (
     <div className="space-y-6">
@@ -89,6 +101,11 @@ export default function Configuracion() {
           <TabsTrigger value="notificaciones">
             <Bell className="mr-2 h-4 w-4" />
             Notificaciones
+          </TabsTrigger>
+          {/* NUEVO: Tab de Roles */}
+          <TabsTrigger value="roles" onClick={() => navigate('/configuracion/roles')}>
+            <Shield className="mr-2 h-4 w-4" />
+            Roles y Permisos
           </TabsTrigger>
         </TabsList>
 

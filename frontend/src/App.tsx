@@ -22,6 +22,11 @@ import Configuracion from './pages/Configuracion';
 import Login from './pages/Login';
 import PanelConductor from './pages/PanelConductor';
 
+// NUEVO: Pages de Configuración (Roles y Permisos)
+import { Roles } from './pages/Configuracion/Roles';
+import { RolForm } from './pages/Configuracion/RolForm';
+import { PermisosUsuario } from './pages/Configuracion/PermisosUsuario';
+
 // Componente para proteger rutas
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useUsuarioStore();
@@ -82,7 +87,15 @@ function App() {
           <Route path="facturacion" element={<Facturacion />} />
           <Route path="costes" element={<Costes />} />
           <Route path="documentacion" element={<Documentacion />} />
-          <Route path="configuracion" element={<Configuracion />} />
+          
+          {/* NUEVO: Rutas de Configuración con sub-rutas */}
+          <Route path="configuracion" element={<Configuracion />}>
+            <Route index element={<Navigate to="/configuracion/roles" replace />} />
+            <Route path="roles" element={<Roles />} />
+            <Route path="roles/nuevo" element={<RolForm />} />
+            <Route path="roles/:id/editar" element={<RolForm />} />
+            <Route path="usuarios/:userId/permisos" element={<PermisosUsuario />} />
+          </Route>
         </Route>
         
         {/* Redirección por defecto */}
