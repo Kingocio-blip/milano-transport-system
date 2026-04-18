@@ -18,12 +18,12 @@ export function Roles() {
   const cargarDatos = async () => {
     try {
       setLoading(true);
-      const [rolesRes, permisosRes] = await Promise.all([
+      const [rolesData, permisosData] = await Promise.all([
         api.get<Role[]>('/roles'),
         api.get<Permission[]>('/permissions')
       ]);
-      setRoles(rolesRes.data);
-      setPermisos(permisosRes.data);
+      setRoles(rolesData);
+      setPermisos(permisosData);
     } catch (err) {
       setError('Error cargando datos');
       console.error(err);
