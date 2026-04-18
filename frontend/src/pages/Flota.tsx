@@ -459,7 +459,8 @@ export default function Flota() {
               </div>
               <div className="space-y-2">
                 <Label>Año Fabricación</Label>
-                <Input type="number" value={nuevoVehiculo.anno_fabricacion || ''} onChange={(e) => setNuevoVehiculo({...nuevoVehiculo, anno_fabricacion: parseInt(e.target.value)})} />
+                <Input type="number" value={nuevoVehiculo.añoFabricacion || ''}
+onChange={(e) => setNuevoVehiculo({...nuevoVehiculo, añoFabricacion: parseInt(e.target.value)})} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
