@@ -113,8 +113,7 @@ export function RolForm() {
   const cargarRol = async () => {
     try {
       setLoading(true);
-      const res = await api.get<Role>(`/roles/${id}`);
-      const rol = res.data;
+      const rol = await api.get<Role>(`/roles/${id}`);
       setFormData({
         codigo: rol.codigo,
         nombre: rol.nombre,
