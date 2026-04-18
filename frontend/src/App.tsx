@@ -22,10 +22,10 @@ import Configuracion from './pages/Configuracion';
 import Login from './pages/Login';
 import PanelConductor from './pages/PanelConductor';
 
-// NUEVO: Pages de Configuración (Roles y Permisos)
-import { Roles } from './pages/Configuracion/Roles';
-import { RolForm } from './pages/Configuracion/RolForm';
-import { PermisosUsuario } from './pages/Configuracion/PermisosUsuario';
+// NUEVO: Pages de Configuración (Roles y Permisos) - CORREGIDO PATH
+import { Roles } from './configuracion/roles';
+import { RolForm } from './configuracion/rolForm';
+import { PermisosUsuario } from './configuracion/permisosUsuario';
 
 // Componente para proteger rutas
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
