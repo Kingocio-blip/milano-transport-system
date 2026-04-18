@@ -103,8 +103,8 @@ export function RolForm() {
 
   const cargarPermisos = async () => {
     try {
-      const res = await api.get<Permission[]>('/permissions');
-      setPermisos(res.data);
+      const data = await api.get<Permission[]>('/permissions');
+      setPermisos(data);
     } catch (err) {
       console.error('Error cargando permisos:', err);
     }
