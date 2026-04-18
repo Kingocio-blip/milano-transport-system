@@ -14,8 +14,8 @@ export function usePermisos() {
   const cargarPermisos = async () => {
     try {
       setLoading(true);
-      const response = await api.get<UserPermissionsResponse>('/auth/permissions');
-      setPermisos(response.data.permisos);
+      const data = await api.get<UserPermissionsResponse>('/auth/permissions');
+      setPermisos(data.permisos);
       setError(null);
     } catch (err) {
       setError('Error cargando permisos');
