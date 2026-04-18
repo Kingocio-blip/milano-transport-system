@@ -615,3 +615,27 @@ class Empresa(Base):
         Index('idx_empresa_estado', 'estado'),
         Index('idx_empresa_plan', 'plan'),
     )
+
+# ============================================
+# REFRESH TOKENS (NUEVO - JWT Robusto)
+# ============================================
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    token = Column(String(500), unique=True, index=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    revoked_at = Column(DateTime, nullable=True)  # NULL = activo
+    device_info = Column(String(255), nullable=True)  # Opcional: info del dispositivo
+    ip_address = Column(String(50), nullable=True)  # Opcional: IP origen
+    
+    user = relationship("User", backref="refresh_tokens")
+    
+    __table_args__ = (
+        Index('idx_refresh_token_user', 'user_id'),
+        Index('idx_refresh_token_expires', 'expires_at'),
+        Index('idx_refresh_token_revoked', 'revoked_at'),
+    )
