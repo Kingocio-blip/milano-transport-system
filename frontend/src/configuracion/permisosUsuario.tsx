@@ -155,17 +155,16 @@ export function PermisosUsuario() {
   const cargarDatos = async () => {
     try {
       setLoading(true);
-      const [userRes, rolesRes, permisosRes, authRes] = await Promise.all([
+      const [userData, rolesData, permisosData, authData] = await Promise.all([
         api.get<User>(`/users/${userId}`),
         api.get<Role[]>('/roles'),
         api.get<Permission[]>('/permissions'),
         api.get<{ permisos: string[] }>('/auth/permissions')
       ]);
-      const userData = userRes.data;
       setUsuario(userData);
-      setRoles(rolesRes.data);
-      setPermisos(permisosRes.data);
-      setPermisosUsuario(authRes.data.permisos);
+      setRoles(rolesData);
+      setPermisos(permisosData);
+      setPermisosUsuario(authData.permisos);
       setRolSeleccionado(userData.rol_custom_id || null);
       setOverrides([]);
     } catch (err) {
