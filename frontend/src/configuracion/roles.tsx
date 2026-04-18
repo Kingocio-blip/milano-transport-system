@@ -18,7 +18,6 @@ export function Roles() {
   const cargarDatos = async () => {
     try {
       setLoading(true);
-      // Estos endpoints necesitas crearlos en backend (te los doy abajo)
       const [rolesRes, permisosRes] = await Promise.all([
         api.get<Role[]>('/roles'),
         api.get<Permission[]>('/permissions')
@@ -44,7 +43,6 @@ export function Roles() {
     }
   };
 
-  // Contar permisos por rol
   const contarPermisos = (rol: Role): number => {
     return rol.permisos?.length || 0;
   };
@@ -69,7 +67,6 @@ export function Roles() {
         </button>
       </div>
 
-      {/* Roles del Sistema (no editables) */}
       <div className="mb-8">
         <h2 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
           <Shield size={20} className="text-blue-600" />
@@ -96,7 +93,6 @@ export function Roles() {
         </div>
       </div>
 
-      {/* Roles Custom */}
       <div>
         <h2 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
           <Users size={20} className="text-gray-600" />
@@ -165,7 +161,6 @@ export function Roles() {
         )}
       </div>
 
-      {/* Info de permisos disponibles */}
       <div className="mt-8 p-4 bg-gray-50 rounded-lg">
         <h3 className="font-medium text-gray-800 mb-2">
           Permisos disponibles en el sistema: {permisos.length}

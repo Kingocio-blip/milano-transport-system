@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Role, Permission, RoleCreate } from '@/types/permisos';
 import { api } from '@/lib/api';
-import { PermisosChecklist } from '@/components/permisos/PermisosChecklist';
+import { PermisosChecklist } from '../../components/permisos/PermisosChecklist';
 import { ArrowLeft, Save } from 'lucide-react';
 
 export function RolForm() {
-  const { id } = useParams(); // undefined = crear, número = editar
+  const { id } = useParams();
   const navigate = useNavigate();
   const esEdicion = Boolean(id);
 
@@ -107,7 +107,6 @@ export function RolForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Datos básicos */}
         <div className="bg-white p-6 rounded-lg border space-y-4">
           <h2 className="text-lg font-semibold text-gray-800">Información del Rol</h2>
           
@@ -123,7 +122,7 @@ export function RolForm() {
                 className="w-full border rounded-lg px-3 py-2"
                 placeholder="ej: supervisor_flota"
                 required
-                disabled={esEdicion} // No editable en edición
+                disabled={esEdicion}
               />
               <p className="text-xs text-gray-500 mt-1">
                 Identificador único, sin espacios
@@ -159,7 +158,6 @@ export function RolForm() {
           </div>
         </div>
 
-        {/* Permisos */}
         <div className="bg-white p-6 rounded-lg border">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-gray-800">
@@ -174,7 +172,6 @@ export function RolForm() {
           />
         </div>
 
-        {/* Botones */}
         <div className="flex justify-end gap-3">
           <button
             type="button"

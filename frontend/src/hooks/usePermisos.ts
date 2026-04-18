@@ -25,15 +25,10 @@ export function usePermisos() {
     }
   };
 
-  // Verificar si tiene un permiso específico (soporta wildcards)
   const tienePermiso = useCallback((codigo: string): boolean => {
-    // Admin con todo
     if (permisos.includes('admin.todo')) return true;
-    
-    // Match exacto
     if (permisos.includes(codigo)) return true;
     
-    // Wildcard: "clientes.*" coincide con "clientes.crear"
     const partes = codigo.split('.');
     const categoria = partes[0];
     if (permisos.includes(`${categoria}.*`)) return true;
@@ -41,12 +36,10 @@ export function usePermisos() {
     return false;
   }, [permisos]);
 
-  // Verificar si tiene alguno de los permisos (OR)
   const tieneAlguno = useCallback((codigos: string[]): boolean => {
     return codigos.some(codigo => tienePermiso(codigo));
   }, [tienePermiso]);
 
-  // Verificar si tiene todos los permisos (AND)
   const tieneTodos = useCallback((codigos: string[]): boolean => {
     return codigos.every(codigo => tienePermiso(codigo));
   }, [tienePermiso]);
@@ -62,7 +55,6 @@ export function usePermisos() {
   };
 }
 
-// Hook para proteger componentes
 export function useProtegerPermiso(codigo: string) {
   const { tienePermiso, loading } = usePermisos();
   
