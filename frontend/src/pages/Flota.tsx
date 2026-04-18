@@ -390,7 +390,7 @@ export default function Flota() {
                   <TableCell>{(v.kilometraje || 0).toLocaleString('es-ES')} km</TableCell>
                   <TableCell>
                     <div className="flex flex-col">
-                      <span>{formatDateSafe(v.itv_fecha_proxima)}</span>
+                      <span>{formatDateSafe(v.itv?.fechaProxima)}</span>
                       {(() => {
                         const dias = getDiasRestantes(v.itv?.fechaProxima);
                         return dias !== null && dias <= 30 ? <span className="text-xs text-red-600 font-medium">{dias} días</span> : null;
