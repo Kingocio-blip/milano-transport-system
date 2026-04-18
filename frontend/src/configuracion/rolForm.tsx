@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Role, Permission, RoleCreate } from '@/types/permisos';
-import { api } from '../../lib/api';
-import { PermisosChecklist } from '../../components/permisos/PermisosChecklist';
+import { api } from '@/lib/api';
+import { PermisosChecklist } from '@/components/permisos/PermisosChecklist';
 import { ArrowLeft, Save } from 'lucide-react';
 
 export function RolForm() {

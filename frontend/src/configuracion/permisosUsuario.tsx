@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { User, Role, Permission } from '@/types/permisos';
-import { api } from '../../lib/api';
-import { PermisosChecklist } from '../../components/permisos/PermisosChecklist';
-import { RolBadge, PermisosLista } from '../../components/permisos/PermisosBadge';
+import { api } from '@/lib/api';
+import { PermisosChecklist } from '@/components/permisos/PermisosChecklist';
+import { RolBadge, PermisosLista } from '@/components/permisos/PermisosBadge';
 import { ArrowLeft, Save, User as UserIcon, Shield, Plus, Trash2 } from 'lucide-react';
 
 // Tipo para el override de permisos
