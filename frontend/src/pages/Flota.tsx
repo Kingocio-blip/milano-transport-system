@@ -392,7 +392,7 @@ export default function Flota() {
                     <div className="flex flex-col">
                       <span>{formatDateSafe(v.itv_fecha_proxima)}</span>
                       {(() => {
-                        const dias = getDiasRestantes(v.itv_fecha_proxima);
+                        const dias = getDiasRestantes(v.itv?.fechaProxima);
                         return dias !== null && dias <= 30 ? <span className="text-xs text-red-600 font-medium">{dias} días</span> : null;
                       })()}
                     </div>
