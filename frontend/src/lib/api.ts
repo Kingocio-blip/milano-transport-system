@@ -57,10 +57,10 @@ async function handleResponse(response: Response) {
   return response.json();
 }
 
-// API Client con logging
+// API Client con logging y tipos genéricos
 export const api = {
   // GET
-  get: async (endpoint: string) => {
+  get: async <T = any>(endpoint: string): Promise<T> => {
     console.log('📤 API GET:', `${API_URL}${endpoint}`);
     const response = await fetch(`${API_URL}${endpoint}`, {
       method: 'GET',
@@ -68,37 +68,37 @@ export const api = {
     });
     const data = await handleResponse(response);
     console.log('✅ API GET Response:', endpoint, data);
-    return data;
+    return data as T;
   },
   
   // POST con logging
-  post: async (endpoint: string, data: any) => {
-    console.log('📤 API POST:', `${API_URL}${endpoint}`, data);
+  post: async <T = any>(endpoint: string, body: any): Promise<T> => {
+    console.log('📤 API POST:', `${API_URL}${endpoint}`, body);
     const response = await fetch(`${API_URL}${endpoint}`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify(data),
+      body: JSON.stringify(body),
     });
     const result = await handleResponse(response);
     console.log('✅ API POST Response:', endpoint, result);
-    return result;
+    return result as T;
   },
   
   // PUT con logging
-  put: async (endpoint: string, data: any) => {
-    console.log('📤 API PUT:', `${API_URL}${endpoint}`, data);
+  put: async <T = any>(endpoint: string, body: any): Promise<T> => {
+    console.log('📤 API PUT:', `${API_URL}${endpoint}`, body);
     const response = await fetch(`${API_URL}${endpoint}`, {
       method: 'PUT',
       headers: getHeaders(),
-      body: JSON.stringify(data),
+      body: JSON.stringify(body),
     });
     const result = await handleResponse(response);
     console.log('✅ API PUT Response:', endpoint, result);
-    return result;
+    return result as T;
   },
   
   // DELETE con logging
-  delete: async (endpoint: string) => {
+  delete: async <T = any>(endpoint: string): Promise<T> => {
     console.log('📤 API DELETE:', `${API_URL}${endpoint}`);
     const response = await fetch(`${API_URL}${endpoint}`, {
       method: 'DELETE',
@@ -106,7 +106,7 @@ export const api = {
     });
     const result = await handleResponse(response);
     console.log('✅ API DELETE Response:', endpoint, result);
-    return result;
+    return result as T;
   },
 };
 
