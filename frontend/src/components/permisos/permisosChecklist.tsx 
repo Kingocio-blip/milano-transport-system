@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Permission, CATEGORIAS_PERMISOS } from '../../types/permisos';
+import { Permission, CATEGORIAS_PERMISOS } from '@/types/permisos';
 
 interface PermisosChecklistProps {
   permisos: Permission[];
