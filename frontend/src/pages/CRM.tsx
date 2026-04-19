@@ -452,7 +452,7 @@ export default function CRM() {
                       <SelectItem value="__otro__">+ Otro (especificar)...</SelectItem>
                     </SelectContent>
                   </Select>
-                  {nuevoCliente.tipo === '__otro__' && (
+                  {(nuevoCliente.tipo as string) === '__otro__' && (
                     <Input
                       placeholder="Escribe el tipo de cliente"
                       className="mt-2 dark:bg-slate-900 dark:border-slate-600 dark:text-slate-100"
