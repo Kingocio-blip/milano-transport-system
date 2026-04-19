@@ -1,324 +1,178 @@
 // ============================================
-// MILANO - CRM / Clientes Page (FUNCIONAL - BOTONES DIRECTOS)
+// MILANO - CRM Clientes (Rediseñado)
+// Cards profesionales, dark mode, modales grandes
 // ============================================
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useClientesStore, useServiciosStore, useUIStore } from '../store';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import type { Cliente, TipoCliente } from '@/types';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
+} from '../components/ui/dialog';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '../components/ui/select';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { Textarea } from '../components/ui/textarea';
+import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
+import { ScrollArea } from '../components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '../components/ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from '../components/ui/dialog';
-import { Label } from '../components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Textarea } from '../components/ui/textarea';
-import { Progress } from '../components/ui/progress';
-import { Switch } from '../components/ui/switch';
-import {
-  Users,
-  Search,
-  Plus,
-  Edit,
-  Trash2,
-  Eye,
-  Phone,
-  Mail,
-  MapPin,
-  Calendar,
-  Filter,
-  Loader2,
-  Briefcase,
-  Euro,
-  FileText,
-  TrendingUp,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-  CheckCircle,
-  X,
-  ArrowRight,
+  Plus, Search, Loader2, Trash2, Edit3, Eye, Building2, Mail, Phone, MapPin,
+  CheckCircle2, X, LayoutGrid, List, TrendingUp, Users, Euro, FileText,
+  Briefcase, AlertTriangle, Search as SearchIcon, Clock
 } from 'lucide-react';
-import type { Cliente, TipoCliente } from '../types';
-import { format, parseISO, isValid } from 'date-fns';
-import { es } from 'date-fns/locale';
 import { Link } from 'react-router-dom';
 
-const tipoClienteLabels: Record<string, string> = {
-  festival: 'Festival',
-  promotor: 'Promotor',
-  colegio: 'Colegio',
-  empresa: 'Empresa',
-  particular: 'Particular',
+// Colores por tipo de cliente
+const tipoColors: Record<string, string> = {
+  empresa: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  festival: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+  promotor: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300',
+  colegio: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+  particular: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+  autonomo: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+  institucion_publica: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+  hotel: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300',
+  organizacion_eventos: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',
+  agencia_viajes: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+  otro: 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300',
 };
 
-const tipoClienteColors: Record<string, string> = {
-  festival: 'bg-purple-100 text-purple-700',
-  promotor: 'bg-blue-100 text-blue-700',
-  colegio: 'bg-green-100 text-green-700',
-  empresa: 'bg-amber-100 text-amber-700',
-  particular: 'bg-slate-100 text-slate-700',
+const estadoColors: Record<string, string> = {
+  activo: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+  inactivo: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+  potencial: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  bloqueado: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
 };
 
-// Labels para estados de servicio
-const estadoServicioLabels: Record<string, { label: string; color: string }> = {
-  solicitud: { label: 'Solicitud', color: 'bg-slate-100 text-slate-700' },
-  presupuesto: { label: 'Presupuesto', color: 'bg-blue-100 text-blue-700' },
-  negociacion: { label: 'Negociación', color: 'bg-amber-100 text-amber-700' },
-  confirmado: { label: 'Confirmado', color: 'bg-green-100 text-green-700' },
-  planificando: { label: 'Planificando', color: 'bg-purple-100 text-purple-700' },
-  asignado: { label: 'Asignado', color: 'bg-cyan-100 text-cyan-700' },
-  en_curso: { label: 'En Curso', color: 'bg-orange-100 text-orange-700' },
-  completado: { label: 'Completado', color: 'bg-emerald-100 text-emerald-700' },
-  facturado: { label: 'Facturado', color: 'bg-green-100 text-green-700' },
-  cancelado: { label: 'Cancelado', color: 'bg-red-100 text-red-700' },
+const formaPagoLabels: Record<string, string> = {
+  transferencia: 'Transferencia',
+  efectivo: 'Efectivo',
+  tarjeta: 'Tarjeta',
+  domiciliacion: 'Domiciliación',
+  adelantado_completo: 'Pago completo por adelantado',
+  adelantado_50_50: '50% reserva + 50% antes del servicio',
 };
 
-const getDocumentoLabel = (tipo: string): string => {
-  switch (tipo) {
-    case 'particular':
-      return 'DNI';
-    case 'empresa':
-    case 'festival':
-    case 'promotor':
-    case 'colegio':
-      return 'CIF';
-    default:
-      return 'NIF';
-  }
+interface NuevoClienteForm {
+  nombre: string; tipo: TipoCliente; nif: string; estado: string;
+  formaPago: string; diasPago: number; condicionesEspeciales: string; notas: string;
+  contacto: { email: string; telefono: string; direccion: string; ciudad: string; codigoPostal: string; };
+}
+
+const initialClienteState: NuevoClienteForm = {
+  nombre: '', tipo: 'empresa', nif: '', estado: 'activo',
+  formaPago: 'transferencia', diasPago: 30, condicionesEspeciales: '', notas: '',
+  contacto: { email: '', telefono: '', direccion: '', ciudad: '', codigoPostal: '' },
 };
 
-// Helper para fechas seguras
-const formatDateSafe = (date: string | Date | undefined): string => {
-  if (!date) return '-';
-  try {
-    const parsed = typeof date === 'string' ? parseISO(date) : date;
-    return isValid(parsed) ? format(parsed, 'dd/MM/yyyy') : '-';
-  } catch {
-    return '-';
-  }
-};
+function getDocumentoLabel(tipo: string): string {
+  if (tipo === 'particular' || tipo === 'autonomo') return 'DNI / NIE';
+  return 'CIF / NIF';
+}
 
-// FIX CRÍTICO: Helper para comparar IDs (maneja string y number)
-const idsEqual = (id1: string | number | undefined, id2: string | number | undefined): boolean => {
-  if (id1 === undefined || id2 === undefined) return false;
-  return String(id1) === String(id2);
-};
-
-type NuevoClienteForm = {
-  tipo: TipoCliente;
-  nombre: string;
-  estado: 'activo' | 'inactivo';
-  nif: string;
-  formaPago: string;
-  diasPago: number;
-  condicionesEspeciales: string;
-  notas: string;
-  contacto: {
-    email: string;
-    telefono: string;
-    direccion: string;
-    ciudad: string;
-    codigoPostal: string;
-  };
-};
+function idsEqual(a: string | number | undefined, b: string | number | undefined): boolean {
+  return String(a) === String(b);
+}
 
 export default function CRM() {
   const { clientes, isLoading, addCliente, updateCliente, deleteCliente, fetchClientes } = useClientesStore();
-  const { servicios, fetchServicios } = useServiciosStore();
+  const { servicios } = useServiciosStore();
   const { showToast } = useUIStore();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [tipoFiltro, setTipoFiltro] = useState<TipoCliente | 'todos'>('todos');
-  const [estadoFiltro, setEstadoFiltro] = useState<'activo' | 'inactivo' | 'todos'>('todos');
-  const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
+  const [tipoFiltro, setTipoFiltro] = useState<string>('todos');
+  const [estadoFiltro, setEstadoFiltro] = useState<string>('todos');
+  const [vistaMode, setVistaMode] = useState<'cards' | 'lista'>('cards');
+
   const [isNuevoClienteOpen, setIsNuevoClienteOpen] = useState(false);
-  const [isEditarOpen, setIsEditarOpen] = useState(false);
   const [isDetalleOpen, setIsDetalleOpen] = useState(false);
-  const [detalleTab, setDetalleTab] = useState('info');
+  const [isEditarOpen, setIsEditarOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [serviciosTabFilter, setServiciosTabFilter] = useState<'todos' | 'activos' | 'completados' | 'cancelados'>('todos');
-
-  const initialClienteState: NuevoClienteForm = {
-    tipo: 'empresa',
-    nombre: '',
-    estado: 'activo',
-    nif: '',
-    formaPago: 'transferencia',
-    diasPago: 30,
-    condicionesEspeciales: '',
-    notas: '',
-    contacto: {
-      email: '',
-      telefono: '',
-      direccion: '',
-      ciudad: '',
-      codigoPostal: ''
-    }
-  };
-
+  const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
   const [nuevoCliente, setNuevoCliente] = useState<NuevoClienteForm>(initialClienteState);
 
-  useEffect(() => {
-    fetchClientes();
-    fetchServicios();
-  }, [fetchClientes, fetchServicios]);
+  const [detalleTab, setDetalleTab] = useState('info');
+  const [serviciosTabFilter, setServiciosTabFilter] = useState('todos');
 
-  // Filtrar clientes con useMemo
-  const clientesFiltrados = useMemo(() => {
-    return clientes.filter(cliente => {
-      const searchLower = searchQuery.toLowerCase().trim();
-      const matchesSearch = searchLower === '' ||
-        cliente.nombre?.toLowerCase().includes(searchLower) ||
-        cliente.codigo?.toLowerCase().includes(searchLower) ||
-        cliente.nif?.toLowerCase().includes(searchLower) ||
-        cliente.contacto?.email?.toLowerCase().includes(searchLower) ||
-        cliente.contacto?.telefono?.toLowerCase().includes(searchLower);
-      const matchesTipo = tipoFiltro === 'todos' || cliente.tipo === tipoFiltro;
-      const matchesEstado = estadoFiltro === 'todos' || cliente.estado === estadoFiltro;
-      return matchesSearch && matchesTipo && matchesEstado;
-    });
-  }, [clientes, searchQuery, tipoFiltro, estadoFiltro]);
+  useEffect(() => { fetchClientes(); }, [fetchClientes]);
 
-  // Estadísticas con useMemo
+  // Estadísticas
   const stats = useMemo(() => ({
     total: clientes.length,
     activos: clientes.filter(c => c.estado === 'activo').length,
-    inactivos: clientes.filter(c => c.estado === 'inactivo').length,
-    porTipo: {
-      empresa: clientes.filter(c => c.tipo === 'empresa').length,
-      particular: clientes.filter(c => c.tipo === 'particular').length,
-      festival: clientes.filter(c => c.tipo === 'festival').length,
-      promotor: clientes.filter(c => c.tipo === 'promotor').length,
-      colegio: clientes.filter(c => c.tipo === 'colegio').length,
-    }
+    empresas: clientes.filter(c => c.tipo === 'empresa').length,
+    facturacion: clientes.reduce((sum, c) => sum + (c.totalFacturado || 0), 0),
   }), [clientes]);
 
-  // FIX CRÍTICO: Servicios del cliente seleccionado - usando comparación segura de IDs
+  // Clientes filtrados
+  const filtrados = useMemo(() => {
+    return clientes.filter(c => {
+      const sq = searchQuery.toLowerCase().trim();
+      const ms = sq === '' || c.nombre?.toLowerCase().includes(sq) || c.nif?.toLowerCase().includes(sq) || c.contacto?.email?.toLowerCase().includes(sq);
+      return ms && (tipoFiltro === 'todos' || c.tipo === tipoFiltro) && (estadoFiltro === 'todos' || c.estado === estadoFiltro);
+    });
+  }, [clientes, searchQuery, tipoFiltro, estadoFiltro]);
+
+  // Servicios del cliente seleccionado
   const serviciosCliente = useMemo(() => {
     if (!clienteSeleccionado) return [];
-    
-    // DEBUG: Ver qué está pasando
-    console.log('🔍 DEBUG - Cliente seleccionado:', {
-      id: clienteSeleccionado.id,
-      tipo: typeof clienteSeleccionado.id,
-      nombre: clienteSeleccionado.nombre
-    });
-    console.log('🔍 DEBUG - Todos los servicios:', servicios.map(s => ({
-      id: s.id,
-      clienteId: s.clienteId,
-      tipoClienteId: typeof s.clienteId,
-      titulo: s.titulo
-    })));
-    
-    const filtrados = servicios.filter(s => idsEqual(s.clienteId, clienteSeleccionado.id));
-    console.log('🔍 DEBUG - Servicios filtrados:', filtrados);
-    
-    return filtrados;
+    return servicios.filter(s => idsEqual(s.clienteId, clienteSeleccionado.id));
   }, [servicios, clienteSeleccionado]);
 
-  // Servicios filtrados por tab
   const serviciosFiltrados = useMemo(() => {
     if (serviciosTabFilter === 'todos') return serviciosCliente;
-    if (serviciosTabFilter === 'activos') {
-      return serviciosCliente.filter(s => 
-        ['solicitud', 'presupuesto', 'negociacion', 'confirmado', 'planificando', 'asignado', 'en_curso'].includes(s.estado)
-      );
-    }
-    if (serviciosTabFilter === 'completados') {
-      return serviciosCliente.filter(s => 
-        ['completado', 'facturado'].includes(s.estado)
-      );
-    }
-    if (serviciosTabFilter === 'cancelados') {
-      return serviciosCliente.filter(s => s.estado === 'cancelado');
-    }
+    if (serviciosTabFilter === 'activos') return serviciosCliente.filter(s => ['solicitud','presupuesto','negociacion','confirmado','planificando','asignado','en_curso'].includes(s.estado));
+    if (serviciosTabFilter === 'completados') return serviciosCliente.filter(s => ['completado','facturado'].includes(s.estado));
+    if (serviciosTabFilter === 'cancelados') return serviciosCliente.filter(s => s.estado === 'cancelado');
     return serviciosCliente;
   }, [serviciosCliente, serviciosTabFilter]);
 
-  // Estadísticas de facturación
   const facturacionStats = useMemo(() => {
     if (!serviciosCliente.length) return { total: 0, facturado: 0, pendiente: 0, porCobrar: 0 };
-    
     const total = serviciosCliente.reduce((sum, s) => sum + (s.precio || 0), 0);
-    const facturado = serviciosCliente
-      .filter(s => s.facturado)
-      .reduce((sum, s) => sum + (s.precio || 0), 0);
-    const completadosNoFacturados = serviciosCliente
-      .filter(s => s.estado === 'completado' && !s.facturado)
-      .reduce((sum, s) => sum + (s.precio || 0), 0);
-    const enCurso = serviciosCliente
-      .filter(s => ['solicitud', 'presupuesto', 'negociacion', 'confirmado', 'planificando', 'asignado', 'en_curso'].includes(s.estado))
-      .reduce((sum, s) => sum + (s.precio || 0), 0);
-    
-    return { total, facturado, pendiente: completadosNoFacturados, porCobrar: enCurso };
+    const facturado = serviciosCliente.filter(s => s.facturado).reduce((sum, s) => sum + (s.precio || 0), 0);
+    const pendiente = serviciosCliente.filter(s => s.estado === 'completado' && !s.facturado).reduce((sum, s) => sum + (s.precio || 0), 0);
+    const porCobrar = serviciosCliente.filter(s => ['solicitud','presupuesto','negociacion','confirmado','planificando','asignado','en_curso'].includes(s.estado)).reduce((sum, s) => sum + (s.precio || 0), 0);
+    return { total, facturado, pendiente, porCobrar };
   }, [serviciosCliente]);
 
+  // Handlers
   const handleNuevoCliente = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
+    e.preventDefault(); e.stopPropagation();
     const nombreLimpio = nuevoCliente.nombre.trim();
-    if (!nombreLimpio) {
-      showToast('El nombre es obligatorio', 'error');
-      return;
+    if (!nombreLimpio) { showToast('El nombre es obligatorio', 'error'); return; }
+
+    // FIX: Validate tipo is not __otro__ without custom value
+    const tipoFinal = (nuevoCliente.tipo as string) === '__otro__' ? 'otro' : nuevoCliente.tipo;
+    if ((nuevoCliente.tipo as string) === '__otro__' && (!tipoFinal || (tipoFinal as string) === '__otro__')) {
+      showToast('Debes escribir un tipo de cliente personalizado', 'error'); return;
     }
 
     setIsSubmitting(true);
-
     try {
-      // Use addCliente from store (handles API + localStorage fallback)
-      const success = await addCliente(nuevoCliente);
-
+      const success = await addCliente({ ...nuevoCliente, tipo: tipoFinal as TipoCliente });
       if (success) {
-        setIsNuevoClienteOpen(false);
-        setNuevoCliente(initialClienteState);
-        showToast('Cliente creado correctamente', 'success');
-        await fetchClientes();
-      } else {
-        throw new Error('Error al crear cliente');
-      }
-
+        setIsNuevoClienteOpen(false); setNuevoCliente(initialClienteState);
+        showToast('Cliente creado correctamente', 'success'); await fetchClientes();
+      } else { throw new Error('Error al crear cliente'); }
     } catch (err: any) {
       let errorMsg = err.message;
-      try {
-        const parsed = JSON.parse(err.message);
-        errorMsg = parsed.detail || 'Error desconocido';
-      } catch {}
+      try { const parsed = JSON.parse(err.message); errorMsg = parsed.detail || 'Error desconocido'; } catch {}
       showToast(`Error: ${errorMsg}`, 'error');
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [nuevoCliente, addCliente, fetchClientes, showToast, initialClienteState]);
+    } finally { setIsSubmitting(false); }
+  }, [nuevoCliente, addCliente, fetchClientes, showToast]);
 
-  // FIX: Editar cliente con todos los campos
   const handleEditarCliente = async () => {
     if (!clienteSeleccionado) return;
-
     setIsSubmitting(true);
-
     try {
-      const clienteData: Partial<Cliente> = {
+      const success = await updateCliente(String(clienteSeleccionado.id), {
         nombre: clienteSeleccionado.nombre?.trim(),
-        tipo: clienteSeleccionado.tipo,
-        estado: clienteSeleccionado.estado,
+        tipo: clienteSeleccionado.tipo, estado: clienteSeleccionado.estado,
         nif: clienteSeleccionado.nif?.trim() || undefined,
         formaPago: clienteSeleccionado.formaPago,
         diasPago: clienteSeleccionado.diasPago,
@@ -331,1083 +185,397 @@ export default function CRM() {
           ciudad: clienteSeleccionado.contacto?.ciudad?.trim() || undefined,
           codigoPostal: clienteSeleccionado.contacto?.codigoPostal?.trim() || undefined,
         }
-      };
-
-      const success = await updateCliente(String(clienteSeleccionado.id), clienteData);
+      });
       if (success) {
-        setIsEditarOpen(false);
-        showToast('Cliente actualizado correctamente', 'success');
+        setIsEditarOpen(false); showToast('Cliente actualizado', 'success');
         await fetchClientes();
-        // Actualizar el cliente seleccionado con los nuevos datos
-        const clienteActualizado = clientes.find(c => idsEqual(c.id, clienteSeleccionado.id));
-        if (clienteActualizado) {
-          setClienteSeleccionado(clienteActualizado);
-        }
-      } else {
-        showToast('Error al actualizar el cliente', 'error');
+        const actualizado = clientes.find(c => idsEqual(c.id, clienteSeleccionado.id));
+        if (actualizado) setClienteSeleccionado(actualizado);
       }
-    } catch (err: any) {
-      showToast(`Error: ${err.message || 'Desconocido'}`, 'error');
-    } finally {
-      setIsSubmitting(false);
-    }
+    } catch (err: any) { showToast(`Error: ${err.message}`, 'error'); }
+    finally { setIsSubmitting(false); }
   };
 
   const handleEliminarCliente = async (id: string) => {
-    if (!window.confirm('¿Está seguro de eliminar este cliente?')) return;
-
+    if (!window.confirm('Eliminar este cliente?')) return;
     try {
-      const success = await deleteCliente(id);
-      if (success) {
+      if (await deleteCliente(id)) {
         showToast('Cliente eliminado', 'success');
         if (clienteSeleccionado && idsEqual(clienteSeleccionado.id, id)) {
-          setIsDetalleOpen(false);
-          setIsEditarOpen(false);
-          setClienteSeleccionado(null);
+          setIsDetalleOpen(false); setIsEditarOpen(false); setClienteSeleccionado(null);
         }
         await fetchClientes();
-      } else {
-        showToast('Error al eliminar el cliente', 'error');
       }
-    } catch (err: any) {
-      showToast(`Error: ${err.message || 'Desconocido'}`, 'error');
-    }
-  };
-
-  const verDetalle = (cliente: Cliente) => {
-    setClienteSeleccionado(cliente);
-    setDetalleTab('info');
-    setServiciosTabFilter('todos');
-    setIsDetalleOpen(true);
-  };
-
-  const abrirEditar = (cliente: Cliente) => {
-    setClienteSeleccionado(cliente);
-    setIsEditarOpen(true);
-  };
-
-  const handleCloseNuevo = () => {
-    setIsNuevoClienteOpen(false);
-    setNuevoCliente(initialClienteState);
+    } catch (err: any) { showToast(`Error: ${err.message}`, 'error'); }
   };
 
   const updateContacto = (field: keyof NuevoClienteForm['contacto'], value: string) => {
-    setNuevoCliente(prev => ({
-      ...prev,
-      contacto: { ...prev.contacto, [field]: value }
-    }));
+    setNuevoCliente(p => ({ ...p, contacto: { ...p.contacto, [field]: value } }));
   };
 
-  // Helper para actualizar contacto en edición
   const updateClienteContacto = (field: keyof Cliente['contacto'], value: string) => {
     if (!clienteSeleccionado) return;
-    setClienteSeleccionado({
-      ...clienteSeleccionado,
-      contacto: { ...clienteSeleccionado.contacto, [field]: value }
-    });
+    setClienteSeleccionado({ ...clienteSeleccionado, contacto: { ...clienteSeleccionado.contacto, [field]: value } });
   };
 
-  if (isLoading && clientes.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-12 w-12 animate-spin text-[#1e3a5f]" />
-      </div>
-    );
-  }
+  if (isLoading && clientes.length === 0) return <div className="flex items-center justify-center h-96"><Loader2 className="h-12 w-12 animate-spin text-[#1e3a5f] dark:text-blue-400" /></div>;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-[1600px] mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-4 rounded-lg border shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">CRM - Clientes</h2>
-          <p className="text-slate-500 text-sm">Gestión de clientes y oportunidades</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">CRM - Clientes</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Gestion de clientes y oportunidades</p>
         </div>
-        <Dialog open={isNuevoClienteOpen} onOpenChange={setIsNuevoClienteOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-[#1e3a5f] hover:bg-[#152a45] text-white shadow-sm">
-              <Plus className="mr-2 h-4 w-4" />
-              Nuevo Cliente
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Nuevo Cliente</DialogTitle>
-              <DialogDescription>
-                Complete la información del nuevo cliente
-              </DialogDescription>
-            </DialogHeader>
-
-            <form onSubmit={handleNuevoCliente} className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="tipo">Tipo *</Label>
-                  <Select
-                    value={nuevoCliente.tipo}
-                    onValueChange={(v) => setNuevoCliente({...nuevoCliente, tipo: v as TipoCliente})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="empresa">Empresa</SelectItem>
-                      <SelectItem value="festival">Festival</SelectItem>
-                      <SelectItem value="promotor">Promotor</SelectItem>
-                      <SelectItem value="colegio">Colegio</SelectItem>
-                      <SelectItem value="particular">Particular / Autónomo</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="nombre">Nombre / Razón Social *</Label>
-                  <Input
-                    id="nombre"
-                    value={nuevoCliente.nombre}
-                    onChange={(e) => setNuevoCliente({...nuevoCliente, nombre: e.target.value})}
-                    placeholder="Nombre del cliente"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="nif">{getDocumentoLabel(nuevoCliente.tipo)}</Label>
-                <Input
-                  id="nif"
-                  value={nuevoCliente.nif}
-                  onChange={(e) => setNuevoCliente({...nuevoCliente, nif: e.target.value})}
-                  placeholder={`Número de ${getDocumentoLabel(nuevoCliente.tipo)}`}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={nuevoCliente.contacto.email}
-                    onChange={(e) => updateContacto('email', e.target.value)}
-                    placeholder="email@ejemplo.com"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="telefono">Teléfono</Label>
-                  <Input
-                    id="telefono"
-                    value={nuevoCliente.contacto.telefono}
-                    onChange={(e) => updateContacto('telefono', e.target.value)}
-                    placeholder="+34 600 000 000"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="direccion">Dirección</Label>
-                <Input
-                  id="direccion"
-                  value={nuevoCliente.contacto.direccion}
-                  onChange={(e) => updateContacto('direccion', e.target.value)}
-                  placeholder="Calle, número"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="ciudad">Ciudad</Label>
-                  <Input
-                    id="ciudad"
-                    value={nuevoCliente.contacto.ciudad}
-                    onChange={(e) => updateContacto('ciudad', e.target.value)}
-                    placeholder="Ciudad"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="codigoPostal">Código Postal</Label>
-                  <Input
-                    id="codigoPostal"
-                    value={nuevoCliente.contacto.codigoPostal}
-                    onChange={(e) => updateContacto('codigoPostal', e.target.value)}
-                    placeholder="28001"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="formaPago">Forma de Pago</Label>
-                  <Select
-                    value={nuevoCliente.formaPago}
-                    onValueChange={(v) => setNuevoCliente({...nuevoCliente, formaPago: v})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="transferencia">Transferencia</SelectItem>
-                      <SelectItem value="efectivo">Efectivo</SelectItem>
-                      <SelectItem value="tarjeta">Tarjeta</SelectItem>
-                      <SelectItem value="domiciliacion">Domiciliación</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="diasPago">Días de Pago</Label>
-                  <Input
-                    id="diasPago"
-                    type="number"
-                    value={nuevoCliente.diasPago}
-                    onChange={(e) => setNuevoCliente({...nuevoCliente, diasPago: parseInt(e.target.value) || 30})}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="condicionesEspeciales">Condiciones Especiales</Label>
-                <Textarea
-                  id="condicionesEspeciales"
-                  value={nuevoCliente.condicionesEspeciales}
-                  onChange={(e) => setNuevoCliente({...nuevoCliente, condicionesEspeciales: e.target.value})}
-                  placeholder="Condiciones especiales de pago, descuentos, etc."
-                  rows={2}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="notas">Notas</Label>
-                <Textarea
-                  id="notas"
-                  value={nuevoCliente.notas}
-                  onChange={(e) => setNuevoCliente({...nuevoCliente, notas: e.target.value})}
-                  placeholder="Notas adicionales sobre el cliente"
-                  rows={2}
-                />
-              </div>
-
-              <DialogFooter className="gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleCloseNuevo}
-                  disabled={isSubmitting}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="bg-[#1e3a5f] hover:bg-[#152a45] text-white"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Guardando...
-                    </>
-                  ) : (
-                    'Crear Cliente'
-                  )}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <Button onClick={() => setIsNuevoClienteOpen(true)} className="bg-[#1e3a5f] hover:bg-[#152a45] shadow-sm dark:bg-blue-600 dark:hover:bg-blue-700">
+          <Plus className="mr-2 h-4 w-4" /> Nuevo Cliente
+        </Button>
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-5">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Total Clientes</p>
-                <p className="text-3xl font-bold">{stats.total}</p>
-              </div>
-              <div className="rounded-full bg-blue-100 p-3">
-                <Users className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Activos</p>
-                <p className="text-3xl font-bold">{stats.activos}</p>
-              </div>
-              <div className="rounded-full bg-green-100 p-3">
-                <CheckCircle2 className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Inactivos</p>
-                <p className="text-3xl font-bold">{stats.inactivos}</p>
-              </div>
-              <div className="rounded-full bg-red-100 p-3">
-                <XCircle className="h-6 w-6 text-red-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Empresas</p>
-                <p className="text-3xl font-bold">{stats.porTipo.empresa}</p>
-              </div>
-              <div className="rounded-full bg-amber-100 p-3">
-                <Briefcase className="h-6 w-6 text-amber-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Particulares</p>
-                <p className="text-3xl font-bold">{stats.porTipo.particular}</p>
-              </div>
-              <div className="rounded-full bg-slate-100 p-3">
-                <Users className="h-6 w-6 text-slate-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Total Clientes', value: stats.total, icon: Users, color: 'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400' },
+          { label: 'Activos', value: stats.activos, icon: CheckCircle2, color: 'bg-green-100 text-green-600 dark:bg-green-500/20 dark:text-green-400' },
+          { label: 'Empresas', value: stats.empresas, icon: Building2, color: 'bg-purple-100 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400' },
+          { label: 'Facturacion Total', value: `${stats.facturacion.toLocaleString()} EUR`, icon: Euro, color: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400' },
+        ].map(s => (
+          <div key={s.label} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 flex items-center gap-3">
+            <div className={`rounded-lg p-2.5 ${s.color}`}><s.icon className="h-5 w-5" /></div>
+            <div><p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{s.value}</p><p className="text-xs text-slate-500 dark:text-slate-400">{s.label}</p></div>
+          </div>
+        ))}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-4">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <Input
-            placeholder="Buscar clientes..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
+      {/* Filtros */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Input placeholder="Buscar cliente..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-10 dark:bg-slate-900 dark:border-slate-700" />
         </div>
-        <Select value={tipoFiltro} onValueChange={(v) => setTipoFiltro(v as TipoCliente | 'todos')}>
-          <SelectTrigger className="w-40">
-            <Filter className="mr-2 h-4 w-4" />
-            <SelectValue placeholder="Tipo" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos los tipos</SelectItem>
-            <SelectItem value="festival">Festival</SelectItem>
-            <SelectItem value="promotor">Promotor</SelectItem>
-            <SelectItem value="colegio">Colegio</SelectItem>
-            <SelectItem value="empresa">Empresa</SelectItem>
-            <SelectItem value="particular">Particular</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={estadoFiltro} onValueChange={(v) => setEstadoFiltro(v as 'activo' | 'inactivo' | 'todos')}>
-          <SelectTrigger className="w-40">
-            <CheckCircle2 className="mr-2 h-4 w-4" />
-            <SelectValue placeholder="Estado" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos</SelectItem>
-            <SelectItem value="activo">Activos</SelectItem>
-            <SelectItem value="inactivo">Inactivos</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex gap-2">
+          <Select value={tipoFiltro} onValueChange={setTipoFiltro}>
+            <SelectTrigger className="w-[150px] dark:bg-slate-900 dark:border-slate-700"><SelectValue placeholder="Tipo" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="empresa">Empresa</SelectItem>
+              <SelectItem value="festival">Festival</SelectItem>
+              <SelectItem value="promotor">Promotor</SelectItem>
+              <SelectItem value="colegio">Colegio</SelectItem>
+              <SelectItem value="particular">Particular</SelectItem>
+              <SelectItem value="hotel">Hotel</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={estadoFiltro} onValueChange={setEstadoFiltro}>
+            <SelectTrigger className="w-[140px] dark:bg-slate-900 dark:border-slate-700"><SelectValue placeholder="Estado" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="activo">Activo</SelectItem>
+              <SelectItem value="inactivo">Inactivo</SelectItem>
+              <SelectItem value="potencial">Potencial</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="flex border rounded-lg overflow-hidden dark:border-slate-700">
+            <button onClick={() => setVistaMode('cards')} className={`p-2 ${vistaMode === 'cards' ? 'bg-[#1e3a5f] text-white' : 'bg-white dark:bg-slate-800 text-slate-500'}`}><LayoutGrid className="h-4 w-4" /></button>
+            <button onClick={() => setVistaMode('lista')} className={`p-2 ${vistaMode === 'lista' ? 'bg-[#1e3a5f] text-white' : 'bg-white dark:bg-slate-800 text-slate-500'}`}><List className="h-4 w-4" /></button>
+          </div>
+        </div>
       </div>
 
-      {/* Table */}
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Código</TableHead>
-                <TableHead>Nombre</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Contacto</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {clientesFiltrados.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-slate-500">
-                    {searchQuery || tipoFiltro !== 'todos' || estadoFiltro !== 'todos'
-                      ? 'No se encontraron clientes con los filtros aplicados'
-                      : 'No hay clientes registrados'}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                clientesFiltrados.map((cliente) => (
-                  <TableRow 
-                    key={cliente.id} 
-                    className="hover:bg-slate-50 cursor-pointer"
-                    onClick={() => verDetalle(cliente)}
-                  >
-                    <TableCell className="font-medium">{cliente.codigo}</TableCell>
-                    <TableCell>{cliente.nombre}</TableCell>
-                    <TableCell>
-                      <Badge className={tipoClienteColors[cliente.tipo || 'empresa']}>
-                        {tipoClienteLabels[cliente.tipo || 'empresa']}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        <span className="flex items-center gap-1 text-sm">
-                          <Mail className="h-3 w-3" />
-                          {cliente.contacto?.email || '-'}
-                        </span>
-                        <span className="flex items-center gap-1 text-sm text-slate-500">
-                          <Phone className="h-3 w-3" />
-                          {cliente.contacto?.telefono || '-'}
-                        </span>
+      {/* Vista CARDS */}
+      {vistaMode === 'cards' ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {filtrados.length === 0 ? (
+            <div className="col-span-full flex flex-col items-center py-16 text-slate-400 dark:text-slate-500">
+              <Users className="h-12 w-12 mb-3" /><p className="text-sm">No hay clientes</p>
+            </div>
+          ) : filtrados.map(c => (
+            <div key={c.id} onClick={() => { setClienteSeleccionado(c); setDetalleTab('info'); setServiciosTabFilter('todos'); setIsDetalleOpen(true); }}
+              className="group rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 cursor-pointer hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5"
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[#1e3a5f] dark:bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
+                    {c.nombre?.charAt(0).toUpperCase() || '?'}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-slate-900 dark:text-slate-100 line-clamp-1">{c.nombre}</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{c.nif || 'Sin NIF'}</p>
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  <Badge className={tipoColors[c.tipo] || tipoColors.otro}>{c.tipo}</Badge>
+                  <Badge className={estadoColors[c.estado] || ''}>{c.estado}</Badge>
+                </div>
+              </div>
+              <div className="space-y-1.5 text-sm text-slate-500 dark:text-slate-400 mb-3">
+                {c.contacto?.email && <p className="flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" />{c.contacto.email}</p>}
+                {c.contacto?.telefono && <p className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" />{c.contacto.telefono}</p>}
+                {c.contacto?.ciudad && <p className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" />{c.contacto.ciudad}</p>}
+              </div>
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-700">
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  {c.totalServicios || 0} servicios · {(c.totalFacturado || 0).toLocaleString()} EUR
+                </div>
+                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={e => { e.stopPropagation(); setClienteSeleccionado(c); setDetalleTab('info'); setServiciosTabFilter('todos'); setIsDetalleOpen(true); }}><Eye className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={e => { e.stopPropagation(); setClienteSeleccionado(c); setIsEditarOpen(true); }}><Edit3 className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500" onClick={e => { e.stopPropagation(); handleEliminarCliente(String(c.id)); }}><Trash2 className="h-4 w-4" /></Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        /* Vista LISTA */
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-900/50 text-left">
+                <tr><th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">Cliente</th><th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">Tipo</th><th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">Contacto</th><th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">Estado</th><th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400 text-right">Servicios</th><th className="px-4 py-3"></th></tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                {filtrados.length === 0 ? (
+                  <tr><td colSpan={6} className="text-center py-12 text-slate-400 dark:text-slate-500"><Users className="h-10 w-10 mx-auto mb-2" />No hay clientes</td></tr>
+                ) : filtrados.map(c => (
+                  <tr key={c.id} onClick={() => { setClienteSeleccionado(c); setDetalleTab('info'); setServiciosTabFilter('todos'); setIsDetalleOpen(true); }} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-[#1e3a5f] dark:bg-blue-600 flex items-center justify-center text-white font-bold text-xs">{c.nombre?.charAt(0).toUpperCase()}</div>
+                        <div><p className="font-medium dark:text-slate-200">{c.nombre}</p><p className="text-xs text-slate-500">{c.nif}</p></div>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={cliente.estado === 'activo' ? 'default' : 'secondary'}>
-                        {cliente.estado === 'activo' ? 'Activo' : 'Inactivo'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={(e) => { e.stopPropagation(); verDetalle(cliente); }}
-                          title="Ver detalle"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={(e) => { e.stopPropagation(); abrirEditar(cliente); }}
-                          title="Editar"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={(e) => { e.stopPropagation(); handleEliminarCliente(String(cliente.id)); }}
-                          title="Eliminar"
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                    </td>
+                    <td className="px-4 py-3"><Badge className={tipoColors[c.tipo] || tipoColors.otro}>{c.tipo}</Badge></td>
+                    <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{c.contacto?.email || c.contacto?.telefono || '-'}</td>
+                    <td className="px-4 py-3"><Badge className={estadoColors[c.estado] || ''}>{c.estado}</Badge></td>
+                    <td className="px-4 py-3 text-right dark:text-slate-300">{c.totalServicios || 0}</td>
+                    <td className="px-4 py-3"><div className="flex gap-1 justify-end"><Button size="icon" variant="ghost" className="h-7 w-7" onClick={e => { e.stopPropagation(); setClienteSeleccionado(c); setDetalleTab('info'); setIsDetalleOpen(true); }}><Eye className="h-3.5 w-3.5" /></Button><Button size="icon" variant="ghost" className="h-7 w-7" onClick={e => { e.stopPropagation(); setClienteSeleccionado(c); setIsEditarOpen(true); }}><Edit3 className="h-3.5 w-3.5" /></Button><Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" onClick={e => { e.stopPropagation(); handleEliminarCliente(String(c.id)); }}><Trash2 className="h-3.5 w-3.5" /></Button></div></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-      {/* DIALOGO DE DETALLE COMPLETO */}
+      {/* DIALOG: Nuevo Cliente */}
+      <Dialog open={isNuevoClienteOpen} onOpenChange={setIsNuevoClienteOpen}>
+        <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
+          <DialogHeader><DialogTitle className="dark:text-slate-100">Nuevo Cliente</DialogTitle><DialogDescription className="dark:text-slate-400">Complete la informacion del nuevo cliente</DialogDescription></DialogHeader>
+          <form onSubmit={handleNuevoCliente} className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Tipo *</Label>
+                <Select value={nuevoCliente.tipo} onValueChange={v => setNuevoCliente({...nuevoCliente, tipo: v as TipoCliente})}>
+                  <SelectTrigger className="dark:bg-slate-900 dark:border-slate-600"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="empresa">Empresa</SelectItem><SelectItem value="festival">Festival</SelectItem><SelectItem value="promotor">Promotor</SelectItem>
+                    <SelectItem value="colegio">Colegio</SelectItem><SelectItem value="particular">Particular / Autonomo</SelectItem><SelectItem value="hotel">Hotel</SelectItem>
+                    <SelectItem value="__otro__">+ Otro...</SelectItem>
+                  </SelectContent>
+                </Select>
+                {(nuevoCliente.tipo as string) === '__otro__' && (
+                  <Input placeholder="Escribe el tipo de cliente" className="mt-2 dark:bg-slate-900 dark:border-slate-600" onChange={e => setNuevoCliente({...nuevoCliente, tipo: (e.target.value || 'otro') as TipoCliente})} autoFocus />
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label>Nombre / Razon Social *</Label>
+                <Input value={nuevoCliente.nombre} onChange={e => setNuevoCliente({...nuevoCliente, nombre: e.target.value})} placeholder="Nombre del cliente" required className="dark:bg-slate-900 dark:border-slate-600" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>{getDocumentoLabel(nuevoCliente.tipo)}</Label>
+              <div className="flex gap-2">
+                <Input value={nuevoCliente.nif} onChange={e => setNuevoCliente({...nuevoCliente, nif: e.target.value})} placeholder={`Numero de ${getDocumentoLabel(nuevoCliente.tipo)}`} className="flex-1 dark:bg-slate-900 dark:border-slate-600" />
+                <Button type="button" variant="outline" size="icon" title="Buscar datos por CIF (proximamente)" disabled className="flex-shrink-0 opacity-60"><SearchIcon className="h-4 w-4" /></Button>
+              </div>
+              <p className="text-xs text-amber-600 dark:text-amber-400">Autocompletar por CIF - Proximamente</p>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2"><Label>Email</Label><Input type="email" value={nuevoCliente.contacto.email} onChange={e => updateContacto('email', e.target.value)} placeholder="email@ejemplo.com" className="dark:bg-slate-900 dark:border-slate-600" /></div>
+              <div className="space-y-2"><Label>Telefono</Label><Input value={nuevoCliente.contacto.telefono} onChange={e => updateContacto('telefono', e.target.value)} placeholder="+34 600 000 000" className="dark:bg-slate-900 dark:border-slate-600" /></div>
+              <div className="space-y-2"><Label>Ciudad</Label><Input value={nuevoCliente.contacto.ciudad} onChange={e => updateContacto('ciudad', e.target.value)} placeholder="Ciudad" className="dark:bg-slate-900 dark:border-slate-600" /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Direccion</Label><Input value={nuevoCliente.contacto.direccion} onChange={e => updateContacto('direccion', e.target.value)} placeholder="Calle, numero" className="dark:bg-slate-900 dark:border-slate-600" /></div>
+              <div className="space-y-2"><Label>Codigo Postal</Label><Input value={nuevoCliente.contacto.codigoPostal} onChange={e => updateContacto('codigoPostal', e.target.value)} placeholder="08001" className="dark:bg-slate-900 dark:border-slate-600" /></div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Forma de Pago</Label>
+                <Select value={nuevoCliente.formaPago} onValueChange={v => setNuevoCliente({...nuevoCliente, formaPago: v})}>
+                  <SelectTrigger className="dark:bg-slate-900 dark:border-slate-600"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="transferencia">Transferencia</SelectItem><SelectItem value="efectivo">Efectivo</SelectItem>
+                    <SelectItem value="tarjeta">Tarjeta</SelectItem><SelectItem value="domiciliacion">Domiciliacion</SelectItem>
+                    <SelectItem value="adelantado_completo">Pago completo por adelantado</SelectItem>
+                    <SelectItem value="adelantado_50_50">50% reserva + 50% antes del servicio</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2"><Label>Dias de Pago</Label><Input type="number" value={nuevoCliente.diasPago} onChange={e => setNuevoCliente({...nuevoCliente, diasPago: parseInt(e.target.value) || 30})} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+              <div className="space-y-2">
+                <Label>Estado</Label>
+                <Select value={nuevoCliente.estado} onValueChange={v => setNuevoCliente({...nuevoCliente, estado: v})}>
+                  <SelectTrigger className="dark:bg-slate-900 dark:border-slate-600"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="activo">Activo</SelectItem><SelectItem value="inactivo">Inactivo</SelectItem><SelectItem value="potencial">Potencial</SelectItem><SelectItem value="bloqueado">Bloqueado</SelectItem></SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2"><Label>Condiciones Especiales</Label><Textarea value={nuevoCliente.condicionesEspeciales} onChange={e => setNuevoCliente({...nuevoCliente, condicionesEspeciales: e.target.value})} placeholder="Condiciones especiales de facturacion, descuentos, etc." rows={2} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+            <div className="space-y-2"><Label>Notas</Label><Textarea value={nuevoCliente.notas} onChange={e => setNuevoCliente({...nuevoCliente, notas: e.target.value})} placeholder="Notas internas sobre el cliente" rows={2} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => { setIsNuevoClienteOpen(false); setNuevoCliente(initialClienteState); }} className="dark:border-slate-600 dark:text-slate-300">Cancelar</Button>
+              <Button type="submit" disabled={isSubmitting} className="bg-[#1e3a5f] hover:bg-[#152a45] dark:bg-blue-600">
+                {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</> : 'Crear Cliente'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG: Detalle */}
       <Dialog open={isDetalleOpen} onOpenChange={setIsDetalleOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
+          <DialogHeader>
+            <DialogTitle className="dark:text-slate-100">{clienteSeleccionado?.nombre}</DialogTitle>
+            <DialogDescription className="dark:text-slate-400">{clienteSeleccionado?.nif} · {clienteSeleccionado?.tipo}</DialogDescription>
+          </DialogHeader>
           {clienteSeleccionado && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  {clienteSeleccionado.nombre}
-                  <Badge className={tipoClienteColors[clienteSeleccionado.tipo || 'empresa']}>
-                    {tipoClienteLabels[clienteSeleccionado.tipo || 'empresa']}
-                  </Badge>
-                  <Badge variant={clienteSeleccionado.estado === 'activo' ? 'default' : 'secondary'}>
-                    {clienteSeleccionado.estado === 'activo' ? 'Activo' : 'Inactivo'}
-                  </Badge>
-                </DialogTitle>
-                <DialogDescription>
-                  {clienteSeleccionado.codigo} • Cliente desde {formatDateSafe(clienteSeleccionado.fechaAlta)}
-                </DialogDescription>
-              </DialogHeader>
+            <Tabs value={detalleTab} onValueChange={setDetalleTab}>
+              <TabsList className="dark:bg-slate-900">
+                <TabsTrigger value="info">Informacion</TabsTrigger>
+                <TabsTrigger value="servicios">Servicios ({serviciosCliente.length})</TabsTrigger>
+                <TabsTrigger value="facturacion">Facturacion</TabsTrigger>
+              </TabsList>
 
-              <Tabs value={detalleTab} onValueChange={setDetalleTab} className="mt-4">
-                <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="info">Información</TabsTrigger>
-                  <TabsTrigger value="servicios">Servicios ({serviciosCliente.length})</TabsTrigger>
-                  <TabsTrigger value="facturacion">Facturación</TabsTrigger>
-                  <TabsTrigger value="historial">Historial</TabsTrigger>
-                </TabsList>
-
-                {/* TAB: INFORMACIÓN */}
-                <TabsContent value="info" className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-sm font-medium flex items-center gap-2">
-                          <Mail className="h-4 w-4" />
-                          Contacto
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        <div>
-                          <Label className="text-slate-500 text-xs">Email</Label>
-                          <p>{clienteSeleccionado.contacto?.email || '-'}</p>
-                        </div>
-                        <div>
-                          <Label className="text-slate-500 text-xs">Teléfono</Label>
-                          <p>{clienteSeleccionado.contacto?.telefono || '-'}</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-sm font-medium flex items-center gap-2">
-                          <MapPin className="h-4 w-4" />
-                          Dirección
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        <p>{clienteSeleccionado.contacto?.direccion || '-'}</p>
-                        <p>{clienteSeleccionado.contacto?.codigoPostal} {clienteSeleccionado.contacto?.ciudad}</p>
-                      </CardContent>
-                    </Card>
+              <TabsContent value="info" className="space-y-4 pt-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 space-y-3">
+                    <h4 className="font-medium text-sm dark:text-slate-300">Contacto</h4>
+                    {clienteSeleccionado.contacto?.email && <p className="flex items-center gap-2 text-sm dark:text-slate-400"><Mail className="h-4 w-4" />{clienteSeleccionado.contacto.email}</p>}
+                    {clienteSeleccionado.contacto?.telefono && <p className="flex items-center gap-2 text-sm dark:text-slate-400"><Phone className="h-4 w-4" />{clienteSeleccionado.contacto.telefono}</p>}
+                    {clienteSeleccionado.contacto?.direccion && <p className="flex items-center gap-2 text-sm dark:text-slate-400"><MapPin className="h-4 w-4" />{clienteSeleccionado.contacto.direccion}{clienteSeleccionado.contacto.ciudad ? `, ${clienteSeleccionado.contacto.ciudad}` : ''}</p>}
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-sm font-medium flex items-center gap-2">
-                          <FileText className="h-4 w-4" />
-                          Documentación
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        <div>
-                          <Label className="text-slate-500 text-xs">{getDocumentoLabel(clienteSeleccionado.tipo || 'empresa')}</Label>
-                          <p>{clienteSeleccionado.nif || '-'}</p>
-                        </div>
-                        <div>
-                          <Label className="text-slate-500 text-xs">Estado</Label>
-                          <Badge variant={clienteSeleccionado.estado === 'activo' ? 'default' : 'secondary'}>
-                            {clienteSeleccionado.estado === 'activo' ? 'Activo' : 'Inactivo'}
-                          </Badge>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-sm font-medium flex items-center gap-2">
-                          <Euro className="h-4 w-4" />
-                          Condiciones Comerciales
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        <div>
-                          <Label className="text-slate-500 text-xs">Forma de Pago</Label>
-                          <p className="capitalize">{clienteSeleccionado.formaPago || 'Transferencia'}</p>
-                        </div>
-                        <div>
-                          <Label className="text-slate-500 text-xs">Días de Pago</Label>
-                          <p>{clienteSeleccionado.diasPago || 30} días</p>
-                        </div>
-                      </CardContent>
-                    </Card>
+                  <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 space-y-3">
+                    <h4 className="font-medium text-sm dark:text-slate-300">Datos Comerciales</h4>
+                    <p className="text-sm dark:text-slate-400">Forma de pago: <span className="font-medium dark:text-slate-200">{formaPagoLabels[clienteSeleccionado.formaPago] || clienteSeleccionado.formaPago}</span></p>
+                    <p className="text-sm dark:text-slate-400">Dias de pago: <span className="font-medium dark:text-slate-200">{clienteSeleccionado.diasPago}</span></p>
+                    <p className="text-sm dark:text-slate-400">Estado: <Badge className={estadoColors[clienteSeleccionado.estado] || ''}>{clienteSeleccionado.estado}</Badge></p>
                   </div>
-
-                  {clienteSeleccionado.condicionesEspeciales && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-sm font-medium">Condiciones Especiales</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-sm">{clienteSeleccionado.condicionesEspeciales}</p>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {clienteSeleccionado.notas && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-sm font-medium">Notas</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-sm text-slate-600">{clienteSeleccionado.notas}</p>
-                      </CardContent>
-                    </Card>
-                  )}
-                </TabsContent>
-
-                {/* TAB: SERVICIOS - MEJORADO */}
-                <TabsContent value="servicios" className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <div className="flex gap-2">
-                      <Button 
-                        variant={serviciosTabFilter === 'todos' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setServiciosTabFilter('todos')}
-                      >
-                        Todos ({serviciosCliente.length})
-                      </Button>
-                      <Button 
-                        variant={serviciosTabFilter === 'activos' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setServiciosTabFilter('activos')}
-                      >
-                        Activos
-                      </Button>
-                      <Button 
-                        variant={serviciosTabFilter === 'completados' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setServiciosTabFilter('completados')}
-                      >
-                        Completados
-                      </Button>
-                      <Button 
-                        variant={serviciosTabFilter === 'cancelados' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setServiciosTabFilter('cancelados')}
-                      >
-                        Cancelados
-                      </Button>
-                    </div>
-                    <Button asChild size="sm" className="bg-[#1e3a5f] hover:bg-[#152a45]">
-                      <Link to={`/servicios/nuevo?cliente=${clienteSeleccionado.id}`}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        Nuevo Servicio
-                      </Link>
-                    </Button>
+                </div>
+                {clienteSeleccionado.condicionesEspeciales && (
+                  <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+                    <h4 className="font-medium text-sm mb-1 dark:text-slate-300">Condiciones Especiales</h4>
+                    <p className="text-sm dark:text-slate-400">{clienteSeleccionado.condicionesEspeciales}</p>
                   </div>
+                )}
+                {clienteSeleccionado.notas && (
+                  <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+                    <h4 className="font-medium text-sm mb-1 dark:text-slate-300">Notas</h4>
+                    <p className="text-sm dark:text-slate-400">{clienteSeleccionado.notas}</p>
+                  </div>
+                )}
+              </TabsContent>
 
+              <TabsContent value="servicios" className="pt-4">
+                <div className="flex gap-2 mb-4">
+                  {[{v:'todos',l:'Todos'},{v:'activos',l:'Activos'},{v:'completados',l:'Completados'},{v:'cancelados',l:'Cancelados'}].map(t => (
+                    <Button key={t.v} size="sm" variant={serviciosTabFilter === t.v ? 'default' : 'outline'} onClick={() => setServiciosTabFilter(t.v)} className={serviciosTabFilter === t.v ? 'bg-[#1e3a5f] dark:bg-blue-600' : 'dark:border-slate-600 dark:text-slate-300'}>{t.l}</Button>
+                  ))}
+                </div>
+                <ScrollArea className="h-80">
                   {serviciosFiltrados.length === 0 ? (
-                    <div className="text-center py-8 text-slate-500 bg-slate-50 rounded-lg">
-                      <Briefcase className="mx-auto mb-2 h-8 w-8" />
-                      <p>No hay servicios {serviciosTabFilter !== 'todos' ? 'en esta categoría' : 'registrados'} para este cliente</p>
-                    </div>
+                    <div className="flex flex-col items-center py-10 text-slate-400 dark:text-slate-500"><Briefcase className="h-10 w-10 mb-2" /><p className="text-sm">Sin servicios</p></div>
                   ) : (
                     <div className="space-y-2">
-                      {serviciosFiltrados.map(servicio => (
-                        <div key={servicio.id} className="flex items-center justify-between p-4 rounded-lg bg-slate-50 border hover:bg-slate-100 transition-colors">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium">{servicio.titulo}</p>
-                              <Badge className={estadoServicioLabels[servicio.estado]?.color || 'bg-slate-100'}>
-                                {estadoServicioLabels[servicio.estado]?.label || servicio.estado}
-                              </Badge>
-                              {servicio.facturado && (
-                                <Badge variant="outline" className="text-green-600 border-green-600">
-                                  <CheckCircle className="h-3 w-3 mr-1" />
-                                  Facturado
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-sm text-slate-500 mt-1">
-                              <Calendar className="h-3 w-3 inline mr-1" />
-                              {formatDateSafe(servicio.fechaInicio)}
-                              {servicio.origen && (
-                                <>
-                                  {' • '}
-                                  <MapPin className="h-3 w-3 inline mr-1" />
-                                  {servicio.origen}
-                                  {servicio.destino && (
-                                    <>
-                                      <ArrowRight className="h-3 w-3 inline mx-1" />
-                                      {servicio.destino}
-                                    </>
-                                  )}
-                                </>
-                              )}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-medium text-lg">{(servicio.precio || 0).toLocaleString('es-ES')}€</p>
-                            <Button variant="ghost" size="sm" asChild>
-                              <Link to={`/servicios/${servicio.id}`}>
-                                <Eye className="h-4 w-4 mr-1" />
-                                Ver
-                              </Link>
-                            </Button>
-                          </div>
+                      {serviciosFiltrados.map(s => (
+                        <div key={s.id} className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-700 p-3 hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                          <div><p className="font-medium text-sm dark:text-slate-200">{s.codigo} · {s.titulo}</p><p className="text-xs text-slate-500 dark:text-slate-400">{s.estado} · {(s.precio || 0).toLocaleString()} EUR</p></div>
+                          <Button size="sm" variant="outline" asChild className="dark:border-slate-600"><Link to={`/servicios?id=${s.id}`}>Ver</Link></Button>
                         </div>
                       ))}
                     </div>
                   )}
-                </TabsContent>
+                </ScrollArea>
+              </TabsContent>
 
-                {/* TAB: FACTURACIÓN - FUNCIONAL */}
-                <TabsContent value="facturacion" className="space-y-4">
-                  <div className="grid grid-cols-4 gap-4">
-                    <Card>
-                      <CardContent className="p-4">
-                        <p className="text-sm text-slate-500">Total Servicios</p>
-                        <p className="text-2xl font-bold">{facturacionStats.total.toLocaleString('es-ES')}€</p>
-                        <p className="text-xs text-slate-400">{serviciosCliente.length} servicios</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <p className="text-sm text-slate-500">Facturado</p>
-                        <p className="text-2xl font-bold text-green-600">{facturacionStats.facturado.toLocaleString('es-ES')}€</p>
-                        <p className="text-xs text-slate-400">
-                          {serviciosCliente.filter(s => s.facturado).length} servicios
-                        </p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <p className="text-sm text-slate-500">Pendiente Facturar</p>
-                        <p className="text-2xl font-bold text-amber-600">{facturacionStats.pendiente.toLocaleString('es-ES')}€</p>
-                        <p className="text-xs text-slate-400">
-                          {serviciosCliente.filter(s => s.estado === 'completado' && !s.facturado).length} servicios
-                        </p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <p className="text-sm text-slate-500">En Curso</p>
-                        <p className="text-2xl font-bold text-blue-600">{facturacionStats.porCobrar.toLocaleString('es-ES')}€</p>
-                        <p className="text-xs text-slate-400">Servicios activos</p>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {serviciosCliente.filter(s => s.estado === 'completado' && !s.facturado).length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-sm font-medium flex items-center gap-2">
-                          <AlertCircle className="h-4 w-4 text-amber-500" />
-                          Servicios Pendientes de Facturar
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-2">
-                          {serviciosCliente
-                            .filter(s => s.estado === 'completado' && !s.facturado)
-                            .map(servicio => (
-                              <div key={servicio.id} className="flex items-center justify-between p-3 rounded-lg bg-amber-50 border border-amber-200">
-                                <div>
-                                  <p className="font-medium">{servicio.titulo}</p>
-                                  <p className="text-sm text-slate-500">
-                                    {formatDateSafe(servicio.fechaInicio)}
-                                  </p>
-                                </div>
-                                <div className="text-right">
-                                  <p className="font-medium">{(servicio.precio || 0).toLocaleString('es-ES')}€</p>
-                                  <Button size="sm" variant="outline" className="text-green-600 border-green-600 hover:bg-green-50">
-                                    <FileText className="h-3 w-3 mr-1" />
-                                    Facturar
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {serviciosCliente.length === 0 && (
-                    <div className="text-center py-8 text-slate-500">
-                      <FileText className="mx-auto mb-2 h-8 w-8" />
-                      <p>No hay datos de facturación para este cliente</p>
-                      <p className="text-sm">Los servicios completados aparecerán aquí para facturación</p>
-                    </div>
-                  )}
-                </TabsContent>
-
-                {/* TAB: HISTORIAL - CON SERVICIOS */}
-                <TabsContent value="historial" className="space-y-4">
-                  {serviciosCliente.length === 0 ? (
-                    <div className="text-center py-8 text-slate-500">
-                      <Clock className="mx-auto mb-2 h-8 w-8" />
-                      <p>No hay historial para este cliente</p>
-                      <p className="text-sm">Los servicios y cambios aparecerán aquí</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {/* Timeline de servicios */}
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-sm font-medium">Timeline de Servicios</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-4">
-                            {[...serviciosCliente]
-                              .sort((a, b) => new Date(b.fechaInicio || 0).getTime() - new Date(a.fechaInicio || 0).getTime())
-                              .map((servicio, index) => (
-                                <div key={servicio.id} className="flex gap-4">
-                                  <div className="flex flex-col items-center">
-                                    <div className={`w-3 h-3 rounded-full ${
-                                      servicio.estado === 'completado' || servicio.estado === 'facturado' 
-                                        ? 'bg-green-500' 
-                                        : servicio.estado === 'cancelado' 
-                                          ? 'bg-red-500' 
-                                          : 'bg-blue-500'
-                                    }`} />
-                                    {index < serviciosCliente.length - 1 && (
-                                      <div className="w-0.5 h-full bg-slate-200 mt-1" />
-                                    )}
-                                  </div>
-                                  <div className="flex-1 pb-4">
-                                    <div className="flex items-center gap-2">
-                                      <p className="font-medium">{servicio.titulo}</p>
-                                      <Badge className={estadoServicioLabels[servicio.estado]?.color || 'bg-slate-100'}>
-                                        {estadoServicioLabels[servicio.estado]?.label || servicio.estado}
-                                      </Badge>
-                                    </div>
-                                    <p className="text-sm text-slate-500">
-                                      {formatDateSafe(servicio.fechaInicio)} • {(servicio.precio || 0).toLocaleString('es-ES')}€
-                                    </p>
-                                    {servicio.descripcion && (
-                                      <p className="text-sm text-slate-600 mt-1">{servicio.descripcion}</p>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      {/* Estadísticas del cliente */}
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-sm font-medium">Resumen del Cliente</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="grid grid-cols-3 gap-4 text-center">
-                            <div>
-                              <p className="text-2xl font-bold">{serviciosCliente.length}</p>
-                              <p className="text-sm text-slate-500">Total Servicios</p>
-                            </div>
-                            <div>
-                              <p className="text-2xl font-bold text-green-600">
-                                {serviciosCliente.filter(s => s.estado === 'completado' || s.estado === 'facturado').length}
-                              </p>
-                              <p className="text-sm text-slate-500">Completados</p>
-                            </div>
-                            <div>
-                              <p className="text-2xl font-bold text-amber-600">
-                                {serviciosCliente.filter(s => 
-                                  ['solicitud', 'presupuesto', 'negociacion', 'confirmado', 'planificando', 'asignado', 'en_curso'].includes(s.estado)
-                                ).length}
-                              </p>
-                              <p className="text-sm text-slate-500">En Curso</p>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  )}
-                </TabsContent>
-              </Tabs>
-
-              <DialogFooter className="gap-2 mt-4">
-                <Button variant="outline" onClick={() => setIsDetalleOpen(false)}>
-                  Cerrar
-                </Button>
-                <Button
-                  onClick={() => { setIsDetalleOpen(false); abrirEditar(clienteSeleccionado); }}
-                  className="bg-[#1e3a5f] hover:bg-[#152a45]"
-                >
-                  <Edit className="mr-2 h-4 w-4" />
-                  Editar Cliente
-                </Button>
-              </DialogFooter>
-            </>
+              <TabsContent value="facturacion" className="pt-4">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                  {[{l:'Total',v:facturacionStats.total},{l:'Facturado',v:facturacionStats.facturado},{l:'Pendiente',v:facturacionStats.pendiente},{l:'Por cobrar',v:facturacionStats.porCobrar}].map(s => (
+                    <div key={s.l} className="rounded-lg border border-slate-200 dark:border-slate-700 p-3"><p className="text-xs text-slate-500 dark:text-slate-400">{s.l}</p><p className="text-lg font-bold dark:text-slate-100">{s.v.toLocaleString()} EUR</p></div>
+                  ))}
+                </div>
+              </TabsContent>
+            </Tabs>
           )}
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+            <Button variant="outline" onClick={() => { setIsDetalleOpen(false); setClienteSeleccionado(clienteSeleccionado); setIsEditarOpen(true); }} className="dark:border-slate-600 dark:text-slate-300">Editar</Button>
+            <Button variant="destructive" onClick={() => handleEliminarCliente(String(clienteSeleccionado?.id))}>Eliminar</Button>
+          </div>
         </DialogContent>
       </Dialog>
 
-      {/* DIALOG DE EDITAR - COMPLETO */}
+      {/* DIALOG: Editar */}
       <Dialog open={isEditarOpen} onOpenChange={setIsEditarOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Editar Cliente</DialogTitle>
-            <DialogDescription>
-              Modifique los datos del cliente {clienteSeleccionado?.codigo}
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
+          <DialogHeader><DialogTitle className="dark:text-slate-100">Editar Cliente</DialogTitle></DialogHeader>
           {clienteSeleccionado && (
-            <div className="space-y-4 py-4">
-              {/* Estado */}
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                <div>
-                  <Label className="font-medium">Estado del Cliente</Label>
-                  <p className="text-sm text-slate-500">
-                    {clienteSeleccionado.estado === 'activo' ? 'Cliente activo' : 'Cliente inactivo'}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-slate-500">Inactivo</span>
-                  <Switch
-                    checked={clienteSeleccionado.estado === 'activo'}
-                    onCheckedChange={(checked) => 
-                      setClienteSeleccionado({...clienteSeleccionado, estado: checked ? 'activo' : 'inactivo'})
-                    }
-                  />
-                  <span className="text-sm text-slate-500">Activo</span>
-                </div>
-              </div>
-
-              {/* Tipo y Nombre */}
+            <div className="space-y-4 py-2">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Tipo de Cliente</Label>
-                  <Select
-                    value={clienteSeleccionado.tipo}
-                    onValueChange={(v) => setClienteSeleccionado({...clienteSeleccionado, tipo: v as TipoCliente})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                <div className="space-y-2"><Label>Nombre *</Label><Input value={clienteSeleccionado.nombre} onChange={e => setClienteSeleccionado({...clienteSeleccionado, nombre: e.target.value})} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+                <div className="space-y-2"><Label>Tipo</Label>
+                  <Select value={clienteSeleccionado.tipo} onValueChange={v => setClienteSeleccionado({...clienteSeleccionado, tipo: v as TipoCliente})}>
+                    <SelectTrigger className="dark:bg-slate-900 dark:border-slate-600"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="empresa">Empresa</SelectItem>
-                      <SelectItem value="festival">Festival</SelectItem>
-                      <SelectItem value="promotor">Promotor</SelectItem>
-                      <SelectItem value="colegio">Colegio</SelectItem>
-                      <SelectItem value="particular">Particular</SelectItem>
+                      <SelectItem value="empresa">Empresa</SelectItem><SelectItem value="festival">Festival</SelectItem><SelectItem value="promotor">Promotor</SelectItem>
+                      <SelectItem value="colegio">Colegio</SelectItem><SelectItem value="particular">Particular / Autonomo</SelectItem><SelectItem value="hotel">Hotel</SelectItem>
+                      <SelectItem value="otro">Otro</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>Nombre / Razón Social *</Label>
-                  <Input
-                    value={clienteSeleccionado.nombre}
-                    onChange={(e) => setClienteSeleccionado({...clienteSeleccionado, nombre: e.target.value})}
-                  />
-                </div>
               </div>
-
-              {/* NIF */}
-              <div className="space-y-2">
-                <Label>{getDocumentoLabel(clienteSeleccionado.tipo)}</Label>
-                <Input
-                  value={clienteSeleccionado.nif || ''}
-                  onChange={(e) => setClienteSeleccionado({...clienteSeleccionado, nif: e.target.value})}
-                  placeholder={`Número de ${getDocumentoLabel(clienteSeleccionado.tipo)}`}
-                />
+              <div className="space-y-2"><Label>{getDocumentoLabel(clienteSeleccionado.tipo)}</Label><Input value={clienteSeleccionado.nif || ''} onChange={e => setClienteSeleccionado({...clienteSeleccionado, nif: e.target.value})} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2"><Label>Email</Label><Input value={clienteSeleccionado.contacto?.email || ''} onChange={e => updateClienteContacto('email', e.target.value)} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+                <div className="space-y-2"><Label>Telefono</Label><Input value={clienteSeleccionado.contacto?.telefono || ''} onChange={e => updateClienteContacto('telefono', e.target.value)} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+                <div className="space-y-2"><Label>Ciudad</Label><Input value={clienteSeleccionado.contacto?.ciudad || ''} onChange={e => updateClienteContacto('ciudad', e.target.value)} className="dark:bg-slate-900 dark:border-slate-600" /></div>
               </div>
-
-              {/* Contacto */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Email</Label>
-                  <Input
-                    type="email"
-                    value={clienteSeleccionado.contacto?.email || ''}
-                    onChange={(e) => updateClienteContacto('email', e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Teléfono</Label>
-                  <Input
-                    value={clienteSeleccionado.contacto?.telefono || ''}
-                    onChange={(e) => updateClienteContacto('telefono', e.target.value)}
-                  />
-                </div>
+                <div className="space-y-2"><Label>Direccion</Label><Input value={clienteSeleccionado.contacto?.direccion || ''} onChange={e => updateClienteContacto('direccion', e.target.value)} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+                <div className="space-y-2"><Label>Codigo Postal</Label><Input value={clienteSeleccionado.contacto?.codigoPostal || ''} onChange={e => updateClienteContacto('codigoPostal', e.target.value)} className="dark:bg-slate-900 dark:border-slate-600" /></div>
               </div>
-
-              {/* Dirección */}
-              <div className="space-y-2">
-                <Label>Dirección</Label>
-                <Input
-                  value={clienteSeleccionado.contacto?.direccion || ''}
-                  onChange={(e) => updateClienteContacto('direccion', e.target.value)}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Ciudad</Label>
-                  <Input
-                    value={clienteSeleccionado.contacto?.ciudad || ''}
-                    onChange={(e) => updateClienteContacto('ciudad', e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Código Postal</Label>
-                  <Input
-                    value={clienteSeleccionado.contacto?.codigoPostal || ''}
-                    onChange={(e) => updateClienteContacto('codigoPostal', e.target.value)}
-                  />
-                </div>
-              </div>
-
-              {/* Condiciones de pago */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Forma de Pago</Label>
-                  <Select
-                    value={clienteSeleccionado.formaPago || 'transferencia'}
-                    onValueChange={(v) => setClienteSeleccionado({...clienteSeleccionado, formaPago: v})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                  <Select value={clienteSeleccionado.formaPago} onValueChange={v => setClienteSeleccionado({...clienteSeleccionado, formaPago: v})}>
+                    <SelectTrigger className="dark:bg-slate-900 dark:border-slate-600"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="transferencia">Transferencia</SelectItem>
-                      <SelectItem value="efectivo">Efectivo</SelectItem>
-                      <SelectItem value="tarjeta">Tarjeta</SelectItem>
-                      <SelectItem value="domiciliacion">Domiciliación</SelectItem>
+                      <SelectItem value="transferencia">Transferencia</SelectItem><SelectItem value="efectivo">Efectivo</SelectItem>
+                      <SelectItem value="tarjeta">Tarjeta</SelectItem><SelectItem value="domiciliacion">Domiciliacion</SelectItem>
+                      <SelectItem value="adelantado_completo">Pago completo por adelantado</SelectItem>
+                      <SelectItem value="adelantado_50_50">50% reserva + 50% antes del servicio</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2"><Label>Dias de Pago</Label><Input type="number" value={clienteSeleccionado.diasPago || 30} onChange={e => setClienteSeleccionado({...clienteSeleccionado, diasPago: parseInt(e.target.value) || 30})} className="dark:bg-slate-900 dark:border-slate-600" /></div>
                 <div className="space-y-2">
-                  <Label>Días de Pago</Label>
-                  <Input
-                    type="number"
-                    value={clienteSeleccionado.diasPago || 30}
-                    onChange={(e) => setClienteSeleccionado({...clienteSeleccionado, diasPago: parseInt(e.target.value) || 30})}
-                  />
+                  <Label>Estado</Label>
+                  <Select value={clienteSeleccionado.estado} onValueChange={v => setClienteSeleccionado({...clienteSeleccionado, estado: v})}>
+                    <SelectTrigger className="dark:bg-slate-900 dark:border-slate-600"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="activo">Activo</SelectItem><SelectItem value="inactivo">Inactivo</SelectItem><SelectItem value="potencial">Potencial</SelectItem><SelectItem value="bloqueado">Bloqueado</SelectItem></SelectContent>
+                  </Select>
                 </div>
               </div>
-
-              {/* Condiciones especiales */}
-              <div className="space-y-2">
-                <Label>Condiciones Especiales</Label>
-                <Textarea
-                  value={clienteSeleccionado.condicionesEspeciales || ''}
-                  onChange={(e) => setClienteSeleccionado({...clienteSeleccionado, condicionesEspeciales: e.target.value})}
-                  placeholder="Condiciones especiales de pago, descuentos, etc."
-                  rows={2}
-                />
-              </div>
-
-              {/* Notas */}
-              <div className="space-y-2">
-                <Label>Notas</Label>
-                <Textarea
-                  value={clienteSeleccionado.notas || ''}
-                  onChange={(e) => setClienteSeleccionado({...clienteSeleccionado, notas: e.target.value})}
-                  placeholder="Notas adicionales sobre el cliente"
-                  rows={2}
-                />
-              </div>
-
-              <DialogFooter className="gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setIsEditarOpen(false)}
-                  disabled={isSubmitting}
-                >
-                  Cancelar
+              <div className="space-y-2"><Label>Condiciones Especiales</Label><Textarea value={clienteSeleccionado.condicionesEspeciales || ''} onChange={e => setClienteSeleccionado({...clienteSeleccionado, condicionesEspeciales: e.target.value})} rows={2} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+              <div className="space-y-2"><Label>Notas</Label><Textarea value={clienteSeleccionado.notas || ''} onChange={e => setClienteSeleccionado({...clienteSeleccionado, notas: e.target.value})} rows={2} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setIsEditarOpen(false)} className="dark:border-slate-600 dark:text-slate-300">Cancelar</Button>
+                <Button onClick={handleEditarCliente} disabled={isSubmitting} className="bg-[#1e3a5f] hover:bg-[#152a45] dark:bg-blue-600">
+                  {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</> : 'Guardar Cambios'}
                 </Button>
-                <Button
-                  onClick={handleEditarCliente}
-                  disabled={isSubmitting}
-                  className="bg-[#1e3a5f] hover:bg-[#152a45] text-white"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Guardando...
-                    </>
-                  ) : (
-                    'Guardar Cambios'
-                  )}
-                </Button>
-              </DialogFooter>
+              </div>
             </div>
           )}
         </DialogContent>
