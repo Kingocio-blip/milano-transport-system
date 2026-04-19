@@ -281,11 +281,23 @@ export default function CRM() {
       return;
     }
 
+    // FIX: Validate tipo is not __otro__ (must enter custom type)
+    const tipoFinal = nuevoCliente.tipo === '__otro__' ? 'otro' : nuevoCliente.tipo;
+    if (nuevoCliente.tipo === '__otro__' && (!tipoFinal || tipoFinal === '__otro__')) {
+      showToast('Debes escribir un tipo de cliente personalizado', 'error');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
+      // FIX: Normalize tipo before sending
+      const clienteParaEnviar = {
+        ...nuevoCliente,
+        tipo: tipoFinal,
+      };
       // Use addCliente from store (handles API + localStorage fallback)
-      const success = await addCliente(nuevoCliente);
+      const success = await addCliente(clienteParaEnviar);
 
       if (success) {
         setIsNuevoClienteOpen(false);
