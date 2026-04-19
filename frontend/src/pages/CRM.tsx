@@ -468,7 +468,7 @@ export default function CRM() {
                     <Input
                       placeholder="Escribe el tipo de cliente"
                       className="mt-2 dark:bg-slate-900 dark:border-slate-600 dark:text-slate-100"
-                      onChange={(e) => setNuevoCliente({...nuevoCliente, tipo: e.target.value || 'otro'})}
+                      onChange={(e) => setNuevoCliente({...nuevoCliente, tipo: (e.target.value || 'otro') as TipoCliente})}
                       autoFocus
                     />
                   )}
