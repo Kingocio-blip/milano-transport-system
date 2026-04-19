@@ -1,5 +1,5 @@
 // ============================================
-// MILANO - Login Page
+// MILANO - Login Page (Actualizado para JWT Robusto)
 // ============================================
 
 import { useState } from 'react';
@@ -10,12 +10,11 @@ import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { Bus, Loader2 } from 'lucide-react';
-import { authApi, setToken } from '../lib/api';
-import { useUsuarioStore } from '../store';
+import { useAuthStore } from '../stores';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login } = useUsuarioStore();
+  const { login, error: authError, clearError } = useAuthStore();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -24,25 +23,18 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    clearError();
     setIsLoading(true);
 
     try {
-      const response = await authApi.login(username, password);
-      if (response.access_token) {
-        setToken(response.access_token);
-        
-        // Actualizar el store de usuario
-        login({
-          id: 'admin',
-          nombre: username,
-          email: 'admin@milano.com',
-          rol: 'admin',
-          activo: true
-        });
-        
+      // Usar el nuevo authApi.login del store (maneja tokens automáticamente)
+      const success = await login(username, password);
+      
+      if (success) {
+        console.log('✅ Login exitoso, redirigiendo...');
         navigate('/');
       } else {
-        setError('Error al iniciar sesión');
+        setError(authError || 'Error al iniciar sesión');
       }
     } catch (err: any) {
       setError(err.message || 'Usuario o contraseña incorrectos');
@@ -67,9 +59,9 @@ export default function Login() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
+            {(error || authError) && (
               <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{error || authError}</AlertDescription>
               </Alert>
             )}
             <div className="space-y-2">

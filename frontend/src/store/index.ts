@@ -5,7 +5,7 @@
 
 import { create } from 'zustand';
 import { localStorageService } from '@/lib/localStorage';
-import { clientesApi, vehiculosApi, conductoresApi, serviciosApi, facturasApi, dashboardApi } from '@/lib/api';
+import { clientesApi, vehiculosApi, conductoresApi, serviciosApi, facturasApi, dashboardApi, authApi } from '@/lib/api';
 import type {
   Cliente,
   Vehiculo,
@@ -1664,43 +1664,131 @@ export const useUIStore = create<UIState>((set) => ({
 }));
 
 // ============================================
-// STORE DE USUARIO
+// STORE DE AUTENTICACIÓN (JWT Robusto)
+// Reemplaza al antiguo useUsuarioStore
 // ============================================
-interface UsuarioState {
+
+interface AuthState {
   usuario: Usuario | null;
   isAuthenticated: boolean;
-  setUsuario: (usuario: Usuario | null) => void;
-  login: (usuario: Usuario) => void;
-  logout: () => void;
-  updatePreferencias: (preferencias: any) => void;
+  isLoading: boolean;
+  error: string | null;
+  permisos: string[];
+  
+  login: (username: string, password: string) => Promise<boolean>;
+  logout: () => Promise<void>;
+  logoutAll: () => Promise<void>;
+  fetchMe: () => Promise<void>;
+  fetchPermissions: () => Promise<void>;
+  checkAuth: () => boolean;
+  clearError: () => void;
 }
 
-export const useUsuarioStore = create<UsuarioState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   usuario: null,
   isAuthenticated: false,
+  isLoading: false,
+  error: null,
+  permisos: [],
 
-  setUsuario: (usuario) => set({ usuario }),
+  login: async (username: string, password: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await authApi.login(username, password);
+      
+      if (!response.access_token || !response.refresh_token) {
+        throw new Error('Respuesta del servidor inválida');
+      }
 
-  login: (usuario) => {
-    localStorage.setItem('milano_usuario', JSON.stringify(usuario));
-    set({ usuario, isAuthenticated: true });
+      console.log('✅ Login exitoso, tokens recibidos');
+      
+      await get().fetchMe();
+      await get().fetchPermissions();
+      
+      set({ isAuthenticated: true, isLoading: false });
+      return true;
+      
+    } catch (error: any) {
+      console.error('❌ Error login:', error);
+      set({ 
+        error: error.message || 'Error al iniciar sesión', 
+        isLoading: false,
+        isAuthenticated: false 
+      });
+      return false;
+    }
   },
 
-  logout: () => {
-    localStorage.removeItem('milano_usuario');
-    set({ usuario: null, isAuthenticated: false });
+  logout: async () => {
+    set({ isLoading: true });
+    try {
+      await authApi.logout();
+    } catch (error) {
+      console.warn('Logout backend falló, limpiando localmente');
+    } finally {
+      set({ 
+        usuario: null, 
+        isAuthenticated: false, 
+        isLoading: false, 
+        error: null,
+        permisos: [] 
+      });
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
+    }
   },
 
-  updatePreferencias: (preferencias) => set((state) => ({
-    usuario: state.usuario ? {
-      ...state.usuario,
-      preferencias: { ...state.usuario.preferencias, ...preferencias }
-    } : null
-  })),
+  logoutAll: async () => {
+    set({ isLoading: true });
+    try {
+      await authApi.logoutAll();
+    } catch (error) {
+      console.warn('Logout-all backend falló, limpiando localmente');
+    } finally {
+      set({ 
+        usuario: null, 
+        isAuthenticated: false, 
+        isLoading: false, 
+        error: null,
+        permisos: [] 
+      });
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
+    }
+  },
+
+  fetchMe: async () => {
+    try {
+      const usuario = await authApi.me();
+      set({ usuario });
+    } catch (error: any) {
+      console.error('❌ Error fetchMe:', error);
+      set({ usuario: null, isAuthenticated: false });
+    }
+  },
+
+  fetchPermissions: async () => {
+    try {
+      const response = await authApi.permissions();
+      set({ permisos: response.permisos || [] });
+    } catch (error: any) {
+      console.error('❌ Error fetchPermissions:', error);
+      set({ permisos: [] });
+    }
+  },
+
+  checkAuth: () => {
+    const { isAuthenticated, usuario } = get();
+    return isAuthenticated && usuario !== null;
+  },
+
+  clearError: () => set({ error: null }),
 }));
 
 // ============================================
-// STORE DE DASHBOARD (KPIs)
+// STORE DE DASHBOARD (KPIs) - SIN CAMBIOS
 // ============================================
 interface DashboardState {
   kpi: KPIDashboard | null;
@@ -1739,14 +1827,21 @@ export function initializeData() {
 }
 
 // ============================================
-// INICIALIZACIÓN DE AUTENTICACIÓN
+// INICIALIZACIÓN DE AUTENTICACIÓN (JWT ROBUSTO)
 // ============================================
-const usuarioGuardado = localStorage.getItem('milano_usuario');
-if (usuarioGuardado) {
-  try {
-    const usuario = JSON.parse(usuarioGuardado);
-    useUsuarioStore.getState().login(usuario);
-  } catch (e) {
-    localStorage.removeItem('milano_usuario');
+if (typeof window !== 'undefined') {
+  const accessToken = localStorage.getItem('milano_access_token');
+  const refreshToken = localStorage.getItem('milano_refresh_token');
+  
+  if (accessToken && refreshToken) {
+    console.log('🔐 Tokens encontrados, restaurando sesión...');
+    useAuthStore.getState().fetchMe().then(() => {
+      useAuthStore.getState().fetchPermissions();
+      useAuthStore.setState({ isAuthenticated: true });
+    }).catch(() => {
+      console.log('❌ No se pudo restaurar la sesión');
+      localStorage.removeItem('milano_access_token');
+      localStorage.removeItem('milano_refresh_token');
+    });
   }
 }

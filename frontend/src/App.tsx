@@ -1,12 +1,12 @@
 // ============================================
 // MILANO - Sistema de Gestión de Transporte
-// Main App Component (Con API Backend)
+// Main App Component (Con API Backend + JWT Robusto)
 // ============================================
 
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
-import { useUsuarioStore } from './store';
+import { useAuthStore } from './stores';
 
 // Pages
 import Dashboard from './pages/Dashboard';
@@ -22,7 +22,7 @@ import Configuracion from './pages/Configuracion';
 import Login from './pages/Login';
 import PanelConductor from './pages/PanelConductor';
 
-// NUEVO: Pages de Configuración (Roles y Permisos) - CORREGIDO PATH
+// NUEVO: Pages de Configuración (Roles y Permisos)
 import { Roles } from './configuracion/roles';
 import { RolForm } from './configuracion/rolForm';
 import { PermisosUsuario } from './configuracion/permisosUsuario';
@@ -33,7 +33,7 @@ import UsuarioForm from './pages/UsuarioForm';
 
 // Componente para proteger rutas
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useUsuarioStore();
+  const { isAuthenticated } = useAuthStore();
   
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -44,7 +44,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 // Componente para redirigir si ya está autenticado
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useUsuarioStore();
+  const { isAuthenticated } = useAuthStore();
   
   if (isAuthenticated) {
     return <Navigate to="/" replace />;

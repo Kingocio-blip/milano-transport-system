@@ -1,10 +1,10 @@
 // ============================================
-// MILANO - Layout Component
+// MILANO - Layout Component (Actualizado para JWT Robusto)
 // ============================================
 
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
-import { useUsuarioStore } from '../store';
+import { useAuthStore } from '../stores';
 import { usePermisos } from '../hooks/usePermisos';
 import {
   Bus,
@@ -45,11 +45,11 @@ export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
   const navigate = useNavigate();
-  const { usuario, logout } = useUsuarioStore();
+  const { usuario, logout, isAuthenticated } = useAuthStore();
   const { tienePermiso } = usePermisos();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout(); // Ahora es async y llama al backend
     navigate('/login');
   };
 

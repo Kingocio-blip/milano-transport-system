@@ -1,32 +1,129 @@
 // ============================================
-// MILANO - API Client
-// Configuración de conexión con el backend
+// MILANO - API Client (JWT Robusto v2.0)
+// Maneja access_token (15min) + refresh_token (7días)
 // ============================================
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
-// Obtener token del localStorage
-function getToken(): string | null {
-  return localStorage.getItem('milano_token');
+// ============================================
+// GESTIÓN DE TOKENS (localStorage)
+// ============================================
+
+const TOKEN_KEY = 'milano_access_token';
+const REFRESH_KEY = 'milano_refresh_token';
+
+// Obtener access token
+function getAccessToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
 }
 
-// Guardar token
-export function setToken(token: string): void {
-  localStorage.setItem('milano_token', token);
+// Obtener refresh token
+function getRefreshToken(): string | null {
+  return localStorage.getItem(REFRESH_KEY);
 }
 
-// Eliminar token (logout)
-export function removeToken(): void {
-  localStorage.removeItem('milano_token');
+// Guardar ambos tokens (después de login o refresh)
+export function setTokens(accessToken: string, refreshToken: string): void {
+  localStorage.setItem(TOKEN_KEY, accessToken);
+  localStorage.setItem(REFRESH_KEY, refreshToken);
+  console.log('🔐 Tokens guardados (access + refresh)');
 }
 
-// Headers por defecto
+// Guardar solo access token (después de refresh)
+export function setAccessToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+// Eliminar tokens (logout)
+export function removeTokens(): void {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+  console.log('👋 Tokens eliminados (logout)');
+}
+
+// ============================================
+// REFRESH TOKEN AUTOMÁTICO
+// ============================================
+
+let isRefreshing = false;
+let refreshSubscribers: ((token: string) => void)[] = [];
+
+// Suscribirse a la renovación de token
+function subscribeTokenRefresh(callback: (token: string) => void) {
+  refreshSubscribers.push(callback);
+}
+
+// Notificar a todos los suscriptores que hay nuevo token
+function onTokenRefreshed(newToken: string) {
+  refreshSubscribers.forEach(callback => callback(newToken));
+  refreshSubscribers = [];
+}
+
+// Renovar el access token usando el refresh token
+async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = getRefreshToken();
+  
+  if (!refreshToken) {
+    console.error('❌ No hay refresh token disponible');
+    return null;
+  }
+
+  if (isRefreshing) {
+    // Si ya está renovando, esperar a que termine
+    return new Promise((resolve) => {
+      subscribeTokenRefresh((newToken: string) => {
+        resolve(newToken);
+      });
+    });
+  }
+
+  isRefreshing = true;
+  console.log('🔄 Renovando access token...');
+
+  try {
+    const response = await fetch(`${API_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+
+    if (!response.ok) {
+      // Refresh token inválido o expirado
+      console.error('❌ Refresh token inválido, redirigiendo a login');
+      removeTokens();
+      window.location.href = '/login';
+      return null;
+    }
+
+    const data = await response.json();
+    
+    // Guardar nuevos tokens (rotación: refresh token también cambia)
+    setTokens(data.access_token, data.refresh_token);
+    
+    console.log('✅ Token renovado correctamente');
+    onTokenRefreshed(data.access_token);
+    
+    return data.access_token;
+  } catch (error) {
+    console.error('❌ Error renovando token:', error);
+    removeTokens();
+    window.location.href = '/login';
+    return null;
+  } finally {
+    isRefreshing = false;
+  }
+}
+
+// ============================================
+// HEADERS Y MANEJO DE ERRORES
+// ============================================
+
 function getHeaders(): HeadersInit {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
   };
   
-  const token = getToken();
+  const token = getAccessToken();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
@@ -34,8 +131,25 @@ function getHeaders(): HeadersInit {
   return headers;
 }
 
-// Manejar errores con mejor logging
-async function handleResponse(response: Response) {
+// Manejar errores con renovación automática de token
+async function handleResponse(response: Response, retryFunc?: () => Promise<any>) {
+  // Si es 401 (Unauthorized), intentar renovar el token
+  if (response.status === 401) {
+    console.warn('⚠️ Token expirado (401), intentando renovar...');
+    
+    const newToken = await refreshAccessToken();
+    
+    if (newToken && retryFunc) {
+      // Reintentar la petición original con el nuevo token
+      console.log('🔄 Reintentando petición con nuevo token...');
+      return retryFunc();
+    } else {
+      // No se pudo renovar, redirigir a login
+      window.location.href = '/login';
+      throw new Error('Sesión expirada. Por favor, inicie sesión nuevamente.');
+    }
+  }
+
   if (!response.ok) {
     let errorData: any = {};
     try {
@@ -54,73 +168,129 @@ async function handleResponse(response: Response) {
     const errorMessage = errorData.detail || errorData.error || `Error ${response.status}: ${response.statusText}`;
     throw new Error(errorMessage);
   }
+  
   return response.json();
 }
 
-// API Client con logging y tipos genéricos
+// ============================================
+// API CLIENT CON REFRESH AUTOMÁTICO
+// ============================================
+
 export const api = {
-  // GET
+  // GET con retry automático
   get: async <T = any>(endpoint: string): Promise<T> => {
     console.log('📤 API GET:', `${API_URL}${endpoint}`);
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      method: 'GET',
-      headers: getHeaders(),
-    });
-    const data = await handleResponse(response);
+    
+    const makeRequest = async (): Promise<T> => {
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        method: 'GET',
+        headers: getHeaders(),
+      });
+      return handleResponse(response, () => api.get(endpoint));
+    };
+    
+    const data = await makeRequest();
     console.log('✅ API GET Response:', endpoint, data);
     return data as T;
   },
   
-  // POST con logging
+  // POST con retry automático
   post: async <T = any>(endpoint: string, body: any): Promise<T> => {
     console.log('📤 API POST:', `${API_URL}${endpoint}`, body);
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(body),
-    });
-    const result = await handleResponse(response);
+    
+    const makeRequest = async (): Promise<T> => {
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(body),
+      });
+      return handleResponse(response, () => api.post(endpoint, body));
+    };
+    
+    const result = await makeRequest();
     console.log('✅ API POST Response:', endpoint, result);
     return result as T;
   },
   
-  // PUT con logging
+  // PUT con retry automático
   put: async <T = any>(endpoint: string, body: any): Promise<T> => {
     console.log('📤 API PUT:', `${API_URL}${endpoint}`, body);
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      method: 'PUT',
-      headers: getHeaders(),
-      body: JSON.stringify(body),
-    });
-    const result = await handleResponse(response);
+    
+    const makeRequest = async (): Promise<T> => {
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(body),
+      });
+      return handleResponse(response, () => api.put(endpoint, body));
+    };
+    
+    const result = await makeRequest();
     console.log('✅ API PUT Response:', endpoint, result);
     return result as T;
   },
   
-  // DELETE con logging
+  // DELETE con retry automático
   delete: async <T = any>(endpoint: string): Promise<T> => {
     console.log('📤 API DELETE:', `${API_URL}${endpoint}`);
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      method: 'DELETE',
-      headers: getHeaders(),
-    });
-    const result = await handleResponse(response);
+    
+    const makeRequest = async (): Promise<T> => {
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      return handleResponse(response, () => api.delete(endpoint));
+    };
+    
+    const result = await makeRequest();
     console.log('✅ API DELETE Response:', endpoint, result);
     return result as T;
   },
 };
 
 // ============================================
-// SERVICIOS API
+// SERVICIOS API ACTUALIZADOS
 // ============================================
 
 export const authApi = {
-  login: (username: string, password: string) => 
-    api.post('/auth/login', { username, password }),
-  me: () => 
-    api.get('/auth/me'),
+  // Login guarda AMBOS tokens
+  login: async (username: string, password: string) => {
+    const response = await api.post('/auth/login', { username, password });
+    // Guardar access + refresh tokens
+    if (response.access_token && response.refresh_token) {
+      setTokens(response.access_token, response.refresh_token);
+    }
+    return response;
+  },
+  
+  // Logout llama al backend y limpia tokens
+  logout: async () => {
+    try {
+      await api.post('/auth/logout', {});
+    } catch (e) {
+      console.warn('Logout backend falló, limpiando localmente');
+    }
+    removeTokens();
+  },
+  
+  // Logout de todos los dispositivos
+  logoutAll: async () => {
+    try {
+      await api.post('/auth/logout-all', {});
+    } catch (e) {
+      console.warn('Logout-all backend falló, limpiando localmente');
+    }
+    removeTokens();
+  },
+  
+  // Obtener datos del usuario actual
+  me: () => api.get('/auth/me'),
+  
+  // Obtener permisos del usuario
+  permissions: () => api.get('/auth/permissions'),
 };
 
+// Resto de APIs sin cambios (usan el api client mejorado)
 export const clientesApi = {
   getAll: () => api.get('/clientes'),
   getById: (id: string) => api.get(`/clientes/${id}`),
@@ -164,4 +334,20 @@ export const facturasApi = {
 export const dashboardApi = {
   getStats: () => api.get('/dashboard/stats'),
   getServiciosRecientes: () => api.get('/dashboard/servicios-recientes'),
+};
+
+// ============================================
+// PERMISOS Y ROLES (nuevos endpoints)
+// ============================================
+
+export const permissionsApi = {
+  getAll: () => api.get('/permissions'),
+};
+
+export const rolesApi = {
+  getAll: () => api.get('/roles'),
+  getById: (id: string) => api.get(`/roles/${id}`),
+  create: (data: any) => api.post('/roles', data),
+  update: (id: string, data: any) => api.put(`/roles/${id}`, data),
+  delete: (id: string) => api.delete(`/roles/${id}`),
 };
