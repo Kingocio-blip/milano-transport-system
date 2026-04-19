@@ -27,6 +27,10 @@ import { Roles } from './configuracion/roles';
 import { RolForm } from './configuracion/rolForm';
 import { PermisosUsuario } from './configuracion/permisosUsuario';
 
+// NUEVO: Pages de Usuarios
+import Usuarios from './pages/Usuarios';
+import UsuarioForm from './pages/UsuarioForm';
+
 // Componente para proteger rutas
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useUsuarioStore();
@@ -87,6 +91,11 @@ function App() {
           <Route path="facturacion" element={<Facturacion />} />
           <Route path="costes" element={<Costes />} />
           <Route path="documentacion" element={<Documentacion />} />
+          
+          {/* NUEVO: Rutas de Usuarios */}
+          <Route path="usuarios" element={<Usuarios />} />
+          <Route path="usuarios/nuevo" element={<UsuarioForm />} />
+          <Route path="usuarios/:id/editar" element={<UsuarioForm />} />
           
           {/* NUEVO: Rutas de Configuración con sub-rutas */}
           <Route path="configuracion" element={<Configuracion />}>

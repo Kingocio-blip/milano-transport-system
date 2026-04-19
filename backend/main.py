@@ -1,5 +1,5 @@
 # ============================================
-# MILANO - Backend Main (COMPLETO - Pydantic v2)
+# MILANO - Backend Main (JWT ROBUSTO v1.3.0)
 # ============================================
 
 from permissions import (
@@ -7,7 +7,8 @@ from permissions import (
     has_permission, 
     inicializar_permisos_sistema, 
     inicializar_roles_sistema,
-    user_can
+    user_can,
+    get_permisos_usuario
 )
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,10 +30,15 @@ from auth import (
     get_current_active_user,
     authenticate_user,
     create_access_token,
+    create_refresh_token,
+    verify_refresh_token,
+    revoke_refresh_token,
+    revoke_all_user_tokens,
     get_password_hash,
     verify_password,
     check_password_strength,
-    ACCESS_TOKEN_EXPIRE_MINUTES
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    REFRESH_TOKEN_EXPIRE_DAYS
 )
 
 # Configure logging
@@ -48,8 +54,8 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="MILANO Transport Management API",
-    version="1.2.0",
-    description="API para gestión de transporte MILANO con permisos granulares",
+    version="1.3.0",
+    description="API con JWT robusto (access + refresh tokens) y permisos granulares",
     docs_url="/docs",
     redoc_url="/redoc"
 )
@@ -76,6 +82,24 @@ app.add_middleware(
     expose_headers=["*"],
     max_age=3600,
 )
+
+# ============================================
+# PYDANTIC SCHEMAS ADICIONALES PARA AUTH
+# ============================================
+
+from pydantic import BaseModel, Field
+
+class TokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int  # segundos
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+class LogoutRequest(BaseModel):
+    refresh_token: Optional[str] = None  # Si no se envía, revoca todos
 
 # ============================================
 # STARTUP - Crear admin, permisos y verificar DB
@@ -117,14 +141,17 @@ async def startup_event():
         db.close()
 
 # ============================================
-# AUTH ENDPOINTS
+# AUTH ENDPOINTS (JWT ROBUSTO - NUEVOS)
 # ============================================
 
-@app.post("/token", response_model=schemas.Token)
+@app.post("/token", response_model=TokenResponse)
 def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(), 
     db: Session = Depends(get_db)
 ):
+    """
+    Login con OAuth2. Devuelve access token (15 min) + refresh token (7 días).
+    """
     user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
@@ -133,15 +160,26 @@ def login_for_access_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
+    # Crear access token (corto: 15 min)
+    access_token = create_access_token(data={"sub": user.username})
     
-    return {"access_token": access_token, "token_type": "bearer"}
+    # Crear refresh token (largo: 7 días, guardado en BD)
+    refresh_token = create_refresh_token(user.id, db, device_info="Web")
+    
+    logger.info(f"🔐 Login exitoso: {user.username}")
+    
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    }
 
-@app.post("/auth/login", response_model=schemas.Token)
+@app.post("/auth/login", response_model=TokenResponse)
 def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
+    """
+    Login alternativo con JSON. Devuelve access token + refresh token.
+    """
     user = authenticate_user(db, login_data.username, login_data.password)
     if not user:
         raise HTTPException(
@@ -149,16 +187,109 @@ def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
             detail="Usuario o contraseña incorrectos"
         )
     
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
+    access_token = create_access_token(data={"sub": user.username})
+    refresh_token = create_refresh_token(user.id, db, device_info="Web")
     
-    return {"access_token": access_token, "token_type": "bearer"}
+    logger.info(f"🔐 Login JSON exitoso: {user.username}")
+    
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    }
+
+@app.post("/auth/refresh", response_model=TokenResponse)
+def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)):
+    """
+    Renueva el access token usando un refresh token válido.
+    Implementa rotación de tokens: el refresh anterior se revoca y se genera uno nuevo.
+    """
+    user = verify_refresh_token(request.refresh_token, db)
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token inválido o expirado"
+        )
+    
+    # Crear nuevos tokens
+    new_access_token = create_access_token(data={"sub": user.username})
+    new_refresh_token = create_refresh_token(user.id, db, device_info="Web")
+    
+    # Revocar el refresh token anterior (rotación de tokens)
+    revoke_refresh_token(request.refresh_token, db)
+    
+    logger.info(f"🔄 Tokens renovados para usuario: {user.username}")
+    
+    return {
+        "access_token": new_access_token,
+        "refresh_token": new_refresh_token,
+        "token_type": "bearer",
+        "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    }
+
+@app.post("/auth/logout")
+def logout(
+    request: LogoutRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Logout: revoca el refresh token específico (logout de un dispositivo).
+    Si no se envía refresh_token, revoca TODOS los tokens del usuario (logout global).
+    """
+    if request.refresh_token:
+        # Logout de un dispositivo específico
+        success = revoke_refresh_token(request.refresh_token, db)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Token no encontrado o ya revocado"
+            )
+        logger.info(f"👋 Logout dispositivo específico: {current_user.username}")
+        return {"message": "Sesión cerrada correctamente"}
+    else:
+        # Logout global (todos los dispositivos)
+        count = revoke_all_user_tokens(current_user.id, db)
+        logger.info(f"👋 Logout global: {current_user.username} ({count} sesiones cerradas)")
+        return {"message": f"Cerradas {count} sesiones activas"}
+
+@app.post("/auth/logout-all")
+def logout_all(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Fuerza el cierre de todas las sesiones del usuario en todos los dispositivos.
+    Útil si sospecha que su cuenta fue comprometida.
+    """
+    count = revoke_all_user_tokens(current_user.id, db)
+    logger.info(f"👋 Logout forzado global: {current_user.username} ({count} sesiones)")
+    return {"message": f"Se cerraron {count} sesiones activas en todos los dispositivos"}
 
 @app.get("/auth/me", response_model=schemas.User)
 def read_users_me(current_user: models.User = Depends(get_current_user)):
+    """
+    Obtiene los datos del usuario autenticado.
+    """
     return current_user
+
+@app.get("/auth/permissions")
+def get_my_permissions(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Obtener lista de permisos del usuario actual (para frontend)"""
+    permisos = get_permisos_usuario(current_user, db)
+    
+    return {
+        "user_id": current_user.id,
+        "username": current_user.username,
+        "rol": current_user.rol.value if current_user.rol else None,
+        "rol_custom": current_user.rol_custom_obj.nombre if current_user.rol_custom_obj else None,
+        "permisos": permisos
+    }
 
 # ============================================
 # USER ENDPOINTS (PERMISOS GRANULARES)
@@ -202,7 +333,8 @@ def create_user(
         email=user.email,
         hashed_password=hashed_password,
         nombre_completo=user.nombre_completo,
-        rol=user.rol
+        rol=user.rol,
+        activo=True
     )
     db.add(db_user)
     db.commit()
@@ -220,14 +352,20 @@ def update_user(
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # No permitir editar a uno mismo (evitar bloqueos)
+    # No permitir editar a uno mismo ciertos campos críticos (evitar bloqueos)
     if db_user.id == current_user.id:
-        # Solo permitir cambiar ciertos campos
-        allowed_fields = ['nombre_completo', 'email']
+        allowed_fields = ['nombre_completo', 'email', 'password']
         update_data = user_update.model_dump(exclude_unset=True)
         filtered_data = {k: v for k, v in update_data.items() if k in allowed_fields}
     else:
         filtered_data = user_update.model_dump(exclude_unset=True)
+    
+    # Si se actualiza password, hashearla
+    if 'password' in filtered_data and filtered_data['password']:
+        is_strong, error_msg = check_password_strength(filtered_data['password'])
+        if not is_strong:
+            raise HTTPException(status_code=400, detail=error_msg)
+        filtered_data['hashed_password'] = get_password_hash(filtered_data.pop('password'))
     
     for key, value in filtered_data.items():
         if value is not None:
@@ -1019,52 +1157,7 @@ def get_servicios_recientes(
     return servicios
 
 # ============================================
-# PERMISSIONS INFO ENDPOINT (NUEVO)
-# ============================================
-
-@app.get("/auth/permissions")
-def get_my_permissions(
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
-):
-    """Obtener lista de permisos del usuario actual (para frontend)"""
-    from permissions import get_permisos_usuario
-    
-    permisos = get_permisos_usuario(current_user, db)
-    
-    return {
-        "user_id": current_user.id,
-        "username": current_user.username,
-        "rol": current_user.rol.value,
-        "rol_custom": current_user.rol_custom_obj.nombre if current_user.rol_custom_obj else None,
-        "permisos": permisos
-    }
-
-# ============================================
-# HEALTH CHECK
-# ============================================
-
-@app.get("/health")
-def health_check():
-    db_status = check_db_connection()
-    return {
-        "status": "healthy" if db_status else "unhealthy",
-        "database": "connected" if db_status else "disconnected",
-        "timestamp": datetime.utcnow(),
-        "version": "1.2.0"
-    }
-
-@app.get("/")
-def root():
-    return {
-        "message": "MILANO Transport Management API",
-        "version": "1.2.0",
-        "docs": "/docs",
-        "health": "/health"
-    }
-
-# ============================================
-# ROLES Y PERMISOS ENDPOINTS (para frontend)
+# ROLES Y PERMISOS ENDPOINTS (CONFIGURACIÓN)
 # ============================================
 
 @app.get("/permissions", response_model=List[schemas.Permission])
@@ -1205,3 +1298,27 @@ def delete_role(
     db.delete(rol)
     db.commit()
     return {"message": "Rol eliminado"}
+
+# ============================================
+# HEALTH CHECK Y ROOT
+# ============================================
+
+@app.get("/health")
+def health_check():
+    db_status = check_db_connection()
+    return {
+        "status": "healthy" if db_status else "unhealthy",
+        "database": "connected" if db_status else "disconnected",
+        "timestamp": datetime.utcnow(),
+        "version": "1.3.0"
+    }
+
+@app.get("/")
+def root():
+    return {
+        "message": "MILANO Transport Management API",
+        "version": "1.3.0",
+        "features": ["JWT robusto (access + refresh tokens)", "Permisos granulares", "Roles custom"],
+        "docs": "/docs",
+        "health": "/health"
+    }
