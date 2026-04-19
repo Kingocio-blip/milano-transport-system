@@ -93,7 +93,7 @@ export default function Usuarios() {
   };
 
   const handleEditarUsuario = (id: number) => {
-    console.log('Navegando a /usuarios/' + id + '/editar');
+    console.log('Click en editar usuario:', id);
     navigate(`/usuarios/${id}/editar`);
   };
 
@@ -304,21 +304,29 @@ export default function Usuarios() {
                       </td>
                       
                       <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-end gap-2">
                           {puedeEditar && (
                             <button
-                              onClick={() => handleEditarUsuario(usuario.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditarUsuario(usuario.id);
+                              }}
                               className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                               title="Editar"
+                              type="button"
                             >
                               <Edit2 className="w-4 h-4" />
                             </button>
                           )}
                           {puedeEliminar && (
                             <button
-                              onClick={() => setUsuarioEliminar(usuario)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setUsuarioEliminar(usuario);
+                              }}
                               className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                               title="Eliminar"
+                              type="button"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
