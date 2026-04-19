@@ -1242,81 +1242,103 @@ export const useFacturasStore = create<FacturasState>((set, get) => ({
   fetchFacturas: async () => {
     set({ isLoading: true, error: null });
     try {
-      const facturas = localStorageService.facturas.getAll();
+      const facturas = await facturasApi.getAll();
       set({ facturas, isLoading: false });
     } catch (error: any) {
-      console.error('❌ Error fetchFacturas:', error);
-      set({ error: error.message, isLoading: false });
+      console.warn('⚠️ API facturas fallo, usando localStorage:', error.message);
+      const facturas = localStorageService.facturas.getAll();
+      set({ facturas, isLoading: false, error: 'Modo offline - usando datos locales' });
     }
   },
 
   addFactura: async (factura) => {
     set({ isLoading: true, error: null });
     try {
-      const nueva = localStorageService.facturas.create(factura);
+      const nueva = await facturasApi.create(factura);
       set((state) => ({ facturas: [...state.facturas, nueva], isLoading: false }));
       return true;
     } catch (error: any) {
-      console.error('❌ Error addFactura:', error);
-      set({ error: error.message, isLoading: false });
-      return false;
+      console.warn('⚠️ API fallo, guardando en localStorage:', error.message);
+      const nueva = localStorageService.facturas.create(factura);
+      set((state) => ({ facturas: [...state.facturas, nueva], isLoading: false, error: 'Guardado localmente (modo offline)' }));
+      return true;
     }
   },
 
   updateFactura: async (id, data) => {
     set({ isLoading: true, error: null });
     try {
-      const actualizado = localStorageService.facturas.update(id, data);
+      const actualizado = await facturasApi.update(id, data);
       if (actualizado) {
         set((state) => ({
-          facturas: state.facturas.map(f => f.id === id ? actualizado : f),
+          facturas: state.facturas.map(f => String(f.id) === String(id) ? actualizado : f),
           isLoading: false,
         }));
       }
       return !!actualizado;
     } catch (error: any) {
-      console.error('❌ Error updateFactura:', error);
-      set({ error: error.message, isLoading: false });
-      return false;
+      console.warn('⚠️ API fallo, actualizando en localStorage:', error.message);
+      const actualizado = localStorageService.facturas.update(id, data);
+      if (actualizado) {
+        set((state) => ({
+          facturas: state.facturas.map(f => String(f.id) === String(id) ? actualizado : f),
+          isLoading: false,
+          error: 'Actualizado localmente (modo offline)',
+        }));
+      }
+      return !!actualizado;
     }
   },
 
   deleteFactura: async (id) => {
     set({ isLoading: true, error: null });
     try {
-      const eliminado = localStorageService.facturas.delete(id);
-      if (eliminado) {
-        set((state) => ({
-          facturas: state.facturas.filter(f => f.id !== id),
-          isLoading: false,
-        }));
-      }
-      return eliminado;
+      await facturasApi.delete(id);
+      set((state) => ({
+        facturas: state.facturas.filter(f => String(f.id) !== String(id)),
+        isLoading: false,
+      }));
+      return true;
     } catch (error: any) {
-      console.error('❌ Error deleteFactura:', error);
-      set({ error: error.message, isLoading: false });
-      return false;
+      console.warn('⚠️ API fallo, eliminando de localStorage:', error.message);
+      localStorageService.facturas.delete(id);
+      set((state) => ({
+        facturas: state.facturas.filter(f => String(f.id) !== String(id)),
+        isLoading: false,
+        error: 'Eliminado localmente (modo offline)',
+      }));
+      return true;
     }
   },
 
   marcarPagada: async (id) => {
     set({ isLoading: true, error: null });
     try {
+      const actualizado = await facturasApi.update(id, {
+        estado: 'pagada',
+        fechaPago: new Date().toISOString(),
+      });
+      if (actualizado) {
+        set((state) => ({
+          facturas: state.facturas.map(f => String(f.id) === String(id) ? actualizado : f),
+          isLoading: false,
+        }));
+      }
+      return !!actualizado;
+    } catch (error: any) {
+      console.warn('⚠️ API fallo, actualizando en localStorage:', error.message);
       const actualizado = localStorageService.facturas.update(id, {
         estado: 'pagada',
         fechaPago: new Date().toISOString(),
       });
       if (actualizado) {
         set((state) => ({
-          facturas: state.facturas.map(f => f.id === id ? actualizado : f),
+          facturas: state.facturas.map(f => String(f.id) === String(id) ? actualizado : f),
           isLoading: false,
+          error: 'Actualizado localmente (modo offline)',
         }));
       }
       return !!actualizado;
-    } catch (error: any) {
-      console.error('❌ Error marcarPagada:', error);
-      set({ error: error.message, isLoading: false });
-      return false;
     }
   },
 

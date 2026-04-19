@@ -284,61 +284,23 @@ export default function CRM() {
     setIsSubmitting(true);
 
     try {
-      const codigo = `CLI-${Date.now().toString().slice(-5)}`;
+      // Use addCliente from store (handles API + localStorage fallback)
+      const success = await addCliente(nuevoCliente);
 
-      const clienteParaBackend = {
-        codigo: codigo,
-        nombre: nombreLimpio,
-        tipo: nuevoCliente.tipo,
-        razon_social: null,
-        nif_cif: nuevoCliente.nif.trim() || null,
-        direccion: nuevoCliente.contacto.direccion.trim() || null,
-        ciudad: nuevoCliente.contacto.ciudad.trim() || null,
-        codigo_postal: nuevoCliente.contacto.codigoPostal.trim() || null,
-        pais: 'España',
-        email: nuevoCliente.contacto.email.trim() || null,
-        telefono: nuevoCliente.contacto.telefono.trim() || null,
-        estado: nuevoCliente.estado,
-        condiciones_pago: nuevoCliente.formaPago,
-        dias_pago: Number(nuevoCliente.diasPago) || null,
-        limite_credito: null,
-        notas: nuevoCliente.notas.trim() || null,
-        persona_contacto_nombre: null,
-        persona_contacto_email: null,
-        persona_contacto_telefono: null,
-        persona_contacto_cargo: null,
-      };
-
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/clientes`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('milano_token') || ''}`,
-        },
-        body: JSON.stringify(clienteParaBackend),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(JSON.stringify(errorData));
+      if (success) {
+        setIsNuevoClienteOpen(false);
+        setNuevoCliente(initialClienteState);
+        showToast('Cliente creado correctamente', 'success');
+        await fetchClientes();
+      } else {
+        showToast('Error al crear cliente', 'error');
       }
-
-      setIsNuevoClienteOpen(false);
-      setNuevoCliente(initialClienteState);
-      showToast('Cliente creado correctamente', 'success');
-      await fetchClientes();
-
     } catch (err: any) {
-      let errorMsg = err.message;
-      try {
-        const parsed = JSON.parse(err.message);
-        errorMsg = parsed.detail || 'Error desconocido';
-      } catch {}
-      showToast(`Error: ${errorMsg}`, 'error');
+      showToast(`Error: ${err.message || 'Error desconocido'}`, 'error');
     } finally {
       setIsSubmitting(false);
     }
-  }, [nuevoCliente, fetchClientes, showToast, initialClienteState]);
+  }, [nuevoCliente, addCliente, fetchClientes, showToast, initialClienteState]);
 
   // FIX: Editar cliente con todos los campos
   const handleEditarCliente = async () => {
@@ -462,7 +424,7 @@ export default function CRM() {
               Nuevo Cliente
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
+          <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
             <DialogHeader>
               <DialogTitle>Nuevo Cliente</DialogTitle>
               <DialogDescription>
@@ -487,8 +449,17 @@ export default function CRM() {
                       <SelectItem value="promotor">Promotor</SelectItem>
                       <SelectItem value="colegio">Colegio</SelectItem>
                       <SelectItem value="particular">Particular / Autónomo</SelectItem>
+                      <SelectItem value="__otro__">+ Otro (especificar)...</SelectItem>
                     </SelectContent>
                   </Select>
+                  {nuevoCliente.tipo === '__otro__' && (
+                    <Input
+                      placeholder="Escribe el tipo de cliente"
+                      className="mt-2 dark:bg-slate-900 dark:border-slate-600 dark:text-slate-100"
+                      onChange={(e) => setNuevoCliente({...nuevoCliente, tipo: e.target.value || 'otro'})}
+                      autoFocus
+                    />
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="nombre">Nombre / Razón Social *</Label>
@@ -504,12 +475,28 @@ export default function CRM() {
 
               <div className="space-y-2">
                 <Label htmlFor="nif">{getDocumentoLabel(nuevoCliente.tipo)}</Label>
-                <Input
-                  id="nif"
-                  value={nuevoCliente.nif}
-                  onChange={(e) => setNuevoCliente({...nuevoCliente, nif: e.target.value})}
-                  placeholder={`Número de ${getDocumentoLabel(nuevoCliente.tipo)}`}
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="nif"
+                    value={nuevoCliente.nif}
+                    onChange={(e) => setNuevoCliente({...nuevoCliente, nif: e.target.value})}
+                    placeholder={`Número de ${getDocumentoLabel(nuevoCliente.tipo)}`}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    title="Buscar datos por CIF/NIF (proximamente)"
+                    disabled
+                    className="flex-shrink-0 opacity-60 cursor-not-allowed"
+                  >
+                    <Search className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Autocompletar por CIF - Disponible proximamente
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -580,6 +567,8 @@ export default function CRM() {
                       <SelectItem value="efectivo">Efectivo</SelectItem>
                       <SelectItem value="tarjeta">Tarjeta</SelectItem>
                       <SelectItem value="domiciliacion">Domiciliación</SelectItem>
+                      <SelectItem value="adelantado_completo">Pago completo por adelantado</SelectItem>
+                      <SelectItem value="adelantado_50_50">50% reserva + 50% antes del servicio</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1382,6 +1371,8 @@ export default function CRM() {
                       <SelectItem value="efectivo">Efectivo</SelectItem>
                       <SelectItem value="tarjeta">Tarjeta</SelectItem>
                       <SelectItem value="domiciliacion">Domiciliación</SelectItem>
+                      <SelectItem value="adelantado_completo">Pago completo por adelantado</SelectItem>
+                      <SelectItem value="adelantado_50_50">50% reserva + 50% antes del servicio</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
