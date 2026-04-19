@@ -139,8 +139,8 @@ export default function Costes() {
  {/* Header */}
  <div className="flex items-center justify-between">
  <div>
- <h1 className="text-2xl font-bold text-slate-900">Control de Costes</h1>
- <p className="text-slate-500">Análisis de rentabilidad por servicio</p>
+ <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Control de Costes</h1>
+ <p className="text-slate-500 dark:text-slate-400">Análisis de rentabilidad por servicio</p>
  </div>
  <Button variant="outline">
  <FileDown className="mr-2 h-4 w-4" />
@@ -341,11 +341,11 @@ export default function Costes() {
  Pérdida
  </Badge>
  ) : (servicio.margen || 0) < 15 ? (
- <Badge variant="outline" className="bg-amber-100 text-amber-700">
+ <Badge variant="outline" className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
  Bajo
  </Badge>
  ) : (
- <Badge variant="outline" className="bg-green-100 text-green-700">
+ <Badge variant="outline" className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
  <CheckCircle2 className="mr-1 h-3 w-3" />
  OK
  </Badge>

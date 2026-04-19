@@ -70,25 +70,25 @@ const tipoClienteLabels: Record<string, string> = {
 };
 
 const tipoClienteColors: Record<string, string> = {
-  festival: 'bg-purple-100 text-purple-700',
-  promotor: 'bg-blue-100 text-blue-700',
-  colegio: 'bg-green-100 text-green-700',
-  empresa: 'bg-amber-100 text-amber-700',
-  particular: 'bg-slate-100 text-slate-700',
+  festival: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 dark:text-purple-300',
+  promotor: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:text-blue-300',
+  colegio: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:text-green-300',
+  empresa: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:text-amber-300',
+  particular: 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 dark:text-slate-300',
 };
 
 // Labels para estados de servicio
 const estadoServicioLabels: Record<string, { label: string; color: string }> = {
-  solicitud: { label: 'Solicitud', color: 'bg-slate-100 text-slate-700' },
-  presupuesto: { label: 'Presupuesto', color: 'bg-blue-100 text-blue-700' },
-  negociacion: { label: 'Negociación', color: 'bg-amber-100 text-amber-700' },
-  confirmado: { label: 'Confirmado', color: 'bg-green-100 text-green-700' },
-  planificando: { label: 'Planificando', color: 'bg-purple-100 text-purple-700' },
-  asignado: { label: 'Asignado', color: 'bg-cyan-100 text-cyan-700' },
-  en_curso: { label: 'En Curso', color: 'bg-orange-100 text-orange-700' },
-  completado: { label: 'Completado', color: 'bg-emerald-100 text-emerald-700' },
-  facturado: { label: 'Facturado', color: 'bg-green-100 text-green-700' },
-  cancelado: { label: 'Cancelado', color: 'bg-red-100 text-red-700' },
+  solicitud: { label: 'Solicitud', color: 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 dark:text-slate-300' },
+  presupuesto: { label: 'Presupuesto', color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:text-blue-300' },
+  negociacion: { label: 'Negociación', color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:text-amber-300' },
+  confirmado: { label: 'Confirmado', color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:text-green-300' },
+  planificando: { label: 'Planificando', color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 dark:text-purple-300' },
+  asignado: { label: 'Asignado', color: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300' },
+  en_curso: { label: 'En Curso', color: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' },
+  completado: { label: 'Completado', color: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' },
+  facturado: { label: 'Facturado', color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:text-green-300' },
+  cancelado: { label: 'Cancelado', color: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' },
 };
 
 const getDocumentoLabel = (tipo: string): string => {
@@ -442,7 +442,7 @@ export default function CRM() {
   if (isLoading && clientes.length === 0) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-12 w-12 animate-spin text-[#1e3a5f]" />
+        <Loader2 className="h-12 w-12 animate-spin text-[#1e3a5f] dark:text-blue-400" />
       </div>
     );
   }
@@ -462,7 +462,7 @@ export default function CRM() {
               Nuevo Cliente
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
             <DialogHeader>
               <DialogTitle>Nuevo Cliente</DialogTitle>
               <DialogDescription>
@@ -845,7 +845,7 @@ export default function CRM() {
 
       {/* DIALOGO DE DETALLE COMPLETO */}
       <Dialog open={isDetalleOpen} onOpenChange={setIsDetalleOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[94vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
           {clienteSeleccionado && (
             <>
               <DialogHeader>
@@ -1021,7 +1021,7 @@ export default function CRM() {
                   ) : (
                     <div className="space-y-2">
                       {serviciosFiltrados.map(servicio => (
-                        <div key={servicio.id} className="flex items-center justify-between p-4 rounded-lg bg-slate-50 border hover:bg-slate-100 transition-colors">
+                        <div key={servicio.id} className="flex items-center justify-between p-4 rounded-lg bg-slate-50 dark:bg-slate-700/30 dark:border-slate-600 border hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <p className="font-medium">{servicio.titulo}</p>
@@ -1253,7 +1253,7 @@ export default function CRM() {
 
       {/* DIALOG DE EDITAR - COMPLETO */}
       <Dialog open={isEditarOpen} onOpenChange={setIsEditarOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
           <DialogHeader>
             <DialogTitle>Editar Cliente</DialogTitle>
             <DialogDescription>

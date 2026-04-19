@@ -57,11 +57,11 @@ import { format, differenceInDays, isAfter } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 const estadoFacturaColors: Record<EstadoFactura, string> = {
- pendiente: 'bg-amber-100 text-amber-700',
- enviada: 'bg-blue-100 text-blue-700',
- pagada: 'bg-green-100 text-green-700',
- vencida: 'bg-red-100 text-red-700',
- anulada: 'bg-slate-100 text-slate-700',
+ pendiente: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
+ enviada: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+ pagada: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+ vencida: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
+ anulada: 'bg-slate-100 dark:bg-slate-900/30 text-slate-700 dark:text-slate-300',
 };
 
 export default function Facturacion() {
@@ -198,8 +198,8 @@ export default function Facturacion() {
  {/* Header */}
  <div className="flex items-center justify-between">
  <div>
- <h1 className="text-2xl font-bold text-slate-900">Facturación</h1>
- <p className="text-slate-500">Gestión de facturas y pagos</p>
+ <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Facturación</h1>
+ <p className="text-slate-500 dark:text-slate-400">Gestión de facturas y pagos</p>
  </div>
  <Dialog open={isNuevaFacturaOpen} onOpenChange={setIsNuevaFacturaOpen}>
  <DialogTrigger asChild>
@@ -619,15 +619,15 @@ export default function Facturacion() {
  {/* Info General */}
  <div className="grid grid-cols-3 gap-4 rounded-lg bg-slate-50 p-4">
  <div>
- <Label className="text-slate-500">Fecha Emisión</Label>
+ <Label className="text-slate-500 dark:text-slate-400">Fecha Emisión</Label>
  <p>{format(new Date(facturaSeleccionada.fechaEmision || new Date()), 'dd/MM/yyyy')}</p>
  </div>
  <div>
- <Label className="text-slate-500">Fecha Vencimiento</Label>
+ <Label className="text-slate-500 dark:text-slate-400">Fecha Vencimiento</Label>
  <p>{format(new Date(facturaSeleccionada.fechaVencimiento || new Date()), 'dd/MM/yyyy')}</p>
  </div>
  <div>
- <Label className="text-slate-500">Estado</Label>
+ <Label className="text-slate-500 dark:text-slate-400">Estado</Label>
  <div>
  <Badge className={estadoFacturaColors[facturaSeleccionada.estado]}>
  {facturaSeleccionada.estado}

@@ -6,6 +6,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuthStore } from '../store';
 import { usePermisos } from '../hooks/usePermisos';
+import { ThemeToggle } from './ThemeToggle';
 import {
   Bus,
   Users,
@@ -59,7 +60,7 @@ export function Layout() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex transition-colors duration-200">
       {/* Sidebar */}
       <aside
         className={`${
@@ -154,16 +155,19 @@ export function Layout() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6">
-          <h1 className="text-xl font-semibold text-slate-800">
+        <header className="h-16 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-6 transition-colors duration-200">
+          <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">
             {[...menuItems, ...adminItems].find((item) => 
               item.path === location.pathname || location.pathname.startsWith(item.path + '/')
             )?.label || 'Dashboard'}
           </h1>
 
           <div className="flex items-center gap-4">
+            {/* Theme Toggle */}
+            <ThemeToggle />
+
             {/* Notifications */}
-            <button className="relative p-2 text-slate-500 hover:text-slate-700 transition-colors">
+            <button className="relative p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors">
               <Bell className="h-5 w-5" />
               <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
             </button>
@@ -171,15 +175,15 @@ export function Layout() {
             {/* User Menu */}
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-slate-700">{usuario?.nombre || 'Usuario'}</p>
-                <p className="text-xs text-slate-500 capitalize">{usuario?.rol || 'Admin'}</p>
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{usuario?.nombre || 'Usuario'}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">{usuario?.rol || 'Admin'}</p>
               </div>
               <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8f] flex items-center justify-center text-white font-medium shadow-md">
                 {(usuario?.nombre?.[0] || 'U').toUpperCase()}
               </div>
               <button
                 onClick={handleLogout}
-                className="p-2 text-slate-500 hover:text-red-600 transition-colors"
+                className="p-2 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                 title="Cerrar sesión"
               >
                 <LogOut className="h-5 w-5" />
@@ -189,7 +193,7 @@ export function Layout() {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-6 bg-slate-50 dark:bg-slate-900 transition-colors duration-200">
           <Outlet />
         </main>
       </div>
