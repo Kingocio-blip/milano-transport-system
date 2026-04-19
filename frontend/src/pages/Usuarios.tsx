@@ -40,14 +40,14 @@ export default function Usuarios() {
   const [error, setError] = useState('');
   const [usuarioEliminar, setUsuarioEliminar] = useState<Usuario | null>(null);
   const [filtroRol, setFiltroRol] = useState('');
-  
-  const { puede } = usePermisos();
+
+  const { tienePermiso } = usePermisos();
   const navigate = useNavigate();
 
-  const puedeVer = puede('usuarios.ver');
-  const puedeCrear = puede('usuarios.crear');
-  const puedeEditar = puede('usuarios.editar');
-  const puedeEliminar = puede('usuarios.eliminar');
+  const puedeVer = tienePermiso('usuarios.ver');
+  const puedeCrear = tienePermiso('usuarios.crear');
+  const puedeEditar = tienePermiso('usuarios.editar');
+  const puedeEliminar = tienePermiso('usuarios.eliminar');
 
   useEffect(() => {
     if (!puedeVer) {
@@ -216,7 +216,7 @@ export default function Usuarios() {
                             <div className="font-medium text-gray-900">
                               {usuario.nombre_completo}
                             </div>
-                            <div className="text-sm text-gray-500 flex items-center gap-1">
+                            <div className="text-sm text-gray-500">
                               @{usuario.username}
                             </div>
                           </div>
@@ -297,7 +297,7 @@ export default function Usuarios() {
       {/* Modal Confirmar Eliminación */}
       {usuarioEliminar && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
             <div className="flex items-center gap-3 mb-4 text-red-600">
               <div className="p-2 bg-red-100 rounded-full">
                 <AlertCircle className="w-6 h-6" />
