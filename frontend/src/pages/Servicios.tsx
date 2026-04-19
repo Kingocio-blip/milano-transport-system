@@ -77,9 +77,10 @@ export default function Servicios() {
   const [autoVehiculo, setAutoVehiculo] = useState(false);
   const [incluirCoordinador, setIncluirCoordinador] = useState(false);
 
-  const [nuevoServicio, setNuevoServicio] = useState<Partial<Servicio>>({
+  const [nuevoServicio, setNuevoServicio] = useState<Partial<Servicio> & Record<string, any>>({
     tipo: 'lanzadera', estado: 'planificando', numeroVehiculos: 1,
-    fechaInicio: format(new Date(), 'yyyy-MM-dd'),
+    fechaInicio: format(new Date(), 'yyyy-MM-dd'), fechaFin: '',
+    horaInicio: '', horaFin: '',
   });
 
   useEffect(() => {
@@ -380,21 +381,21 @@ export default function Servicios() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Fecha Inicio *</Label>
-                    <Input type="date" value={nuevoServicio.fechaInicio || ''} onChange={(e) => setNuevoServicio(p => ({...p, fechaInicio: e.target.value}))} className="dark:bg-slate-900 dark:border-slate-600" />
+                    <Input type="date" value={String(nuevoServicio.fechaInicio || '')} onChange={(e) => setNuevoServicio(p => ({...p, fechaInicio: e.target.value}))} className="dark:bg-slate-900 dark:border-slate-600" />
                   </div>
                   <div className="space-y-2">
                     <Label>Hora Inicio</Label>
-                    <Input type="time" value={nuevoServicio.horaInicio || ''} onChange={(e) => setNuevoServicio(p => ({...p, horaInicio: e.target.value}))} className="dark:bg-slate-900 dark:border-slate-600" />
+                    <Input type="time" value={String(nuevoServicio.horaInicio || '')} onChange={(e) => setNuevoServicio(p => ({...p, horaInicio: e.target.value}))} className="dark:bg-slate-900 dark:border-slate-600" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Fecha Fin</Label>
-                    <Input type="date" value={nuevoServicio.fechaFin || ''} onChange={(e) => setNuevoServicio(p => ({...p, fechaFin: e.target.value}))} className="dark:bg-slate-900 dark:border-slate-600" />
+                    <Input type="date" value={String(nuevoServicio.fechaFin || '')} onChange={(e) => setNuevoServicio(p => ({...p, fechaFin: e.target.value}))} className="dark:bg-slate-900 dark:border-slate-600" />
                   </div>
                   <div className="space-y-2">
                     <Label>Hora Fin</Label>
-                    <Input type="time" value={nuevoServicio.horaFin || ''} onChange={(e) => setNuevoServicio(p => ({...p, horaFin: e.target.value}))} className="dark:bg-slate-900 dark:border-slate-600" />
+                    <Input type="time" value={String(nuevoServicio.horaFin || '')} onChange={(e) => setNuevoServicio(p => ({...p, horaFin: e.target.value}))} className="dark:bg-slate-900 dark:border-slate-600" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
