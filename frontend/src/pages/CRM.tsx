@@ -460,7 +460,7 @@ export default function CRM() {
                   </div>
                   <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 space-y-3">
                     <h4 className="font-medium text-sm dark:text-slate-300">Datos Comerciales</h4>
-                    <p className="text-sm dark:text-slate-400">Forma de pago: <span className="font-medium dark:text-slate-200">{formaPagoLabels[clienteSeleccionado.formaPago] || clienteSeleccionado.formaPago}</span></p>
+                    <p className="text-sm dark:text-slate-400">Forma de pago: <span className="font-medium dark:text-slate-200">{clienteSeleccionado.formaPago ? (formaPagoLabels[clienteSeleccionado.formaPago] || clienteSeleccionado.formaPago) : '-'}</span></p>
                     <p className="text-sm dark:text-slate-400">Dias de pago: <span className="font-medium dark:text-slate-200">{clienteSeleccionado.diasPago}</span></p>
                     <p className="text-sm dark:text-slate-400">Estado: <Badge className={estadoColors[clienteSeleccionado.estado] || ''}>{clienteSeleccionado.estado}</Badge></p>
                   </div>
