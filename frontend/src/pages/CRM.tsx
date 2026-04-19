@@ -1447,4 +1447,6 @@ export default function CRM() {
           )}
         </DialogContent>
       </Dialog>
-    <
+    </div>
+  );
+}
