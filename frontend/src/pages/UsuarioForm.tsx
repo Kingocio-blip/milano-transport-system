@@ -222,7 +222,7 @@ export default function UsuarioForm() {
 
       {/* Mensajes */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-start text-red-700 animate-in slide-in-from-top-2">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-start text-red-700">
           <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
           <span className="flex-1">{error}</span>
           <button onClick={() => setError('')} className="text-red-500 hover:text-red-700">
@@ -232,7 +232,7 @@ export default function UsuarioForm() {
       )}
 
       {success && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 flex items-center text-green-700 animate-in slide-in-from-top-2">
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 flex items-center text-green-700">
           <Check className="w-5 h-5 mr-2 flex-shrink-0" />
           <span>Usuario {esEdicion ? 'actualizado' : 'creado'} correctamente. Redirigiendo...</span>
         </div>
@@ -295,7 +295,7 @@ export default function UsuarioForm() {
                   />
                 </div>
                 {esEdicion ? (
-                  <p classEl nombre de usuario no se puede modificar</p>
+                  <p className="mt-1 text-xs text-gray-500">El nombre de usuario no se puede modificar</p>
                 ) : (
                   <p className="mt-1 text-xs text-gray-500">Solo letras, números y guiones. Sin espacios.</p>
                 )}
