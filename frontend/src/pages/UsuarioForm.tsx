@@ -42,10 +42,10 @@ export default function UsuarioForm() {
   const { id } = useParams();
   const navigate = useNavigate();
   const esEdicion = !!id;
-  const { puede } = usePermisos();
+  const { tienePermiso } = usePermisos();
 
-  const puedeEditar = puede('usuarios.editar');
-  const puedeCrear = puede('usuarios.crear');
+  const puedeEditar = tienePermiso('usuarios.editar');
+  const puedeCrear = tienePermiso('usuarios.crear');
 
   const [formData, setFormData] = useState<FormData>({
     username: '',
