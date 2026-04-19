@@ -42,10 +42,10 @@ export default function UsuarioForm() {
   const { id } = useParams();
   const navigate = useNavigate();
   const esEdicion = !!id;
-  const { tienePermiso } = usePermisos();
+  const { tienePermiso, permisos } = usePermisos();
 
-  const puedeEditar = tienePermiso('usuarios.editar');
-  const puedeCrear = tienePermiso('usuarios.crear');
+  const puedeEditar = tienePermiso('usuarios.editar') || permisos?.includes('admin.todo');
+  const puedeCrear = tienePermiso('usuarios.crear') || permisos?.includes('admin.todo');
 
   const [formData, setFormData] = useState<FormData>({
     username: '',
@@ -84,9 +84,19 @@ export default function UsuarioForm() {
   const cargarRolesCustom = async () => {
     try {
       const response = await api.get('/roles');
-      setRolesCustom(response.data.filter((r: any) => r.activo));
+      // CORREGIDO: Manejar diferentes formatos de respuesta
+      let rolesData = response.data || response;
+      
+      // Si es array, filtrar activos. Si no, dejar array vacío
+      if (Array.isArray(rolesData)) {
+        setRolesCustom(rolesData.filter((r: any) => r && r.activo === true));
+      } else {
+        console.log('Roles no es array:', rolesData);
+        setRolesCustom([]);
+      }
     } catch (err) {
       console.error('Error cargando roles custom:', err);
+      setRolesCustom([]); // Asegurar array vacío en error
     }
   };
 
@@ -94,19 +104,23 @@ export default function UsuarioForm() {
     try {
       setLoading(true);
       const response = await api.get(`/users/${id}`);
-      const usuario = response.data;
+      const usuario = response.data || response;
+      
+      if (!usuario || typeof usuario !== 'object') {
+        throw new Error('Usuario no encontrado');
+      }
       
       setFormData({
-        username: usuario.username,
-        email: usuario.email,
+        username: usuario.username || '',
+        email: usuario.email || '',
         password: '',
-        nombre_completo: usuario.nombre_completo,
-        rol: usuario.rol,
+        nombre_completo: usuario.nombre_completo || '',
+        rol: usuario.rol || 'operador',
         rol_custom_id: usuario.rol_custom_id?.toString() || '',
-        activo: usuario.activo
+        activo: usuario.activo !== false // default true
       });
     } catch (err: any) {
-      setError('Error al cargar el usuario');
+      setError('Error al cargar el usuario: ' + (err.message || 'Desconocido'));
       console.error(err);
     } finally {
       setLoading(false);
@@ -137,17 +151,24 @@ export default function UsuarioForm() {
 
     try {
       const dataToSend: any = {
-        username: formData.username,
-        email: formData.email,
-        nombre_completo: formData.nombre_completo,
+        username: formData.username.trim(),
+        email: formData.email.trim(),
+        nombre_completo: formData.nombre_completo.trim(),
         rol: formData.rol,
-        rol_custom_id: formData.rol_custom_id ? parseInt(formData.rol_custom_id) : null,
         activo: formData.activo
       };
 
+      // Solo enviar rol_custom_id si tiene valor
+      if (formData.rol_custom_id) {
+        dataToSend.rol_custom_id = parseInt(formData.rol_custom_id);
+      }
+
+      // Solo enviar password si es nuevo o se ha cambiado
       if (!esEdicion || formData.password) {
         dataToSend.password = formData.password;
       }
+
+      console.log('Enviando datos:', dataToSend);
 
       if (esEdicion) {
         await api.put(`/users/${id}`, dataToSend);
@@ -158,14 +179,9 @@ export default function UsuarioForm() {
       setSuccess(true);
       setTimeout(() => navigate('/usuarios'), 1500);
     } catch (err: any) {
-      const detail = err.response?.data?.detail;
-      if (typeof detail === 'string') {
-        setError(detail);
-      } else if (Array.isArray(detail)) {
-        setError(detail.map((d: any) => d.msg || d.message).join('. '));
-      } else {
-        setError('Error al guardar el usuario. Verifica los datos e intenta nuevamente.');
-      }
+      console.error('Error completo:', err);
+      const detail = err.response?.data?.detail || err.message || 'Error desconocido';
+      setError('Error al guardar: ' + detail);
     } finally {
       setSaving(false);
     }
@@ -204,12 +220,12 @@ export default function UsuarioForm() {
     <div className="p-6 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
-        <Link
-          to="/usuarios"
+        <button
+          onClick={() => navigate('/usuarios')}
           className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
-        </Link>
+        </button>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
             {esEdicion ? 'Editar Usuario' : 'Nuevo Usuario'}
@@ -225,7 +241,7 @@ export default function UsuarioForm() {
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-start text-red-700">
           <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
           <span className="flex-1">{error}</span>
-          <button onClick={() => setError('')} className="text-red-500 hover:text-red-700">
+          <button onClick={() => setError('')} className="text-red-500 hover:text-red-700 ml-2">
             ×
           </button>
         </div>
@@ -432,12 +448,9 @@ export default function UsuarioForm() {
                 </select>
                 {rolesCustom.length === 0 && (
                   <p className="mt-2 text-xs text-amber-600 bg-amber-50 p-2 rounded">
-                    No hay roles personalizados activos. Crea uno en Configuración → Roles.
+                    No hay roles personalizados activos.
                   </p>
                 )}
-                <p className="mt-2 text-xs text-gray-500">
-                  Los roles personalizados añaden permisos específicos adicionales al rol base.
-                </p>
               </div>
             </div>
           </div>
@@ -467,12 +480,13 @@ export default function UsuarioForm() {
 
         {/* Footer */}
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
-          <Link
-            to="/usuarios"
+          <button
+            type="button"
+            onClick={() => navigate('/usuarios')}
             className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors font-medium"
           >
             Cancelar
-          </Link>
+          </button>
           <div className="flex gap-3">
             {!esEdicion && (
               <button
