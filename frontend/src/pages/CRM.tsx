@@ -70,25 +70,25 @@ const tipoClienteLabels: Record<string, string> = {
 };
 
 const tipoClienteColors: Record<string, string> = {
-  festival: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 dark:text-purple-300',
-  promotor: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:text-blue-300',
-  colegio: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:text-green-300',
-  empresa: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:text-amber-300',
-  particular: 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 dark:text-slate-300',
+  festival: 'bg-purple-100 text-purple-700',
+  promotor: 'bg-blue-100 text-blue-700',
+  colegio: 'bg-green-100 text-green-700',
+  empresa: 'bg-amber-100 text-amber-700',
+  particular: 'bg-slate-100 text-slate-700',
 };
 
 // Labels para estados de servicio
 const estadoServicioLabels: Record<string, { label: string; color: string }> = {
-  solicitud: { label: 'Solicitud', color: 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 dark:text-slate-300' },
-  presupuesto: { label: 'Presupuesto', color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:text-blue-300' },
-  negociacion: { label: 'Negociación', color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:text-amber-300' },
-  confirmado: { label: 'Confirmado', color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:text-green-300' },
-  planificando: { label: 'Planificando', color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 dark:text-purple-300' },
-  asignado: { label: 'Asignado', color: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300' },
-  en_curso: { label: 'En Curso', color: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' },
-  completado: { label: 'Completado', color: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' },
-  facturado: { label: 'Facturado', color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:text-green-300' },
-  cancelado: { label: 'Cancelado', color: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' },
+  solicitud: { label: 'Solicitud', color: 'bg-slate-100 text-slate-700' },
+  presupuesto: { label: 'Presupuesto', color: 'bg-blue-100 text-blue-700' },
+  negociacion: { label: 'Negociación', color: 'bg-amber-100 text-amber-700' },
+  confirmado: { label: 'Confirmado', color: 'bg-green-100 text-green-700' },
+  planificando: { label: 'Planificando', color: 'bg-purple-100 text-purple-700' },
+  asignado: { label: 'Asignado', color: 'bg-cyan-100 text-cyan-700' },
+  en_curso: { label: 'En Curso', color: 'bg-orange-100 text-orange-700' },
+  completado: { label: 'Completado', color: 'bg-emerald-100 text-emerald-700' },
+  facturado: { label: 'Facturado', color: 'bg-green-100 text-green-700' },
+  cancelado: { label: 'Cancelado', color: 'bg-red-100 text-red-700' },
 };
 
 const getDocumentoLabel = (tipo: string): string => {
@@ -281,23 +281,36 @@ export default function CRM() {
       return;
     }
 
-    // FIX: Validate tipo is not __otro__ (must enter custom type)
-    const tipoFinal = (nuevoCliente.tipo as string) === '__otro__' ? 'otro' : nuevoCliente.tipo;
-    if ((nuevoCliente.tipo as string) === '__otro__' && (!tipoFinal || (tipoFinal as string) === '__otro__')) {
-      showToast('Debes escribir un tipo de cliente personalizado', 'error');
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
-      // FIX: Normalize tipo before sending
-      const clienteParaEnviar = {
-        ...nuevoCliente,
-        tipo: tipoFinal,
+      const codigo = `CLI-${Date.now().toString().slice(-5)}`;
+
+      const clienteParaBackend = {
+        codigo: codigo,
+        nombre: nombreLimpio,
+        tipo: nuevoCliente.tipo,
+        razon_social: null,
+        nif_cif: nuevoCliente.nif.trim() || null,
+        direccion: nuevoCliente.contacto.direccion.trim() || null,
+        ciudad: nuevoCliente.contacto.ciudad.trim() || null,
+        codigo_postal: nuevoCliente.contacto.codigoPostal.trim() || null,
+        pais: 'España',
+        email: nuevoCliente.contacto.email.trim() || null,
+        telefono: nuevoCliente.contacto.telefono.trim() || null,
+        estado: nuevoCliente.estado,
+        condiciones_pago: nuevoCliente.formaPago,
+        dias_pago: Number(nuevoCliente.diasPago) || null,
+        limite_credito: null,
+        notas: nuevoCliente.notas.trim() || null,
+        persona_contacto_nombre: null,
+        persona_contacto_email: null,
+        persona_contacto_telefono: null,
+        persona_contacto_cargo: null,
       };
-      // Use addCliente from store (handles API + localStorage fallback)
-      const success = await addCliente(clienteParaEnviar);
+
+      // FIX: Use addCliente from store (handles API + localStorage fallback)
+      const success = await addCliente(nuevoCliente);
 
       if (success) {
         setIsNuevoClienteOpen(false);
@@ -305,14 +318,20 @@ export default function CRM() {
         showToast('Cliente creado correctamente', 'success');
         await fetchClientes();
       } else {
-        showToast('Error al crear cliente', 'error');
+        throw new Error('Error al crear cliente');
       }
+
     } catch (err: any) {
-      showToast(`Error: ${err.message || 'Error desconocido'}`, 'error');
+      let errorMsg = err.message;
+      try {
+        const parsed = JSON.parse(err.message);
+        errorMsg = parsed.detail || 'Error desconocido';
+      } catch {}
+      showToast(`Error: ${errorMsg}`, 'error');
     } finally {
       setIsSubmitting(false);
     }
-  }, [nuevoCliente, addCliente, fetchClientes, showToast, initialClienteState]);
+  }, [nuevoCliente, fetchClientes, showToast, initialClienteState]);
 
   // FIX: Editar cliente con todos los campos
   const handleEditarCliente = async () => {
@@ -416,7 +435,7 @@ export default function CRM() {
   if (isLoading && clientes.length === 0) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-12 w-12 animate-spin text-[#1e3a5f] dark:text-blue-400" />
+        <Loader2 className="h-12 w-12 animate-spin text-[#1e3a5f]" />
       </div>
     );
   }
@@ -436,7 +455,7 @@ export default function CRM() {
               Nuevo Cliente
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Nuevo Cliente</DialogTitle>
               <DialogDescription>
@@ -461,13 +480,12 @@ export default function CRM() {
                       <SelectItem value="promotor">Promotor</SelectItem>
                       <SelectItem value="colegio">Colegio</SelectItem>
                       <SelectItem value="particular">Particular / Autónomo</SelectItem>
-                      <SelectItem value="__otro__">+ Otro (especificar)...</SelectItem>
                     </SelectContent>
                   </Select>
                   {(nuevoCliente.tipo as string) === '__otro__' && (
                     <Input
                       placeholder="Escribe el tipo de cliente"
-                      className="mt-2 dark:bg-slate-900 dark:border-slate-600 dark:text-slate-100"
+                      className="mt-2 dark:bg-slate-900 dark:border-slate-600"
                       onChange={(e) => setNuevoCliente({...nuevoCliente, tipo: (e.target.value || 'otro') as TipoCliente})}
                       autoFocus
                     />
@@ -487,28 +505,12 @@ export default function CRM() {
 
               <div className="space-y-2">
                 <Label htmlFor="nif">{getDocumentoLabel(nuevoCliente.tipo)}</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="nif"
-                    value={nuevoCliente.nif}
-                    onChange={(e) => setNuevoCliente({...nuevoCliente, nif: e.target.value})}
-                    placeholder={`Número de ${getDocumentoLabel(nuevoCliente.tipo)}`}
-                    className="flex-1"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    title="Buscar datos por CIF/NIF (proximamente)"
-                    disabled
-                    className="flex-shrink-0 opacity-60 cursor-not-allowed"
-                  >
-                    <Search className="h-4 w-4" />
-                  </Button>
-                </div>
-                <p className="text-xs text-amber-600 dark:text-amber-400">
-                  Autocompletar por CIF - Disponible proximamente
-                </p>
+                <Input
+                  id="nif"
+                  value={nuevoCliente.nif}
+                  onChange={(e) => setNuevoCliente({...nuevoCliente, nif: e.target.value})}
+                  placeholder={`Número de ${getDocumentoLabel(nuevoCliente.tipo)}`}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -846,7 +848,7 @@ export default function CRM() {
 
       {/* DIALOGO DE DETALLE COMPLETO */}
       <Dialog open={isDetalleOpen} onOpenChange={setIsDetalleOpen}>
-        <DialogContent className="max-w-5xl max-h-[94vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           {clienteSeleccionado && (
             <>
               <DialogHeader>
@@ -1022,7 +1024,7 @@ export default function CRM() {
                   ) : (
                     <div className="space-y-2">
                       {serviciosFiltrados.map(servicio => (
-                        <div key={servicio.id} className="flex items-center justify-between p-4 rounded-lg bg-slate-50 dark:bg-slate-700/30 dark:border-slate-600 border hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+                        <div key={servicio.id} className="flex items-center justify-between p-4 rounded-lg bg-slate-50 border hover:bg-slate-100 transition-colors">
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <p className="font-medium">{servicio.titulo}</p>
@@ -1254,7 +1256,7 @@ export default function CRM() {
 
       {/* DIALOG DE EDITAR - COMPLETO */}
       <Dialog open={isEditarOpen} onOpenChange={setIsEditarOpen}>
-        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Cliente</DialogTitle>
             <DialogDescription>
