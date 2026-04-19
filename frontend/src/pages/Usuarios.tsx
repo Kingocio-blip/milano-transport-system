@@ -55,9 +55,9 @@ export default function Usuarios() {
   const permisosLoading = !!permisosHook?.loading;
 
   const puedeVer = tienePermisoFn('usuarios.ver');
-  const puedeCrear = tienePermisoFn('usuarios.crear');
-  const puedeEditar = tienePermisoFn('usuarios.editar');
-  const puedeEliminar = tienePermisoFn('usuarios.eliminar');
+  const puedeCrear = tienePermisoFn('usuarios.crear') || permisosArray.includes('admin.todo');
+  const puedeEditar = tienePermisoFn('usuarios.editar') || permisosArray.includes('admin.todo');
+  const puedeEliminar = tienePermisoFn('usuarios.eliminar') || permisosArray.includes('admin.todo');
 
   useEffect(() => {
     cargarUsuarios();
@@ -85,6 +85,16 @@ export default function Usuarios() {
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Error al eliminar usuario');
     }
+  };
+
+  const handleNuevoUsuario = () => {
+    console.log('Navegando a /usuarios/nuevo');
+    navigate('/usuarios/nuevo');
+  };
+
+  const handleEditarUsuario = (id: number) => {
+    console.log('Navegando a /usuarios/' + id + '/editar');
+    navigate(`/usuarios/${id}/editar`);
   };
 
   // FILTRADO ULTRA SEGURO - NUNCA CRASHEA
@@ -144,13 +154,13 @@ export default function Usuarios() {
         </div>
         
         {puedeCrear && (
-          <Link
-            to="/usuarios/nuevo"
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm font-medium"
+          <button
+            onClick={handleNuevoUsuario}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm font-medium cursor-pointer"
           >
             <Plus className="w-5 h-5 mr-2" />
             Nuevo Usuario
-          </Link>
+          </button>
         )}
       </div>
 
@@ -296,18 +306,18 @@ export default function Usuarios() {
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           {puedeEditar && (
-                            <Link
-                              to={`/usuarios/${usuario.id}/editar`}
-                              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            <button
+                              onClick={() => handleEditarUsuario(usuario.id)}
+                              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                               title="Editar"
                             >
                               <Edit2 className="w-4 h-4" />
-                            </Link>
+                            </button>
                           )}
                           {puedeEliminar && (
                             <button
                               onClick={() => setUsuarioEliminar(usuario)}
-                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                               title="Eliminar"
                             >
                               <Trash2 className="w-4 h-4" />

@@ -1,16 +1,29 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '@/lib/api';
 
-interface PermisosResponse {
-  permisos: string[];
-}
+// Cache global para evitar múltiples llamadas
+let permisosCache: string[] | null = null;
+let cacheTimestamp: number = 0;
+const CACHE_DURATION = 60000; // 1 minuto
 
 export function usePermisos() {
-  const [permisos, setPermisos] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [permisos, setPermisos] = useState<string[]>(permisosCache || []);
+  const [loading, setLoading] = useState(!permisosCache);
   const [error, setError] = useState<string | null>(null);
+  const fetchedRef = useRef(false);
 
   useEffect(() => {
+    // Si ya hay cache válido, no recargar
+    if (permisosCache && (Date.now() - cacheTimestamp) < CACHE_DURATION) {
+      setPermisos(permisosCache);
+      setLoading(false);
+      return;
+    }
+
+    // Evitar doble fetch en StrictMode
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+
     cargarPermisos();
   }, []);
 
@@ -19,14 +32,15 @@ export function usePermisos() {
       setLoading(true);
       const response = await api.get('/auth/permissions');
       
-      // La API devuelve: { user_id, username, rol, rol_custom, permisos: [...] }
       let listaPermisos: string[] = [];
       
-      if (response && typeof response === 'object') {
-        if (Array.isArray(response.permisos)) {
-          listaPermisos = response.permisos;
-        }
+      if (response && typeof response === 'object' && Array.isArray(response.permisos)) {
+        listaPermisos = response.permisos;
       }
+      
+      // Guardar en cache global
+      permisosCache = listaPermisos;
+      cacheTimestamp = Date.now();
       
       setPermisos(listaPermisos);
       setError(null);
@@ -41,14 +55,9 @@ export function usePermisos() {
 
   const tienePermiso = useCallback((codigo: string): boolean => {
     if (!codigo) return false;
-    
-    // SUPER ADMIN: si tiene admin.todo, puede hacer TODO
     if (permisos.includes('admin.todo')) return true;
-    
-    // Verificar permiso específico
     if (permisos.includes(codigo)) return true;
     
-    // Verificar wildcard de categoría (ej: "usuarios.*")
     const partes = codigo.split('.');
     const categoria = partes[0];
     if (permisos.includes(`${categoria}.*`)) return true;
@@ -66,6 +75,12 @@ export function usePermisos() {
     return codigos.every(codigo => tienePermiso(codigo));
   }, [tienePermiso]);
 
+  const recargar = useCallback(() => {
+    permisosCache = null;
+    fetchedRef.current = false;
+    cargarPermisos();
+  }, []);
+
   return {
     permisos,
     loading,
@@ -73,7 +88,7 @@ export function usePermisos() {
     tienePermiso,
     tieneAlguno,
     tieneTodos,
-    recargar: cargarPermisos
+    recargar
   };
 }
 
