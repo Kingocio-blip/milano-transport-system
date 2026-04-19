@@ -6,7 +6,7 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
-import { useAuthStore } from './stores';
+import { useAuthStore } from './store';
 
 // Pages
 import Dashboard from './pages/Dashboard';

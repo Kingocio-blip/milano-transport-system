@@ -10,7 +10,7 @@ import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { Bus, Loader2 } from 'lucide-react';
-import { useAuthStore } from '../stores';
+import { useAuthStore } from '../store';
 
 export default function Login() {
   const navigate = useNavigate();

@@ -4,7 +4,7 @@
 
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
-import { useAuthStore } from '../stores';
+import { useAuthStore } from '../store';
 import { usePermisos } from '../hooks/usePermisos';
 import {
   Bus,

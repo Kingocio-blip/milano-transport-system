@@ -3,7 +3,7 @@
 // ============================================
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuthStore } from '@/stores';
+import { useAuthStore } from '@/store';
 
 // Cache global para evitar múltiples llamadas
 let permisosCache: string[] | null = null;
