@@ -44,7 +44,7 @@ import {
   Timer,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { removeToken } from '../lib/api';
+import { removeTokens } from '../lib/api';
 import { useConductoresStore, useServiciosStore, useVehiculosStore, useUIStore } from '../store';
 import { format, parseISO, differenceInMinutes, differenceInHours, addHours, isAfter, isBefore, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -184,7 +184,7 @@ export default function PanelConductor() {
 
   // Handlers
   const handleLogout = () => {
-    removeToken();
+    removeTokens();
     navigate('/login');
   };
 
