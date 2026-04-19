@@ -19,40 +19,21 @@ export function usePermisos() {
       setLoading(true);
       const response = await api.get('/auth/permissions');
       
-      // DEBUG: Ver qué devuelve la API
-      console.log('Respuesta permisos:', response);
-      console.log('Tipo:', typeof response);
-      console.log('Es array?', Array.isArray(response));
-      
-      // La API puede devolver: { permisos: [...] } o directamente [...]
+      // La API devuelve: { user_id, username, rol, rol_custom, permisos: [...] }
       let listaPermisos: string[] = [];
       
-      if (Array.isArray(response)) {
-        // Si devuelve array directo
-        listaPermisos = response;
-      } else if (response && typeof response === 'object') {
-        // Si devuelve objeto con propiedad permisos
+      if (response && typeof response === 'object') {
         if (Array.isArray(response.permisos)) {
           listaPermisos = response.permisos;
-        } else if (Array.isArray(response.data?.permisos)) {
-          // Si viene anidado en data
-          listaPermisos = response.data.permisos;
-        } else {
-          // Intentar encontrar un array en el objeto
-          const posibleArray = Object.values(response).find(v => Array.isArray(v));
-          if (posibleArray) {
-            listaPermisos = posibleArray as string[];
-          }
         }
       }
       
-      console.log('Permisos extraídos:', listaPermisos);
       setPermisos(listaPermisos);
       setError(null);
     } catch (err) {
       setError('Error cargando permisos');
       console.error('Error en cargarPermisos:', err);
-      setPermisos([]); // Asegurar que sea array vacío en error
+      setPermisos([]);
     } finally {
       setLoading(false);
     }
@@ -60,11 +41,18 @@ export function usePermisos() {
 
   const tienePermiso = useCallback((codigo: string): boolean => {
     if (!codigo) return false;
+    
+    // SUPER ADMIN: si tiene admin.todo, puede hacer TODO
     if (permisos.includes('admin.todo')) return true;
+    
+    // Verificar permiso específico
     if (permisos.includes(codigo)) return true;
+    
+    // Verificar wildcard de categoría (ej: "usuarios.*")
     const partes = codigo.split('.');
     const categoria = partes[0];
     if (permisos.includes(`${categoria}.*`)) return true;
+    
     return false;
   }, [permisos]);
 
