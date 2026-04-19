@@ -284,32 +284,7 @@ export default function CRM() {
     setIsSubmitting(true);
 
     try {
-      const codigo = `CLI-${Date.now().toString().slice(-5)}`;
-
-      const clienteParaBackend = {
-        codigo: codigo,
-        nombre: nombreLimpio,
-        tipo: nuevoCliente.tipo,
-        razon_social: null,
-        nif_cif: nuevoCliente.nif.trim() || null,
-        direccion: nuevoCliente.contacto.direccion.trim() || null,
-        ciudad: nuevoCliente.contacto.ciudad.trim() || null,
-        codigo_postal: nuevoCliente.contacto.codigoPostal.trim() || null,
-        pais: 'España',
-        email: nuevoCliente.contacto.email.trim() || null,
-        telefono: nuevoCliente.contacto.telefono.trim() || null,
-        estado: nuevoCliente.estado,
-        condiciones_pago: nuevoCliente.formaPago,
-        dias_pago: Number(nuevoCliente.diasPago) || null,
-        limite_credito: null,
-        notas: nuevoCliente.notas.trim() || null,
-        persona_contacto_nombre: null,
-        persona_contacto_email: null,
-        persona_contacto_telefono: null,
-        persona_contacto_cargo: null,
-      };
-
-      // FIX: Use addCliente from store (handles API + localStorage fallback)
+      // Use addCliente from store (handles API + localStorage fallback)
       const success = await addCliente(nuevoCliente);
 
       if (success) {
@@ -331,7 +306,7 @@ export default function CRM() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [nuevoCliente, fetchClientes, showToast, initialClienteState]);
+  }, [nuevoCliente, addCliente, fetchClientes, showToast, initialClienteState]);
 
   // FIX: Editar cliente con todos los campos
   const handleEditarCliente = async () => {
@@ -482,14 +457,6 @@ export default function CRM() {
                       <SelectItem value="particular">Particular / Autónomo</SelectItem>
                     </SelectContent>
                   </Select>
-                  {(nuevoCliente.tipo as string) === '__otro__' && (
-                    <Input
-                      placeholder="Escribe el tipo de cliente"
-                      className="mt-2 dark:bg-slate-900 dark:border-slate-600"
-                      onChange={(e) => setNuevoCliente({...nuevoCliente, tipo: (e.target.value || 'otro') as TipoCliente})}
-                      autoFocus
-                    />
-                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="nombre">Nombre / Razón Social *</Label>
@@ -581,8 +548,6 @@ export default function CRM() {
                       <SelectItem value="efectivo">Efectivo</SelectItem>
                       <SelectItem value="tarjeta">Tarjeta</SelectItem>
                       <SelectItem value="domiciliacion">Domiciliación</SelectItem>
-                      <SelectItem value="adelantado_completo">Pago completo por adelantado</SelectItem>
-                      <SelectItem value="adelantado_50_50">50% reserva + 50% antes del servicio</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1385,8 +1350,6 @@ export default function CRM() {
                       <SelectItem value="efectivo">Efectivo</SelectItem>
                       <SelectItem value="tarjeta">Tarjeta</SelectItem>
                       <SelectItem value="domiciliacion">Domiciliación</SelectItem>
-                      <SelectItem value="adelantado_completo">Pago completo por adelantado</SelectItem>
-                      <SelectItem value="adelantado_50_50">50% reserva + 50% antes del servicio</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

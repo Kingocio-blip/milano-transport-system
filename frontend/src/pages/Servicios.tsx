@@ -273,7 +273,7 @@ export default function Servicios() {
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button size="icon" variant="ghost" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setServicioSeleccionado(s); setIsDetalleOpen(true); }}><Eye className="h-4 w-4" /></Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={(e) => abrirEditar(s, e)}><Edit3 className="h-4 w-4" /></Button>
+                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setServicioSeleccionado(s); setIsEditarOpen(true); }}><Edit3 className="h-4 w-4" /></Button>
                     <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500" onClick={(e) => handleEliminar(s.id, e)}><Trash2 className="h-4 w-4" /></Button>
                   </div>
                 </div>
@@ -302,7 +302,7 @@ export default function Servicios() {
                       <td className="px-4 py-3"><Badge className={e?.color || ''}>{e?.label}</Badge></td>
                       <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{s.fechaInicio ? format(new Date(s.fechaInicio), 'dd/MM/yy') : '-'}</td>
                       <td className="px-4 py-3 text-right font-medium dark:text-slate-200">{(s.precio || 0).toLocaleString()} EUR</td>
-                      <td className="px-4 py-3"><div className="flex gap-1 justify-end"><Button size="icon" variant="ghost" className="h-7 w-7" onClick={(ev) => { ev.stopPropagation(); setServicioSeleccionado(s); setIsDetalleOpen(true); }}><Eye className="h-3.5 w-3.5" /></Button><Button size="icon" variant="ghost" className="h-7 w-7" onClick={(ev) => abrirEditar(s, ev)}><Edit3 className="h-3.5 w-3.5" /></Button><Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" onClick={(ev) => handleEliminar(s.id, ev)}><Trash2 className="h-3.5 w-3.5" /></Button></div></td>
+                      <td className="px-4 py-3"><div className="flex gap-1 justify-end"><Button size="icon" variant="ghost" className="h-7 w-7" onClick={(ev) => { ev.stopPropagation(); setServicioSeleccionado(s); setIsDetalleOpen(true); }}><Eye className="h-3.5 w-3.5" /></Button><Button size="icon" variant="ghost" className="h-7 w-7" onClick={(ev) => { ev.stopPropagation(); setServicioSeleccionado(s); setIsEditarOpen(true); }}><Edit3 className="h-3.5 w-3.5" /></Button><Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" onClick={(ev) => handleEliminar(s.id, ev)}><Trash2 className="h-3.5 w-3.5" /></Button></div></td>
                     </tr>
                   );
                 })}
