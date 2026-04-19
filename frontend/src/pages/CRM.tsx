@@ -562,7 +562,7 @@ export default function CRM() {
                 <div className="space-y-2"><Label>Dias de Pago</Label><Input type="number" value={clienteSeleccionado.diasPago || 30} onChange={e => setClienteSeleccionado({...clienteSeleccionado, diasPago: parseInt(e.target.value) || 30})} className="dark:bg-slate-900 dark:border-slate-600" /></div>
                 <div className="space-y-2">
                   <Label>Estado</Label>
-                  <Select value={clienteSeleccionado.estado} onValueChange={v => setClienteSeleccionado({...clienteSeleccionado, estado: v})}>
+                  <Select value={clienteSeleccionado.estado} onValueChange={v => setClienteSeleccionado({...clienteSeleccionado, estado: v as any})}>
                     <SelectTrigger className="dark:bg-slate-900 dark:border-slate-600"><SelectValue /></SelectTrigger>
                     <SelectContent><SelectItem value="activo">Activo</SelectItem><SelectItem value="inactivo">Inactivo</SelectItem><SelectItem value="potencial">Potencial</SelectItem><SelectItem value="bloqueado">Bloqueado</SelectItem></SelectContent>
                   </Select>
