@@ -46,7 +46,7 @@ export function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { usuario, logout } = useUsuarioStore();
-  const { puede } = usePermisos();
+  const { tienePermiso } = usePermisos();
 
   const handleLogout = () => {
     logout();
@@ -114,7 +114,7 @@ export function Layout() {
           <ul className="space-y-1 px-2">
             {adminItems.map((item) => {
               // Si tiene permiso definido, verificarlo
-              if (item.permiso && !puede(item.permiso)) {
+              if (item.permiso && !tienePermiso(item.permiso)) {
                 return null;
               }
 
