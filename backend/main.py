@@ -576,6 +576,74 @@ def delete_conductor(
     return {"message": "Conductor deleted successfully"}
 
 # ============================================
+# FACTURA ENDPOINTS
+# ============================================
+
+@app.get("/facturas", response_model=List[schemas.Factura])
+def get_facturas(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("facturacion.ver"))
+):
+    facturas = db.query(models.Factura).order_by(models.Factura.fecha_emision.desc()).offset(skip).limit(limit).all()
+    return facturas
+
+@app.get("/facturas/{factura_id}", response_model=schemas.Factura)
+def get_factura(
+    factura_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("facturacion.ver"))
+):
+    factura = db.query(models.Factura).filter(models.Factura.id == factura_id).first()
+    if not factura:
+        raise HTTPException(status_code=404, detail="Factura not found")
+    return factura
+
+@app.post("/facturas", response_model=schemas.Factura)
+def create_factura(
+    factura: schemas.FacturaCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("facturacion.crear"))
+):
+    db_factura = models.Factura(**factura.model_dump())
+    db.add(db_factura)
+    db.commit()
+    db.refresh(db_factura)
+    return db_factura
+
+@app.put("/facturas/{factura_id}", response_model=schemas.Factura)
+def update_factura(
+    factura_id: int,
+    factura: schemas.FacturaUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("facturacion.editar"))
+):
+    db_factura = db.query(models.Factura).filter(models.Factura.id == factura_id).first()
+    if not db_factura:
+        raise HTTPException(status_code=404, detail="Factura not found")
+    update_data = factura.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        if value is not None:
+            setattr(db_factura, key, value)
+    db.commit()
+    db.refresh(db_factura)
+    return db_factura
+
+@app.delete("/facturas/{factura_id}")
+def delete_factura(
+    factura_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("facturacion.eliminar"))
+):
+    db_factura = db.query(models.Factura).filter(models.Factura.id == factura_id).first()
+    if not db_factura:
+        raise HTTPException(status_code=404, detail="Factura not found")
+    db.delete(db_factura)
+    db.commit()
+    return {"message": "Factura deleted successfully"}
+
+# ============================================
 # VEHICULO ENDPOINTS (PERMISOS GRANULARES)
 # ============================================
 

@@ -629,59 +629,36 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
     }
   },
 
-  // FIX: addConductor optimizado con generación de código y mejor manejo de errores
+  // addConductor: SOLO campos que el backend actual conoce
+  // Los campos nuevos (CAP, nomina, usuarioId) se guardan en localStorage
   addConductor: async (conductor) => {
     set({ isLoading: true, error: null });
     try {
-      // Generar código si no viene
       const codigo = conductor.codigo || `COND-${Date.now().toString().slice(-5)}`;
       
+      // SOLO campos que el backend actual tiene en su schema
       const conductorParaBackend: any = {
-        // Campos obligatorios
         codigo: codigo,
         nombre: conductor.nombre,
         apellidos: conductor.apellidos,
         dni: conductor.dni,
         estado: conductor.estado || 'activo',
-        
-        // Campos opcionales
         telefono: conductor.telefono || null,
         email: conductor.email || null,
         direccion: conductor.direccion || null,
         fecha_nacimiento: conductor.fechaNacimiento || null,
-        
-        // Tarifa y prioridad
         tarifa_hora: conductor.tarifaHora || 18,
         prioridad: conductor.prioridad || 50,
-        
-        // Licencia
         licencia_tipo: conductor.licencia?.tipo || 'D',
         licencia_numero: conductor.licencia?.numero || '',
         licencia_fecha_expedicion: conductor.licencia?.fechaExpedicion || null,
         licencia_fecha_caducidad: conductor.licencia?.fechaCaducidad || null,
         licencia_permisos: conductor.licencia?.permisos || [],
-        // CAP
-        licencia_cap_numero: conductor.licencia?.cap?.numero || null,
-        licencia_cap_fecha_vencimiento: conductor.licencia?.cap?.fechaVencimiento || null,
-        
-        // Disponibilidad
         disponibilidad_dias: conductor.disponibilidad?.dias || [1, 2, 3, 4, 5],
         disponibilidad_hora_inicio: conductor.disponibilidad?.horaInicio || '08:00',
         disponibilidad_hora_fin: conductor.disponibilidad?.horaFin || '18:00',
         disponibilidad_observaciones: conductor.disponibilidad?.observaciones || null,
-        
-        // Sistema de nomina
-        nomina_tipo: conductor.nomina?.tipo || 'tarifa_hora',
-        nomina_tarifa_hora: conductor.nomina?.tarifaHora || null,
-        nomina_horas_contratadas: conductor.nomina?.horasContratadas || null,
-        nomina_horas_extras: conductor.nomina?.horasExtras ?? null,
-        nomina_bloques: conductor.nomina?.bloques || null,
-        
-        // Credenciales (DEPRECATED) y panel
-        credenciales: conductor.credenciales || null,
         panel_activo: conductor.panelActivo ?? true,
-        
-        // Inicialización
         total_horas_mes: 0,
         total_servicios_mes: 0,
         valoracion: 0,
@@ -772,11 +749,11 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
         dataParaBackend.licencia_fecha_expedicion = data.licencia.fechaExpedicion;
         dataParaBackend.licencia_fecha_caducidad = data.licencia.fechaCaducidad;
         dataParaBackend.licencia_permisos = data.licencia.permisos;
-        // CAP
-        if (data.licencia.cap) {
-          dataParaBackend.licencia_cap_numero = data.licencia.cap.numero;
-          dataParaBackend.licencia_cap_fecha_vencimiento = data.licencia.cap.fechaVencimiento;
-        }
+        // CAP - solo se envia cuando el backend este actualizado
+        // if (data.licencia.cap) {
+        //   dataParaBackend.licencia_cap_numero = data.licencia.cap.numero;
+        //   dataParaBackend.licencia_cap_fecha_vencimiento = data.licencia.cap.fechaVencimiento;
+        // }
       }
 
       if (data.disponibilidad) {
@@ -786,17 +763,19 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
         dataParaBackend.disponibilidad_observaciones = data.disponibilidad.observaciones;
       }
 
-      if (data.nomina) {
-        dataParaBackend.nomina_tipo = data.nomina.tipo;
-        dataParaBackend.nomina_tarifa_hora = data.nomina.tarifaHora;
-        dataParaBackend.nomina_horas_contratadas = data.nomina.horasContratadas;
-        dataParaBackend.nomina_horas_extras = data.nomina.horasExtras;
-        dataParaBackend.nomina_bloques = data.nomina.bloques;
-      }
+      // Nomina - solo se envia cuando el backend este actualizado
+      // if (data.nomina) {
+      //   dataParaBackend.nomina_tipo = data.nomina.tipo;
+      //   dataParaBackend.nomina_tarifa_hora = data.nomina.tarifaHora;
+      //   dataParaBackend.nomina_horas_contratadas = data.nomina.horasContratadas;
+      //   dataParaBackend.nomina_horas_extras = data.nomina.horasExtras;
+      //   dataParaBackend.nomina_bloques = data.nomina.bloques;
+      // }
 
-      if (data.usuarioId) {
-        dataParaBackend.usuario_id = data.usuarioId;
-      }
+      // usuarioId - solo se envia cuando el backend este actualizado
+      // if (data.usuarioId) {
+      //   dataParaBackend.usuario_id = data.usuarioId;
+      // }
 
       const actualizado = await conductoresApi.update(id, dataParaBackend);
       if (actualizado) {
@@ -1924,8 +1903,4 @@ if (typeof window !== 'undefined') {
       useAuthStore.setState({ isAuthenticated: true });
     }).catch(() => {
       console.log('❌ No se pudo restaurar la sesión');
-      localStorage.removeItem('milano_access_token');
-      localStorage.removeItem('milano_refresh_token');
-    });
-  }
-}
+      localStorage.removeItem('mil
