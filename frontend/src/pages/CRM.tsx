@@ -456,7 +456,7 @@ export default function CRM() {
                     <h4 className="font-medium text-sm dark:text-slate-300">Contacto</h4>
                     {clienteSeleccionado.contacto?.email && <p className="flex items-center gap-2 text-sm dark:text-slate-400"><Mail className="h-4 w-4" />{clienteSeleccionado.contacto.email}</p>}
                     {clienteSeleccionado.contacto?.telefono && <p className="flex items-center gap-2 text-sm dark:text-slate-400"><Phone className="h-4 w-4" />{clienteSeleccionado.contacto.telefono}</p>}
-                    {clienteSeleccionado.contacto?.direccion && <p className="flex items-center gap-2 text-sm dark:text-slate-400"><MapPin className="h-4 w-4" />{clienteSeleccionado.contacto.direccion}{clienteSeleccionado.contacto.ciudad ? `, ${clienteSeleccionado.contacto.ciudad}` : ''}</p>}
+                    {clienteSeleccionado.contacto?.direccion && <p className="flex items-center gap-2 text-sm dark:text-slate-400"><MapPin className="h-4 w-4" />{`${clienteSeleccionado.contacto.direccion}${clienteSeleccionado.contacto.ciudad ? `, ${clienteSeleccionado.contacto.ciudad}` : ''}`}</p>}
                   </div>
                   <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 space-y-3">
                     <h4 className="font-medium text-sm dark:text-slate-300">Datos Comerciales</h4>
@@ -492,7 +492,7 @@ export default function CRM() {
                     <div className="space-y-2">
                       {serviciosFiltrados.map(s => (
                         <div key={s.id} className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-700 p-3 hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                          <div><p className="font-medium text-sm dark:text-slate-200">{s.codigo} · {s.titulo}</p><p className="text-xs text-slate-500 dark:text-slate-400">{s.estado} · {(s.precio || 0).toLocaleString()} EUR</p></div>
+                          <div><p className="font-medium text-sm dark:text-slate-200">{`${s.codigo} · ${s.titulo}`}</p><p className="text-xs text-slate-500 dark:text-slate-400">{`${s.estado} · ${(s.precio || 0).toLocaleString()} EUR`}</p></div>
                           <Button size="sm" variant="outline" asChild className="dark:border-slate-600"><Link to={`/servicios?id=${s.id}`}>Ver</Link></Button>
                         </div>
                       ))}

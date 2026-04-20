@@ -400,8 +400,8 @@ export default function PanelConductor() {
                   {serviciosPendientes.filter(s => !serviciosHoy.includes(s)).slice(0, 5).map(s => (
                     <div key={s.id} className="flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
                       <div>
-                        <p className="font-medium text-sm dark:text-slate-200">{s.codigo} - {s.titulo}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">{formatDateSafe(s.fechaInicio)} · {s.horaInicio}</p>
+                        <p className="font-medium text-sm dark:text-slate-200">{`${s.codigo} - ${s.titulo}`}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{`${formatDateSafe(s.fechaInicio)} · ${s.horaInicio}`}</p>
                       </div>
                       <ChevronRight className="h-4 w-4 text-slate-400" />
                     </div>
@@ -524,9 +524,9 @@ export default function PanelConductor() {
                 ) : serviciosCompletados.map(s => (
                   <div key={s.id} className="flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
                     <div>
-                      <p className="font-medium text-sm dark:text-slate-200">{s.codigo} - {s.titulo}</p>
+                      <p className="font-medium text-sm dark:text-slate-200">{`${s.codigo} - ${s.titulo}`}</p>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
-                        {formatDateSafe(s.fechaInicio)} · {s.horaInicioReal || s.horaInicio} - {s.horaFinReal || s.horaFin}
+                        {`${formatDateSafe(s.fechaInicio)} · ${s.horaInicioReal || s.horaInicio} - ${s.horaFinReal || s.horaFin}`}
                       </p>
                     </div>
                     <div className="text-right">
@@ -553,7 +553,7 @@ export default function PanelConductor() {
               </div>
               <div className="p-4 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div><Label className="text-xs text-slate-500 dark:text-slate-400">Nombre</Label><p className="font-medium dark:text-slate-200">{conductorActual.nombre} {conductorActual.apellidos}</p></div>
+                  <div><Label className="text-xs text-slate-500 dark:text-slate-400">Nombre</Label><p className="font-medium dark:text-slate-200">{`${conductorActual.nombre} ${conductorActual.apellidos}`}</p></div>
                   <div><Label className="text-xs text-slate-500 dark:text-slate-400">DNI</Label><p className="font-medium dark:text-slate-200">{conductorActual.dni}</p></div>
                 </div>
                 <Separator className="dark:bg-slate-700" />

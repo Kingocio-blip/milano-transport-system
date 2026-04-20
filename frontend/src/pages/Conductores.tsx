@@ -520,7 +520,7 @@ export default function Conductores() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-slate-900 dark:text-slate-100 line-clamp-1">{c.nombre} {c.apellidos}</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">{c.codigo} · DNI: {c.dni}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{`${c.codigo} · DNI: ${c.dni}`}</p>
                   </div>
                 </div>
                 <Badge className={estadoColors[c.estado] || ''}>{estadoLabels[c.estado] || c.estado}</Badge>
@@ -577,7 +577,7 @@ export default function Conductores() {
                           {c.nombre?.charAt(0)}{c.apellidos?.charAt(0)}
                         </div>
                         <div>
-                          <p className="font-medium dark:text-slate-200">{c.nombre} {c.apellidos}</p>
+                          <p className="font-medium dark:text-slate-200">{`${c.nombre} ${c.apellidos}`}</p>
                           <p className="text-xs text-slate-500">{c.codigo}</p>
                         </div>
                       </div>
@@ -1119,7 +1119,7 @@ export default function Conductores() {
                       {serviciosConductor.map(s => (
                         <div key={s.id} className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-700 p-3 hover:bg-slate-50 dark:hover:bg-slate-700/50">
                           <div>
-                            <p className="font-medium text-sm dark:text-slate-200">{s.codigo} · {s.titulo}</p>
+                            <p className="font-medium text-sm dark:text-slate-200">{`${s.codigo} · ${s.titulo}`}</p>
                             <p className="text-xs text-slate-500 dark:text-slate-400">{s.estado} · {(s.precio || 0).toLocaleString()} EUR</p>
                           </div>
                         </div>
