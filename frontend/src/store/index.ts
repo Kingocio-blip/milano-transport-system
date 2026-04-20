@@ -640,46 +640,38 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
     return cleaned;
   },
 
-  // addConductor: limpia datos antes de enviar al backend
+  // addConductor: payload MINIMO para evitar 422 de Pydantic
   addConductor: async (conductor) => {
     set({ isLoading: true, error: null });
     try {
-      const codigo = conductor.codigo || `COND-${Date.now().toString().slice(-5)}`;
-      
-      // Campos base obligatorios
+      // Payload MÍNIMO - solo obligatorios + básicos
       const payload: any = {
-        codigo,
-        nombre: conductor.nombre,
-        apellidos: conductor.apellidos,
-        dni: conductor.dni,
-        estado: conductor.estado || 'activo',
+        codigo: conductor.codigo || `COND-${Date.now().toString().slice(-5)}`,
+        nombre: conductor.nombre.trim(),
+        apellidos: conductor.apellidos.trim(),
+        dni: conductor.dni.trim().toUpperCase(),
       };
       
-      // Campos opcionales: solo si tienen valor real
-      if (conductor.telefono) payload.telefono = conductor.telefono;
-      if (conductor.email) payload.email = conductor.email;
-      if (conductor.direccion) payload.direccion = conductor.direccion;
-      if (conductor.fechaNacimiento) payload.fecha_nacimiento = conductor.fechaNacimiento;
-      if (conductor.tarifaHora) payload.tarifa_hora = conductor.tarifaHora;
-      if (conductor.prioridad) payload.prioridad = conductor.prioridad;
-      if (conductor.licencia?.tipo) payload.licencia_tipo = conductor.licencia.tipo;
-      if (conductor.licencia?.numero) payload.licencia_numero = conductor.licencia.numero;
-      if (conductor.licencia?.fechaExpedicion) payload.licencia_fecha_expedicion = conductor.licencia.fechaExpedicion;
-      if (conductor.licencia?.fechaCaducidad) payload.licencia_fecha_caducidad = conductor.licencia.fechaCaducidad;
-      if (conductor.licencia?.permisos?.length) payload.licencia_permisos = conductor.licencia.permisos;
-      if (conductor.disponibilidad?.dias?.length) payload.disponibilidad_dias = conductor.disponibilidad.dias;
-      if (conductor.disponibilidad?.horaInicio) payload.disponibilidad_hora_inicio = conductor.disponibilidad.horaInicio;
-      if (conductor.disponibilidad?.horaFin) payload.disponibilidad_hora_fin = conductor.disponibilidad.horaFin;
-      if (conductor.disponibilidad?.observaciones) payload.disponibilidad_observaciones = conductor.disponibilidad.observaciones;
-      if (conductor.panelActivo !== undefined) payload.panel_activo = conductor.panelActivo;
-      if (conductor.notas) payload.notas = conductor.notas;
+      // Solo añadir opcionales si tienen valor REAL (no null, no undefined, no '')
+      const addIfVal = (key: string, val: any) => {
+        if (val !== null && val !== undefined && val !== '') payload[key] = val;
+      };
       
-      // Inicializacion
-      payload.total_horas_mes = 0;
-      payload.total_servicios_mes = 0;
-      payload.valoracion = 0;
+      addIfVal('estado', conductor.estado);
+      addIfVal('telefono', conductor.telefono);
+      addIfVal('email', conductor.email);
+      addIfVal('direccion', conductor.direccion);
+      addIfVal('fecha_nacimiento', conductor.fechaNacimiento);
+      addIfVal('tarifa_hora', conductor.tarifaHora);
+      addIfVal('prioridad', conductor.prioridad);
+      addIfVal('licencia_tipo', conductor.licencia?.tipo);
+      addIfVal('licencia_numero', conductor.licencia?.numero);
+      addIfVal('licencia_fecha_expedicion', conductor.licencia?.fechaExpedicion);
+      addIfVal('licencia_fecha_caducidad', conductor.licencia?.fechaCaducidad);
+      addIfVal('panel_activo', conductor.panelActivo);
+      addIfVal('notas', conductor.notas);
 
-      console.log('📤 Enviando conductor:', payload);
+      console.log('📤 Enviando conductor (payload minimo):', JSON.stringify(payload, null, 2));
       
       const nuevo = await conductoresApi.create(payload);
       

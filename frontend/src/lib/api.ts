@@ -165,7 +165,11 @@ async function handleResponse(response: Response, retryFunc?: () => Promise<any>
       error: errorData
     });
     
-    const errorMessage = errorData.detail || errorData.error || `Error ${response.status}: ${response.statusText}`;
+    // Parsear detalle de error 422 de Pydantic
+    let errorMessage = errorData.detail || errorData.error || `Error ${response.status}: ${response.statusText}`;
+    if (Array.isArray(errorData.detail)) {
+      errorMessage = errorData.detail.map((e: any) => `${e.loc?.join('.')}: ${e.msg}`).join('; ');
+    }
     throw new Error(errorMessage);
   }
   
