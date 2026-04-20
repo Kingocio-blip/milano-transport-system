@@ -521,7 +521,7 @@ export default function Flota() {
                         { l: 'Plazas', v: String(vehSel.plazas || '-') },
                         { l: 'Ano', v: String(vehSel.añoFabricacion || '-') },
                         { l: 'KM', v: `${(vehSel.kilometraje || 0).toLocaleString('es-ES')} km` },
-                        { l: 'Combustible', v: combustibleLabels[vehSel.combustible] || vehSel.combustible },
+                        { l: 'Combustible', v: combustibleLabels[vehSel.combustible || ''] || vehSel.combustible || '-' },
                         { l: 'Bastidor', v: vehSel.bastidor || '-' },
                       ].map(item => (
                         <div key={item.l} className="flex justify-between text-sm">
