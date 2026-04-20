@@ -83,6 +83,13 @@ const formatDateSafe = (date: string | Date | undefined): string => {
 const idsEqual = (a: string | number | undefined, b: string | number | undefined): boolean =>
   String(a) === String(b);
 
+// Helper: convertir fecha YYYY-MM-DD a datetime ISO para Pydantic
+const toDateTime = (fecha: string | undefined): string | undefined => {
+  if (!fecha) return undefined;
+  if (fecha.includes('T')) return fecha;
+  return `${fecha}T00:00:00`;
+};
+
 // ============================================
 // INTERFACES DE FORMULARIO
 // ============================================
@@ -262,15 +269,15 @@ export default function Conductores() {
         telefono: nuevoConductor.telefono?.trim() || null,
         email: nuevoConductor.email?.trim() || null,
         direccion: nuevoConductor.direccion?.trim() || null,
-        fechaNacimiento: nuevoConductor.fechaNacimiento || null,
+        fechaNacimiento: toDateTime(nuevoConductor.fechaNacimiento) || null,
         estado: nuevoConductor.estado || 'activo',
         tarifaHora: nuevoConductor.tarifaHora || 18,
         prioridad: nuevoConductor.prioridad || 50,
         licencia: {
           tipo: nuevoConductor.licenciaTipo || 'D',
           numero: nuevoConductor.licenciaNumero || '',
-          fechaExpedicion: nuevoConductor.licenciaFechaExpedicion || null,
-          fechaCaducidad: nuevoConductor.licenciaFechaCaducidad || null,
+          fechaExpedicion: toDateTime(nuevoConductor.licenciaFechaExpedicion) || null,
+          fechaCaducidad: toDateTime(nuevoConductor.licenciaFechaCaducidad) || null,
           cap: {
             numero: nuevoConductor.capNumero || '',
             fechaVencimiento: nuevoConductor.capFechaVencimiento || null,

@@ -640,21 +640,11 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
     return cleaned;
   },
 
-  // Helper: convertir fecha YYYY-MM-DD a datetime ISO para Pydantic
-  _toDateTime: (fecha: string | Date | undefined): string | undefined => {
-    if (!fecha) return undefined;
-    const str = typeof fecha === 'string' ? fecha : fecha.toISOString().split('T')[0];
-    // Si ya es datetime completo, devolverlo
-    if (str.includes('T')) return str;
-    // Si es solo fecha, añadir hora
-    return `${str}T00:00:00`;
-  },
-
   // addConductor: payload MINIMO para evitar 422 de Pydantic
+  // NOTA: Las fechas deben venir en formato datetime ISO (YYYY-MM-DDTHH:mm:ss) desde el componente
   addConductor: async (conductor) => {
     set({ isLoading: true, error: null });
     try {
-      const self = get();
       // Payload MÍNIMO - solo obligatorios + básicos
       const payload: any = {
         codigo: conductor.codigo || `COND-${Date.now().toString().slice(-5)}`,
@@ -664,7 +654,6 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
       };
       
       // Solo añadir opcionales si tienen valor REAL (no null, no undefined, no '')
-      // Las fechas se convierten a datetime ISO para Pydantic
       const addIfVal = (key: string, val: any) => {
         if (val !== null && val !== undefined && val !== '') payload[key] = val;
       };
@@ -673,13 +662,14 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
       addIfVal('telefono', conductor.telefono);
       addIfVal('email', conductor.email);
       addIfVal('direccion', conductor.direccion);
-      addIfVal('fecha_nacimiento', self._toDateTime(conductor.fechaNacimiento));
+      // Fechas ya deben estar en formato datetime ISO desde el componente
+      addIfVal('fecha_nacimiento', conductor.fechaNacimiento);
       addIfVal('tarifa_hora', conductor.tarifaHora);
       addIfVal('prioridad', conductor.prioridad);
       addIfVal('licencia_tipo', conductor.licencia?.tipo);
       addIfVal('licencia_numero', conductor.licencia?.numero);
-      addIfVal('licencia_fecha_expedicion', self._toDateTime(conductor.licencia?.fechaExpedicion));
-      addIfVal('licencia_fecha_caducidad', self._toDateTime(conductor.licencia?.fechaCaducidad));
+      addIfVal('licencia_fecha_expedicion', conductor.licencia?.fechaExpedicion);
+      addIfVal('licencia_fecha_caducidad', conductor.licencia?.fechaCaducidad);
       addIfVal('panel_activo', conductor.panelActivo);
       addIfVal('notas', conductor.notas);
 
@@ -746,13 +736,13 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
   updateConductor: async (id, data) => {
     set({ isLoading: true, error: null });
     try {
-      const self = get();
       const dataParaBackend: any = {};
 
       if (data.nombre !== undefined) dataParaBackend.nombre = data.nombre;
       if (data.apellidos !== undefined) dataParaBackend.apellidos = data.apellidos;
       if (data.dni !== undefined) dataParaBackend.dni = data.dni;
-      if (data.fechaNacimiento !== undefined) dataParaBackend.fecha_nacimiento = self._toDateTime(data.fechaNacimiento);
+      // Fechas ya deben estar en formato datetime ISO desde el componente
+      if (data.fechaNacimiento !== undefined) dataParaBackend.fecha_nacimiento = data.fechaNacimiento;
       if (data.telefono !== undefined) dataParaBackend.telefono = data.telefono;
       if (data.email !== undefined) dataParaBackend.email = data.email;
       if (data.direccion !== undefined) dataParaBackend.direccion = data.direccion;
@@ -765,8 +755,8 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
       if (data.licencia) {
         dataParaBackend.licencia_tipo = data.licencia.tipo;
         dataParaBackend.licencia_numero = data.licencia.numero;
-        dataParaBackend.licencia_fecha_expedicion = self._toDateTime(data.licencia.fechaExpedicion);
-        dataParaBackend.licencia_fecha_caducidad = self._toDateTime(data.licencia.fechaCaducidad);
+        dataParaBackend.licencia_fecha_expedicion = data.licencia.fechaExpedicion;
+        dataParaBackend.licencia_fecha_caducidad = data.licencia.fechaCaducidad;
         dataParaBackend.licencia_permisos = data.licencia.permisos;
         // CAP - solo se envia cuando el backend este actualizado
         // if (data.licencia.cap) {
