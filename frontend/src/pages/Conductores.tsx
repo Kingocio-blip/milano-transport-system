@@ -26,6 +26,7 @@ import {
   Users, Award, Key, Shield, MapPin, Briefcase, Star,
   UserCircle, FileText, ExternalLink, Info, User
 } from 'lucide-react';
+import { SkeletonPage } from '../components/LoadingScreen';
 import type { Conductor, EstadoConductor, TipoNomina, BloquePrecio } from '../types';
 import { format, parseISO, differenceInDays, isValid, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -421,11 +422,7 @@ export default function Conductores() {
   // ============================================
 
   if (isLoading && conductores.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-12 w-12 animate-spin text-[#1e3a5f] dark:text-blue-400" />
-      </div>
-    );
+    return <SkeletonPage type="mixed" tableCols={7} vistaMode={vistaMode} />;
   }
 
   // ============================================
@@ -1329,15 +1326,4 @@ export default function Conductores() {
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" onClick={() => setIsEditarOpen(false)}
                   className="dark:border-slate-600 dark:text-slate-300">Cancelar</Button>
-                <Button onClick={handleEditar} disabled={isSubmitting}
-                  className="bg-[#1e3a5f] hover:bg-[#152a45] dark:bg-blue-600">
-                  {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</> : 'Guardar Cambios'}
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
+            

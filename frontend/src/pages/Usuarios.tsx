@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { usePermisos } from '../hooks/usePermisos';
+import { SkeletonPage } from '../components/LoadingScreen';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
@@ -134,12 +135,7 @@ export default function Usuarios() {
   }
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <Loader2 className="h-12 w-12 animate-spin text-[#1e3a5f] dark:text-blue-400" />
-        <p className="text-sm text-slate-500 dark:text-slate-400">Cargando usuarios...</p>
-      </div>
-    );
+    return <SkeletonPage type="mixed" tableCols={5} vistaMode={vistaMode} />;
   }
 
   return (

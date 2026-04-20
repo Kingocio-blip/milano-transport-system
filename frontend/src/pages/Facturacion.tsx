@@ -5,6 +5,7 @@
 
 import { useState, useMemo } from 'react';
 import { useFacturasStore, useServiciosStore, useClientesStore, useUIStore } from '../store';
+import { SkeletonPage } from '../components/LoadingScreen';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
@@ -49,7 +50,7 @@ const fmtDate = (d: string | Date | undefined): string => {
 const fmtCurrency = (n: number): string => `${n.toLocaleString('es-ES', { minimumFractionDigits: 2 })} EUR`;
 
 export default function Facturacion() {
-  const { facturas, addFactura, updateFactura, getFacturasVencidas, getTotalPendiente, getTotalFacturadoMes } = useFacturasStore();
+  const { facturas, addFactura, updateFactura, getFacturasVencidas, getTotalPendiente, getTotalFacturadoMes, isLoading } = useFacturasStore();
   const { servicios, updateServicio } = useServiciosStore();
   const { clientes } = useClientesStore();
   const { showToast } = useUIStore();
@@ -171,6 +172,10 @@ export default function Facturacion() {
     if (isAfter(new Date(), venc)) return Math.abs(differenceInDays(new Date(), venc));
     return null;
   };
+
+  if (isLoading && facturas.length === 0) {
+    return <SkeletonPage type="mixed" tableCols={7} vistaMode={vistaMode} />;
+  }
 
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto">
@@ -360,7 +365,7 @@ export default function Facturacion() {
 
       {/* ===== DIALOG: NUEVA FACTURA ===== */}
       <Dialog open={isNuevaOpen} onOpenChange={setIsNuevaOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
+        <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
           <DialogHeader>
             <DialogTitle className="dark:text-slate-100">Nueva Factura</DialogTitle>
             <DialogDescription className="dark:text-slate-400">Complete la informacion de la factura</DialogDescription>
@@ -471,7 +476,7 @@ export default function Facturacion() {
 
       {/* ===== DIALOG: DETALLE FACTURA ===== */}
       <Dialog open={!!facturaSel} onOpenChange={() => setFacturaSel(null)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
+        <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
           {facturaSel && (
             <>
               <DialogHeader>
