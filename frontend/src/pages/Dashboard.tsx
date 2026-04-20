@@ -14,9 +14,10 @@ import { Button } from '../components/ui/button';
 import { ScrollArea } from '../components/ui/scroll-area';
 import {
   Briefcase, Bus, UserCircle, Euro, AlertTriangle, CheckCircle2,
-  Clock, Calendar, ArrowRight, Users, Loader2, FileWarning,
+  Clock, Calendar, ArrowRight, Users, FileWarning,
   ShieldAlert, TrendingUp, Award, FileText, Fuel, Wrench,
 } from 'lucide-react';
+import { SkeletonDashboard } from '../components/LoadingScreen';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
@@ -160,12 +161,7 @@ export default function Dashboard() {
     [servicios]);
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <Loader2 className="h-12 w-12 animate-spin text-[#1e3a5f] dark:text-blue-400" />
-        <p className="text-sm text-slate-500 dark:text-slate-400">Cargando dashboard...</p>
-      </div>
-    );
+    return <SkeletonDashboard />;
   }
 
   return (

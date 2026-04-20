@@ -25,6 +25,7 @@ import {
   Briefcase, AlertTriangle, Search as SearchIcon, Clock
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { SkeletonPage } from '../components/LoadingScreen';
 
 // Colores por tipo de cliente
 const tipoColors: Record<string, string> = {
@@ -218,7 +219,7 @@ export default function CRM() {
     setClienteSeleccionado({ ...clienteSeleccionado, contacto: { ...clienteSeleccionado.contacto, [field]: value } });
   };
 
-  if (isLoading && clientes.length === 0) return <div className="flex items-center justify-center h-96"><Loader2 className="h-12 w-12 animate-spin text-[#1e3a5f] dark:text-blue-400" /></div>;
+  if (isLoading && clientes.length === 0) return <SkeletonPage type="mixed" tableCols={6} vistaMode={vistaMode} />;
 
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto">

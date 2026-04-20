@@ -22,6 +22,7 @@ import {
   Wrench, Fuel, Loader2, Settings, ClipboardList, Euro, X, LayoutGrid, List,
   Gauge, Shield, FileText, Car,
 } from 'lucide-react';
+import { SkeletonPage } from '../components/LoadingScreen';
 import type { Vehiculo, TipoVehiculo, EstadoVehiculo } from '../types';
 import { format, parseISO, isValid, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -203,11 +204,7 @@ export default function Flota() {
 
   // ===== Loading =====
   if (isLoading && vehiculos.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-12 w-12 animate-spin text-[#1e3a5f] dark:text-blue-400" />
-      </div>
-    );
+    return <SkeletonPage type="mixed" tableCols={8} vistaMode={vistaMode} />;
   }
 
   return (
