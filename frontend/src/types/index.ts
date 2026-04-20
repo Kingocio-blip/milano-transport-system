@@ -178,6 +178,32 @@ export interface Licencia {
   fechaExpedicion?: Date | string;
   fechaCaducidad?: Date | string;
   permisos?: string[];
+  // CAP - Certificado de Aptitud Profesional (obligatorio para pasajeros)
+  cap?: {
+    numero?: string;
+    fechaVencimiento?: Date | string;
+  };
+}
+
+// Tipo de nomina para conductores
+export type TipoNomina = 'tarifa_hora' | 'convenio' | 'bloques';
+
+// Configuracion de nomina - Tipo 3: Bloques de disponibilidad
+export interface BloquePrecio {
+  horas: number;      // 4, 8, 12, 15
+  precio: number;     // EUR a cobrar por ese bloque
+}
+
+// Configuracion completa de nomina
+export interface NominaConfig {
+  tipo: TipoNomina;
+  // Tipo 1: Tarifa/Hora
+  tarifaHora?: number;
+  // Tipo 2: Convenio
+  horasContratadas?: number;    // Horas semanales contratadas
+  horasExtras?: boolean;         // Permitir horas extras
+  // Tipo 3: Bloques
+  bloques?: BloquePrecio[];
 }
 
 // FIX: Todos los campos opcionales para flexibilidad
@@ -208,11 +234,14 @@ export interface Conductor {
   email?: string;
   direccion?: string;
   licencia?: Licencia;
-  tarifaHora?: number;
+  tarifaHora?: number;        // Tipo 1: Tarifa por hora (legacy, usar nomina.tarifaHora)
   prioridad?: number;
   disponibilidad?: Disponibilidad;
-  credenciales?: CredencialesConductor;
+  // Vinculacion con sistema de usuarios/roles
+  usuarioId?: string;
   panelActivo?: boolean;
+  // Sistema de nomina (nuevo)
+  nomina?: NominaConfig;
   documentos?: Documento[];
   estado: EstadoConductor;
   totalHorasMes?: number;

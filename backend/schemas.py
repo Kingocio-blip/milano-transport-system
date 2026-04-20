@@ -183,6 +183,9 @@ class ConductorBase(BaseModel):
     licencia_fecha_expedicion: Optional[datetime] = None
     licencia_fecha_caducidad: Optional[datetime] = None
     licencia_permisos: Optional[List[str]] = []
+    # CAP
+    licencia_cap_numero: Optional[str] = None
+    licencia_cap_fecha_vencimiento: Optional[datetime] = None
     tarifa_hora: Optional[Decimal] = Decimal("18.00")
     tarifa_servicio: Optional[Decimal] = None
     prioridad: Optional[int] = 50
@@ -190,6 +193,13 @@ class ConductorBase(BaseModel):
     disponibilidad_hora_inicio: Optional[str] = "08:00"
     disponibilidad_hora_fin: Optional[str] = "18:00"
     disponibilidad_observaciones: Optional[str] = None
+    # Nomina
+    nomina_tipo: Optional[str] = "tarifa_hora"
+    nomina_tarifa_hora: Optional[Decimal] = None
+    nomina_horas_contratadas: Optional[int] = None
+    nomina_horas_extras: Optional[bool] = None
+    nomina_bloques: Optional[List[dict]] = None
+    # DEPRECATED: usar sistema de usuarios
     credenciales: Optional[dict] = None
     panel_activo: Optional[bool] = True
     estado: Optional[str] = "activo"

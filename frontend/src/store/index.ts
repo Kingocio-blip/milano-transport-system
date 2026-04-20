@@ -551,7 +551,7 @@ interface ConductoresState {
   error: string | null;
   conductorSeleccionado: Conductor | null;
   fetchConductores: () => Promise<void>;
-  addConductor: (conductor: any) => Promise<boolean>;
+  addConductor: (conductor: any) => Promise<Conductor | null>;
   updateConductor: (id: string, data: Partial<Conductor>) => Promise<boolean>;
   deleteConductor: (id: string) => Promise<boolean>;
   seleccionarConductor: (conductor: Conductor | null) => void;
@@ -590,6 +590,10 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
           fechaExpedicion: c.licencia_fecha_expedicion || c.licencia?.fechaExpedicion,
           fechaCaducidad: c.licencia_fecha_caducidad || c.licencia?.fechaCaducidad,
           permisos: c.licencia_permisos || c.licencia?.permisos,
+          cap: c.licencia_cap_numero ? {
+            numero: c.licencia_cap_numero,
+            fechaVencimiento: c.licencia_cap_fecha_vencimiento,
+          } : undefined,
         },
         tarifaHora: c.tarifa_hora || c.tarifaHora || 18,
         prioridad: c.prioridad || 50,
@@ -599,6 +603,15 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
           horaFin: c.disponibilidad_hora_fin || c.disponibilidad?.horaFin || '18:00',
           observaciones: c.disponibilidad_observaciones || c.disponibilidad?.observaciones,
         },
+        // Sistema de nomina
+        nomina: c.nomina_tipo ? {
+          tipo: c.nomina_tipo,
+          tarifaHora: c.nomina_tarifa_hora ? Number(c.nomina_tarifa_hora) : undefined,
+          horasContratadas: c.nomina_horas_contratadas || undefined,
+          horasExtras: c.nomina_horas_extras,
+          bloques: c.nomina_bloques || undefined,
+        } : undefined,
+        usuarioId: c.usuario_id ? String(c.usuario_id) : undefined,
         credenciales: c.credenciales ? {
           usuario: c.credenciales.usuario || c.credenciales_usuario,
         } : undefined,
@@ -647,6 +660,9 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
         licencia_fecha_expedicion: conductor.licencia?.fechaExpedicion || null,
         licencia_fecha_caducidad: conductor.licencia?.fechaCaducidad || null,
         licencia_permisos: conductor.licencia?.permisos || [],
+        // CAP
+        licencia_cap_numero: conductor.licencia?.cap?.numero || null,
+        licencia_cap_fecha_vencimiento: conductor.licencia?.cap?.fechaVencimiento || null,
         
         // Disponibilidad
         disponibilidad_dias: conductor.disponibilidad?.dias || [1, 2, 3, 4, 5],
@@ -654,7 +670,14 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
         disponibilidad_hora_fin: conductor.disponibilidad?.horaFin || '18:00',
         disponibilidad_observaciones: conductor.disponibilidad?.observaciones || null,
         
-        // Credenciales y panel
+        // Sistema de nomina
+        nomina_tipo: conductor.nomina?.tipo || 'tarifa_hora',
+        nomina_tarifa_hora: conductor.nomina?.tarifaHora || null,
+        nomina_horas_contratadas: conductor.nomina?.horasContratadas || null,
+        nomina_horas_extras: conductor.nomina?.horasExtras ?? null,
+        nomina_bloques: conductor.nomina?.bloques || null,
+        
+        // Credenciales (DEPRECATED) y panel
         credenciales: conductor.credenciales || null,
         panel_activo: conductor.panelActivo ?? true,
         
@@ -688,6 +711,10 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
           fechaExpedicion: nuevo.licencia_fecha_expedicion,
           fechaCaducidad: nuevo.licencia_fecha_caducidad,
           permisos: nuevo.licencia_permisos,
+          cap: nuevo.licencia_cap_numero ? {
+            numero: nuevo.licencia_cap_numero,
+            fechaVencimiento: nuevo.licencia_cap_fecha_vencimiento,
+          } : undefined,
         },
         tarifaHora: nuevo.tarifa_hora || 18,
         prioridad: nuevo.prioridad || 50,
@@ -697,6 +724,14 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
           horaFin: nuevo.disponibilidad_hora_fin || '18:00',
           observaciones: nuevo.disponibilidad_observaciones,
         },
+        nomina: nuevo.nomina_tipo ? {
+          tipo: nuevo.nomina_tipo,
+          tarifaHora: nuevo.nomina_tarifa_hora ? Number(nuevo.nomina_tarifa_hora) : undefined,
+          horasContratadas: nuevo.nomina_horas_contratadas || undefined,
+          horasExtras: nuevo.nomina_horas_extras,
+          bloques: nuevo.nomina_bloques || undefined,
+        } : undefined,
+        usuarioId: nuevo.usuario_id ? String(nuevo.usuario_id) : undefined,
         credenciales: nuevo.credenciales ? { usuario: nuevo.credenciales.usuario } : undefined,
         panelActivo: nuevo.panel_activo ?? true,
         estado: nuevo.estado || 'activo',
@@ -706,11 +741,11 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
       };
 
       set((state) => ({ conductores: [...state.conductores, conductorFormateado], isLoading: false }));
-      return true;
+      return conductorFormateado;
     } catch (error: any) {
       console.error('❌ Error addConductor:', error);
       set({ error: error.message || 'Error al crear conductor', isLoading: false });
-      return false;
+      return null;
     }
   },
 
@@ -738,6 +773,11 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
         dataParaBackend.licencia_fecha_expedicion = data.licencia.fechaExpedicion;
         dataParaBackend.licencia_fecha_caducidad = data.licencia.fechaCaducidad;
         dataParaBackend.licencia_permisos = data.licencia.permisos;
+        // CAP
+        if (data.licencia.cap) {
+          dataParaBackend.licencia_cap_numero = data.licencia.cap.numero;
+          dataParaBackend.licencia_cap_fecha_vencimiento = data.licencia.cap.fechaVencimiento;
+        }
       }
 
       if (data.disponibilidad) {
@@ -745,6 +785,18 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
         dataParaBackend.disponibilidad_hora_inicio = data.disponibilidad.horaInicio;
         dataParaBackend.disponibilidad_hora_fin = data.disponibilidad.horaFin;
         dataParaBackend.disponibilidad_observaciones = data.disponibilidad.observaciones;
+      }
+
+      if (data.nomina) {
+        dataParaBackend.nomina_tipo = data.nomina.tipo;
+        dataParaBackend.nomina_tarifa_hora = data.nomina.tarifaHora;
+        dataParaBackend.nomina_horas_contratadas = data.nomina.horasContratadas;
+        dataParaBackend.nomina_horas_extras = data.nomina.horasExtras;
+        dataParaBackend.nomina_bloques = data.nomina.bloques;
+      }
+
+      if (data.usuarioId) {
+        dataParaBackend.usuario_id = data.usuarioId;
       }
 
       const actualizado = await conductoresApi.update(id, dataParaBackend);
@@ -766,6 +818,10 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
             fechaExpedicion: actualizado.licencia_fecha_expedicion,
             fechaCaducidad: actualizado.licencia_fecha_caducidad,
             permisos: actualizado.licencia_permisos,
+            cap: actualizado.licencia_cap_numero ? {
+              numero: actualizado.licencia_cap_numero,
+              fechaVencimiento: actualizado.licencia_cap_fecha_vencimiento,
+            } : undefined,
           },
           tarifaHora: actualizado.tarifa_hora || 18,
           prioridad: actualizado.prioridad || 50,
@@ -775,6 +831,14 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
             horaFin: actualizado.disponibilidad_hora_fin || '18:00',
             observaciones: actualizado.disponibilidad_observaciones,
           },
+          nomina: actualizado.nomina_tipo ? {
+            tipo: actualizado.nomina_tipo,
+            tarifaHora: actualizado.nomina_tarifa_hora ? Number(actualizado.nomina_tarifa_hora) : undefined,
+            horasContratadas: actualizado.nomina_horas_contratadas || undefined,
+            horasExtras: actualizado.nomina_horas_extras,
+            bloques: actualizado.nomina_bloques || undefined,
+          } : undefined,
+          usuarioId: actualizado.usuario_id ? String(actualizado.usuario_id) : undefined,
           credenciales: actualizado.credenciales ? { usuario: actualizado.credenciales.usuario } : undefined,
           panelActivo: actualizado.panel_activo ?? true,
           estado: actualizado.estado || 'activo',

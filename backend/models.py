@@ -191,6 +191,10 @@ class Conductor(Base):
     licencia_fecha_caducidad = Column(Date, nullable=True)
     licencia_permisos = Column(JSON, default=list)
     
+    # CAP - Certificado de Aptitud Profesional
+    licencia_cap_numero = Column(String(50), nullable=True)
+    licencia_cap_fecha_vencimiento = Column(Date, nullable=True)
+    
     tarifa_hora = Column(Numeric(8, 2), default=18)
     tarifa_servicio = Column(Numeric(10, 2), nullable=True)
     prioridad = Column(Integer, default=50)
@@ -200,6 +204,14 @@ class Conductor(Base):
     disponibilidad_hora_fin = Column(String(10), default="18:00")
     disponibilidad_observaciones = Column(Text, nullable=True)
     
+    # Sistema de nomina (3 opciones: tarifa_hora, convenio, bloques)
+    nomina_tipo = Column(String(20), default="tarifa_hora")  # tarifa_hora | convenio | bloques
+    nomina_tarifa_hora = Column(Numeric(8, 2), nullable=True)
+    nomina_horas_contratadas = Column(Integer, nullable=True)
+    nomina_horas_extras = Column(Boolean, default=True)
+    nomina_bloques = Column(JSON, nullable=True)  # [{"horas": 4, "precio": 40}, ...]
+    
+    # DEPRECATED: credenciales se migra al sistema de usuarios/roles
     credenciales = Column(JSON, nullable=True)
     
     panel_activo = Column(Boolean, default=True)
