@@ -1326,4 +1326,15 @@ export default function Conductores() {
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" onClick={() => setIsEditarOpen(false)}
                   className="dark:border-slate-600 dark:text-slate-300">Cancelar</Button>
-            
+                <Button onClick={handleEditar} disabled={isSubmitting}
+                  className="bg-[#1e3a5f] hover:bg-[#152a45] dark:bg-blue-600">
+                  {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</> : 'Guardar Cambios'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
