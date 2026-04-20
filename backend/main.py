@@ -345,7 +345,8 @@ def create_user(
         hashed_password=hashed_password,
         nombre_completo=user.nombre_completo,
         rol=user.rol,
-        activo=True
+        activo=True,
+        conductor_id=user.conductor_id
     )
     db.add(db_user)
     db.commit()
