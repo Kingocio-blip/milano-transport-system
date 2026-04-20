@@ -42,7 +42,7 @@ const parseDateSafe = (d: string | Date | undefined): Date | null => {
   if (!d) return null;
   try { const p = typeof d === 'string' ? parseISO(d) : d; return isNaN(p.getTime()) ? null : p; } catch { return null; }
 };
-const fmtDate = (d: string | undefined): string => {
+const fmtDate = (d: string | Date | undefined): string => {
   const p = parseDateSafe(d);
   return p ? format(p, 'dd/MM/yyyy') : '-';
 };
