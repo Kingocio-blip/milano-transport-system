@@ -38,9 +38,9 @@ const estadoLabels: Record<string, string> = {
   vencida: 'Vencida', anulada: 'Anulada', todos: 'Todos',
 };
 
-const parseDateSafe = (d: string | undefined): Date | null => {
+const parseDateSafe = (d: string | Date | undefined): Date | null => {
   if (!d) return null;
-  try { const p = parseISO(d); return isNaN(p.getTime()) ? null : p; } catch { return null; }
+  try { const p = typeof d === 'string' ? parseISO(d) : d; return isNaN(p.getTime()) ? null : p; } catch { return null; }
 };
 const fmtDate = (d: string | undefined): string => {
   const p = parseDateSafe(d);
