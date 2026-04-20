@@ -1903,4 +1903,8 @@ if (typeof window !== 'undefined') {
       useAuthStore.setState({ isAuthenticated: true });
     }).catch(() => {
       console.log('❌ No se pudo restaurar la sesión');
-      localStorage.removeItem('mil
+      localStorage.removeItem('milano_access_token');
+      localStorage.removeItem('milano_refresh_token');
+    });
+  }
+}
