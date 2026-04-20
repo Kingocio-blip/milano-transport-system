@@ -629,45 +629,59 @@ export const useConductoresStore = create<ConductoresState>((set, get) => ({
     }
   },
 
-  // addConductor: SOLO campos que el backend actual conoce
-  // Los campos nuevos (CAP, nomina, usuarioId) se guardan en localStorage
+  // Helper: limpiar objeto eliminando nulls, undefined y strings vacios
+  _cleanPayload: (obj: any): any => {
+    const cleaned: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== null && value !== undefined && value !== '') {
+        cleaned[key] = value;
+      }
+    }
+    return cleaned;
+  },
+
+  // addConductor: limpia datos antes de enviar al backend
   addConductor: async (conductor) => {
     set({ isLoading: true, error: null });
     try {
       const codigo = conductor.codigo || `COND-${Date.now().toString().slice(-5)}`;
       
-      // SOLO campos que el backend actual tiene en su schema
-      const conductorParaBackend: any = {
-        codigo: codigo,
+      // Campos base obligatorios
+      const payload: any = {
+        codigo,
         nombre: conductor.nombre,
         apellidos: conductor.apellidos,
         dni: conductor.dni,
         estado: conductor.estado || 'activo',
-        telefono: conductor.telefono || null,
-        email: conductor.email || null,
-        direccion: conductor.direccion || null,
-        fecha_nacimiento: conductor.fechaNacimiento || null,
-        tarifa_hora: conductor.tarifaHora || 18,
-        prioridad: conductor.prioridad || 50,
-        licencia_tipo: conductor.licencia?.tipo || 'D',
-        licencia_numero: conductor.licencia?.numero || '',
-        licencia_fecha_expedicion: conductor.licencia?.fechaExpedicion || null,
-        licencia_fecha_caducidad: conductor.licencia?.fechaCaducidad || null,
-        licencia_permisos: conductor.licencia?.permisos || [],
-        disponibilidad_dias: conductor.disponibilidad?.dias || [1, 2, 3, 4, 5],
-        disponibilidad_hora_inicio: conductor.disponibilidad?.horaInicio || '08:00',
-        disponibilidad_hora_fin: conductor.disponibilidad?.horaFin || '18:00',
-        disponibilidad_observaciones: conductor.disponibilidad?.observaciones || null,
-        panel_activo: conductor.panelActivo ?? true,
-        total_horas_mes: 0,
-        total_servicios_mes: 0,
-        valoracion: 0,
-        notas: conductor.notas || null,
       };
-
-      console.log('📤 Enviando conductor:', conductorParaBackend);
       
-      const nuevo = await conductoresApi.create(conductorParaBackend);
+      // Campos opcionales: solo si tienen valor real
+      if (conductor.telefono) payload.telefono = conductor.telefono;
+      if (conductor.email) payload.email = conductor.email;
+      if (conductor.direccion) payload.direccion = conductor.direccion;
+      if (conductor.fechaNacimiento) payload.fecha_nacimiento = conductor.fechaNacimiento;
+      if (conductor.tarifaHora) payload.tarifa_hora = conductor.tarifaHora;
+      if (conductor.prioridad) payload.prioridad = conductor.prioridad;
+      if (conductor.licencia?.tipo) payload.licencia_tipo = conductor.licencia.tipo;
+      if (conductor.licencia?.numero) payload.licencia_numero = conductor.licencia.numero;
+      if (conductor.licencia?.fechaExpedicion) payload.licencia_fecha_expedicion = conductor.licencia.fechaExpedicion;
+      if (conductor.licencia?.fechaCaducidad) payload.licencia_fecha_caducidad = conductor.licencia.fechaCaducidad;
+      if (conductor.licencia?.permisos?.length) payload.licencia_permisos = conductor.licencia.permisos;
+      if (conductor.disponibilidad?.dias?.length) payload.disponibilidad_dias = conductor.disponibilidad.dias;
+      if (conductor.disponibilidad?.horaInicio) payload.disponibilidad_hora_inicio = conductor.disponibilidad.horaInicio;
+      if (conductor.disponibilidad?.horaFin) payload.disponibilidad_hora_fin = conductor.disponibilidad.horaFin;
+      if (conductor.disponibilidad?.observaciones) payload.disponibilidad_observaciones = conductor.disponibilidad.observaciones;
+      if (conductor.panelActivo !== undefined) payload.panel_activo = conductor.panelActivo;
+      if (conductor.notas) payload.notas = conductor.notas;
+      
+      // Inicializacion
+      payload.total_horas_mes = 0;
+      payload.total_servicios_mes = 0;
+      payload.valoracion = 0;
+
+      console.log('📤 Enviando conductor:', payload);
+      
+      const nuevo = await conductoresApi.create(payload);
       
       console.log('✅ Conductor creado:', nuevo);
 
