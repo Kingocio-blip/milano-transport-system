@@ -234,6 +234,24 @@ export const api = {
     return result as T;
   },
   
+  // PATCH con retry automático
+  patch: async <T = any>(endpoint: string, body?: any): Promise<T> => {
+    console.log('📤 API PATCH:', `${API_URL}${endpoint}`, body);
+    
+    const makeRequest = async (): Promise<T> => {
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      return handleResponse(response, () => api.patch(endpoint, body));
+    };
+    
+    const result = await makeRequest();
+    console.log('✅ API PATCH Response:', endpoint, result);
+    return result as T;
+  },
+  
   // DELETE con retry automático
   delete: async <T = any>(endpoint: string): Promise<T> => {
     console.log('📤 API DELETE:', `${API_URL}${endpoint}`);
