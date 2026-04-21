@@ -382,7 +382,7 @@ def create_user(
         nombre_completo=user.nombre_completo,
         rol=user.rol,
         activo=True,
-        conductor_id=user.conductor_id
+        conductor_id=getattr(user, 'conductor_id', None)
     )
     db.add(db_user)
     db.commit()

@@ -31,6 +31,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str
     rol: Optional[str] = "operador"
+    conductor_id: Optional[int] = None
 
 class UserUpdate(BaseModel):
     username: Optional[str] = None
@@ -522,7 +523,7 @@ class MensajeBase(BaseModel):
     autor_tipo: Optional[str] = "operador"
 
 class MensajeCreate(MensajeBase):
-    servicio_id: int
+    servicio_id: Optional[int] = None
 
 class Mensaje(MensajeBase):
     model_config = ConfigDict(from_attributes=True)
