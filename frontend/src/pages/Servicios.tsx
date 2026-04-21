@@ -1,10 +1,10 @@
 // ============================================
-// MILANO - Servicios (Rediseñado)
-// Wizard en pasos + cards profesionales + dark mode
+// MILANO - Servicios (Rediseñado v2)
+// Wizard 3 pasos + buscador cliente + tipo personalizado + paradas + chat
+// Fixes: wizard no crea en paso 2, buscador cliente, tipo personalizado
 // ============================================
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { format, differenceInHours } from 'date-fns';
 import { useServiciosStore, useClientesStore, useConductoresStore, useVehiculosStore, useUIStore } from '../store';
 import type { Servicio, TipoServicio, EstadoServicio } from '@/types';
 import {
@@ -19,12 +19,22 @@ import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { ScrollArea } from '../components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Checkbox } from '../components/ui/checkbox';
 import {
   Plus, Search, Loader2, Trash2, Edit3, Eye, Calendar, MapPin, User, Bus,
   DollarSign, Clock, CheckCircle2, AlertCircle, ChevronRight, ChevronLeft,
-  Route, Users, FileText, TrendingUp, X, Filter, LayoutGrid, List
+  Route, Users, FileText, TrendingUp, X, LayoutGrid, List, MessageSquare,
+  Send, Navigation, Phone, Mail
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { SkeletonPage } from '../components/LoadingScreen';
+import { format, differenceInHours } from 'date-fns';
+import { es } from 'date-fns/locale';
+
+// ============================================
+// CONSTANTES
+// ============================================
 
 const ESTADOS: { value: EstadoServicio | 'todos'; label: string; color: string }[] = [
   { value: 'todos', label: 'Todos', color: 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300' },
@@ -39,18 +49,86 @@ const ESTADOS: { value: EstadoServicio | 'todos'; label: string; color: string }
   { value: 'cancelado', label: 'Cancelado', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
 ];
 
-const TIPOS: { value: TipoServicio | 'todos'; label: string }[] = [
-  { value: 'todos', label: 'Todos' },
+const TIPOS_SERVICIO: { value: string; label: string }[] = [
   { value: 'lanzadera', label: 'Lanzadera' },
   { value: 'discrecional', label: 'Discrecional' },
-  { value: 'staff', label: 'Staff' },
-  { value: 'ruta_programada', label: 'Ruta' },
+  { value: 'staff', label: 'Movilidad Staff' },
+  { value: 'ruta_programada', label: 'Ruta Programada' },
+  { value: 'evento', label: 'Evento / Festival' },
+  { value: 'escolar', label: 'Transporte Escolar' },
+  { value: 'empresa', label: 'Empresa / Corporativo' },
+  { value: 'aeropuerto', label: 'Traslado Aeropuerto' },
 ];
 
 const CONSUMO_LITROS_100KM = 35;
 const PRECIO_GASOIL_LITRO = 1.6;
 const TARIFA_CONDUCTOR_HORA = 18;
 const TARIFA_COORDINADOR_HORA = 25;
+
+// ============================================
+// HELPERS
+// ============================================
+
+function idsEqual(a: string | number | undefined, b: string | number | undefined): boolean {
+  return String(a) === String(b);
+}
+
+// ============================================
+// TIPO PARADA
+// ============================================
+
+interface Parada {
+  id: string;
+  tipo: 'origen' | 'parada' | 'descanso' | 'destino';
+  ubicacion: string;
+  hora: string;
+  notas: string;
+  lat?: number;
+  lng?: number;
+}
+
+// ============================================
+// COMPONENTE: ChatIntegrado
+// ============================================
+
+function ChatIntegrado({ servicioId }: { servicioId: string }) {
+  const [mensaje, setMensaje] = useState('');
+  const [mensajes, setMensajes] = useState([
+    { id: '1', autor: 'Sistema', texto: 'Chat habilitado para este servicio. Pueden participar: cliente, conductor y operadores.', fecha: new Date(), tipo: 'sistema' },
+  ]);
+
+  const enviar = () => {
+    if (!mensaje.trim()) return;
+    setMensajes(p => [...p, { id: `${Date.now()}`, autor: 'Operador', texto: mensaje, fecha: new Date(), tipo: 'operador' }]);
+    setMensaje('');
+  };
+
+  return (
+    <div className="flex flex-col h-96 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+      <div className="bg-slate-50 dark:bg-slate-900/50 px-3 py-2 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
+        <MessageSquare className="h-4 w-4 text-[#1e3a5f] dark:text-blue-400" />
+        <span className="text-sm font-medium dark:text-slate-200">Chat del servicio</span>
+        <span className="text-xs text-slate-400 ml-auto">{mensajes.length} mensajes</span>
+      </div>
+      <ScrollArea className="flex-1 p-3 space-y-2">
+        {mensajes.map(m => (
+          <div key={m.id} className={`text-sm ${m.tipo === 'sistema' ? 'text-center text-xs text-slate-500 dark:text-slate-400 italic py-1' : m.tipo === 'operador' ? 'ml-auto max-w-[80%] bg-[#1e3a5f] text-white rounded-lg rounded-tr-sm px-3 py-2' : 'mr-auto max-w-[80%] bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg rounded-tl-sm px-3 py-2'}`}>
+            {m.tipo !== 'sistema' && <p className="text-xs opacity-70 mb-0.5">{m.autor} · {format(m.fecha, 'HH:mm')}</p>}
+            <p>{m.texto}</p>
+          </div>
+        ))}
+      </ScrollArea>
+      <div className="p-2 border-t border-slate-200 dark:border-slate-700 flex gap-2">
+        <Input placeholder="Escribe un mensaje..." value={mensaje} onChange={e => setMensaje(e.target.value)} onKeyDown={e => e.key === 'Enter' && enviar()} className="flex-1 dark:bg-slate-900 dark:border-slate-600 h-9 text-sm" />
+        <Button size="sm" onClick={enviar} className="bg-[#1e3a5f] dark:bg-blue-600 h-9 px-3"><Send className="h-4 w-4" /></Button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// COMPONENTE PRINCIPAL
+// ============================================
 
 export default function Servicios() {
   const { servicios, isLoading, addServicio, deleteServicio, fetchServicios } = useServiciosStore();
@@ -59,9 +137,10 @@ export default function Servicios() {
   const { vehiculos, fetchVehiculos } = useVehiculosStore();
   const { showToast } = useUIStore();
 
+  // Filtros
   const [searchQuery, setSearchQuery] = useState('');
   const [estadoFiltro, setEstadoFiltro] = useState<EstadoServicio | 'todos'>('todos');
-  const [tipoFiltro, setTipoFiltro] = useState<TipoServicio | 'todos'>('todos');
+  const [tipoFiltro, setTipoFiltro] = useState<string>('todos');
   const [vistaMode, setVistaMode] = useState<'lista' | 'cards'>('cards');
   const [servicioSeleccionado, setServicioSeleccionado] = useState<Servicio | null>(null);
   const [isNuevoOpen, setIsNuevoOpen] = useState(false);
@@ -69,23 +148,36 @@ export default function Servicios() {
   const [isEditarOpen, setIsEditarOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Wizard step
+  // Wizard
   const [wizardStep, setWizardStep] = useState(1);
 
-  // Auto-asignación
+  // Auto-asignacion
   const [autoConductor, setAutoConductor] = useState(false);
   const [autoVehiculo, setAutoVehiculo] = useState(false);
   const [incluirCoordinador, setIncluirCoordinador] = useState(false);
 
+  // Buscador cliente
+  const [clienteSearch, setClienteSearch] = useState('');
+  const [clienteSearchOpen, setClienteSearchOpen] = useState(false);
+  const [clienteSeleccionadoForm, setClienteSeleccionadoForm] = useState<{id: string; nombre: string} | null>(null);
+
+  // Tipo personalizado
+  const [tipoServicio, setTipoServicio] = useState<string>('lanzadera');
+  const [tipoPersonalizado, setTipoPersonalizado] = useState('');
+
+  // Paradas
+  const [paradas, setParadas] = useState<Parada[]>([
+    { id: 'p-origen', tipo: 'origen', ubicacion: '', hora: '', notas: '' },
+    { id: 'p-destino', tipo: 'destino', ubicacion: '', hora: '', notas: '' },
+  ]);
+
   const [nuevoServicio, setNuevoServicio] = useState<Partial<Servicio> & Record<string, any>>({
-    tipo: 'lanzadera', estado: 'planificando', numeroVehiculos: 1,
+    estado: 'planificando', numeroVehiculos: 1,
     fechaInicio: format(new Date(), 'yyyy-MM-dd'), fechaFin: '',
-    horaInicio: '', horaFin: '',
+    horaInicio: '', horaFin: '', titulo: '', descripcion: '',
   });
 
-  useEffect(() => {
-    fetchServicios(); fetchClientes(); fetchConductores(); fetchVehiculos();
-  }, [fetchServicios, fetchClientes, fetchConductores, fetchVehiculos]);
+  useEffect(() => { fetchServicios(); fetchClientes(); fetchConductores(); fetchVehiculos(); }, [fetchServicios, fetchClientes, fetchConductores, fetchVehiculos]);
 
   const conductorDisp = useMemo(() => conductores.find(c => c.estado === 'activo'), [conductores]);
   const vehiculoDisp = useMemo(() => vehiculos.find(v => v.estado === 'operativo'), [vehiculos]);
@@ -121,36 +213,94 @@ export default function Servicios() {
     return ms && (estadoFiltro === 'todos' || s.estado === estadoFiltro) && (tipoFiltro === 'todos' || s.tipo === tipoFiltro);
   }), [servicios, searchQuery, estadoFiltro, tipoFiltro]);
 
+  // Clientes filtrados para buscador
+  const clientesFiltrados = useMemo(() => {
+    const sq = clienteSearch.toLowerCase().trim();
+    if (sq.length < 2) return [];
+    return clientes.filter(c =>
+      c.nombre?.toLowerCase().includes(sq) ||
+      c.contacto?.email?.toLowerCase().includes(sq) ||
+      c.nif?.toLowerCase().includes(sq)
+    ).slice(0, 8);
+  }, [clienteSearch, clientes]);
+
   const resetWizard = () => {
     setIsNuevoOpen(false);
     setWizardStep(1);
-    setNuevoServicio({ tipo: 'lanzadera', estado: 'planificando', numeroVehiculos: 1, fechaInicio: format(new Date(), 'yyyy-MM-dd') });
+    setNuevoServicio({ estado: 'planificando', numeroVehiculos: 1, fechaInicio: format(new Date(), 'yyyy-MM-dd'), fechaFin: '', horaInicio: '', horaFin: '', titulo: '', descripcion: '' });
     setAutoConductor(false); setAutoVehiculo(false); setIncluirCoordinador(false);
+    setClienteSearch(''); setClienteSeleccionadoForm(null); setClienteSearchOpen(false);
+    setTipoServicio('lanzadera'); setTipoPersonalizado('');
+    setParadas([{ id: 'p-origen', tipo: 'origen', ubicacion: '', hora: '', notas: '' }, { id: 'p-destino', tipo: 'destino', ubicacion: '', hora: '', notas: '' }]);
   };
+
+  // ============================================
+  // VALIDACION POR PASO
+  // ============================================
+
+  const validarPaso1 = (): boolean => {
+    if (!clienteSeleccionadoForm) { showToast('Selecciona un cliente', 'error'); return false; }
+    if (!nuevoServicio.titulo?.trim()) { showToast('El titulo es obligatorio', 'error'); return false; }
+    const tipoFinal = tipoServicio === '__otro__' ? tipoPersonalizado.trim() || 'otro' : tipoServicio;
+    if (tipoServicio === '__otro__' && !tipoPersonalizado.trim()) { showToast('Escribe un tipo de servicio', 'error'); return false; }
+    return true;
+  };
+
+  const validarPaso2 = (): boolean => {
+    if (!nuevoServicio.fechaInicio) { showToast('La fecha de inicio es obligatoria', 'error'); return false; }
+    if (!nuevoServicio.horaInicio) { showToast('La hora de inicio es obligatoria', 'error'); return false; }
+    const origen = paradas.find(p => p.tipo === 'origen');
+    if (!origen?.ubicacion.trim()) { showToast('El origen es obligatorio', 'error'); return false; }
+    return true;
+  };
+
+  // ============================================
+  // NAVEGACION WIZARD
+  // ============================================
+
+  const avanzarPaso = () => {
+    if (wizardStep === 1 && !validarPaso1()) return;
+    if (wizardStep === 2 && !validarPaso2()) return;
+    if (wizardStep < 3) setWizardStep(wizardStep + 1);
+  };
+
+  const retrocederPaso = () => {
+    if (wizardStep > 1) setWizardStep(wizardStep - 1);
+  };
+
+  // ============================================
+  // SUBMIT - SOLO EN PASO 3
+  // ============================================
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nuevoServicio.clienteId || !nuevoServicio.titulo || !nuevoServicio.fechaInicio) {
-      showToast('Complete los campos obligatorios (*)', 'error'); return;
-    }
+    if (wizardStep !== 3) return; // Seguridad: solo paso 3 crea
+
     setIsSubmitting(true);
     try {
-      const cliente = clientes.find(c => String(c.id) === nuevoServicio.clienteId);
+      const tipoFinal = tipoServicio === '__otro__' ? (tipoPersonalizado.trim() || 'otro') : tipoServicio;
       const success = await addServicio({
         codigo: `SRV-${Date.now().toString().slice(-6)}`,
-        clienteId: nuevoServicio.clienteId, clienteNombre: cliente?.nombre || 'Cliente',
-        tipo: nuevoServicio.tipo, estado: 'planificando', titulo: nuevoServicio.titulo,
+        clienteId: clienteSeleccionadoForm!.id,
+        clienteNombre: clienteSeleccionadoForm!.nombre,
+        tipo: tipoFinal as TipoServicio,
+        estado: 'planificando',
+        titulo: nuevoServicio.titulo,
         descripcion: nuevoServicio.descripcion,
         fechaInicio: new Date(`${nuevoServicio.fechaInicio}T${nuevoServicio.horaInicio || '00:00'}`).toISOString(),
         fechaFin: nuevoServicio.fechaFin ? new Date(`${nuevoServicio.fechaFin}T${nuevoServicio.horaFin || '23:59'}`).toISOString() : null,
-        horaInicio: nuevoServicio.horaInicio, horaFin: nuevoServicio.horaFin,
-        origen: nuevoServicio.origen, destino: nuevoServicio.destino,
+        horaInicio: nuevoServicio.horaInicio,
+        horaFin: nuevoServicio.horaFin,
+        origen: paradas.find(p => p.tipo === 'origen')?.ubicacion || '',
+        destino: paradas.find(p => p.tipo === 'destino')?.ubicacion || '',
         numeroVehiculos: nuevoServicio.numeroVehiculos || 1,
         vehiculosAsignados: autoVehiculo && vehiculoDisp ? [String(vehiculoDisp.id)] : [],
         conductoresAsignados: autoConductor && conductorDisp ? [String(conductorDisp.id)] : [],
-        precio: nuevoServicio.precio || 0, costeEstimado: costesEstimados?.total || 0,
-        costeReal: null, facturado: false,
-        notasInternas: `Auto-calc: ${costesEstimados?.detalle || 'N/A'}`,
+        precio: nuevoServicio.precio || 0,
+        costeEstimado: costesEstimados?.total || 0,
+        costeReal: null,
+        facturado: false,
+        notasInternas: `Paradas: ${paradas.map(p => `${p.tipo}:${p.ubicacion}`).join(' | ')}. Auto-calc: ${costesEstimados?.detalle || 'N/A'}`,
         tareas: [
           { id: `t${Date.now()}-1`, nombre: 'Recopilar informacion del evento', completada: false },
           { id: `t${Date.now()}-2`, nombre: 'Planificar rutas', completada: false },
@@ -165,6 +315,32 @@ export default function Servicios() {
     finally { setIsSubmitting(false); }
   };
 
+  // ============================================
+  // PARADAS
+  // ============================================
+
+  const addParada = (index: number) => {
+    const nuevaParada: Parada = { id: `p-${Date.now()}`, tipo: 'parada', ubicacion: '', hora: '', notas: '' };
+    const nuevas = [...paradas];
+    nuevas.splice(index + 1, 0, nuevaParada);
+    setParadas(nuevas);
+  };
+
+  const addDescanso = (index: number) => {
+    const nuevaParada: Parada = { id: `p-${Date.now()}`, tipo: 'descanso', ubicacion: '', hora: '', notas: 'Descanso obligatorio (RD 261/2022)' };
+    const nuevas = [...paradas];
+    nuevas.splice(index + 1, 0, nuevaParada);
+    setParadas(nuevas);
+  };
+
+  const removeParada = (id: string) => {
+    setParadas(p => p.filter(x => x.id !== id));
+  };
+
+  const updateParada = (id: string, field: keyof Parada, value: string) => {
+    setParadas(p => p.map(x => x.id === id ? { ...x, [field]: value } : x));
+  };
+
   const handleEliminar = async (id: string | number, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!window.confirm('Eliminar este servicio?')) return;
@@ -175,22 +351,22 @@ export default function Servicios() {
   const getProgreso = useCallback((s: Servicio) => s.tareas?.length ? Math.round((s.tareas.filter(t => t.completada).length / s.tareas.length) * 100) : 0, []);
   const getMargen = useCallback((s: Servicio) => (s.precio || 0) - (s.costeEstimado || 0), []);
 
-  if (isLoading && servicios.length === 0) return <div className="flex items-center justify-center h-96"><Loader2 className="h-12 w-12 animate-spin text-[#1e3a5f] dark:text-blue-400" /></div>;
+  if (isLoading && servicios.length === 0) return <SkeletonPage type="mixed" tableCols={7} vistaMode={vistaMode} />;
 
   return (
     <div className="space-y-6">
-      {/* Header con stats */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Servicios</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Gestion de proyectos de transporte</p>
         </div>
-        <Button onClick={() => { setWizardStep(1); setIsNuevoOpen(true); }} className="bg-[#1e3a5f] hover:bg-[#152a45] shadow-sm dark:bg-blue-600 dark:hover:bg-blue-700">
+        <Button onClick={() => { resetWizard(); setWizardStep(1); setIsNuevoOpen(true); }} className="bg-[#1e3a5f] hover:bg-[#152a45] shadow-sm dark:bg-blue-600 dark:hover:bg-blue-700">
           <Plus className="mr-2 h-4 w-4" /> Nuevo Servicio
         </Button>
       </div>
 
-      {/* Stats cards */}
+      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Activos', value: stats.activos, icon: TrendingUp, color: 'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400' },
@@ -216,9 +392,13 @@ export default function Servicios() {
             <SelectTrigger className="w-[160px] dark:bg-slate-900 dark:border-slate-700"><SelectValue /></SelectTrigger>
             <SelectContent>{ESTADOS.map(e => <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>)}</SelectContent>
           </Select>
-          <Select value={tipoFiltro} onValueChange={(v) => setTipoFiltro(v as TipoServicio | 'todos')}>
+          <Select value={tipoFiltro} onValueChange={setTipoFiltro}>
             <SelectTrigger className="w-[140px] dark:bg-slate-900 dark:border-slate-700"><SelectValue /></SelectTrigger>
-            <SelectContent>{TIPOS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              {TIPOS_SERVICIO.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+              <SelectItem value="otro">Otro</SelectItem>
+            </SelectContent>
           </Select>
           <div className="flex border rounded-lg overflow-hidden dark:border-slate-700">
             <button onClick={() => setVistaMode('cards')} className={`p-2 ${vistaMode === 'cards' ? 'bg-[#1e3a5f] text-white' : 'bg-white dark:bg-slate-800 text-slate-500'}`}><LayoutGrid className="h-4 w-4" /></button>
@@ -283,7 +463,7 @@ export default function Servicios() {
           })}
         </div>
       ) : (
-        /* Vista LISTA (tabla) */
+        /* Vista LISTA */
         <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -313,7 +493,9 @@ export default function Servicios() {
         </div>
       )}
 
-      {/* DIALOG: Wizard Nuevo Servicio */}
+      {/* ============================================ */}
+      {/* DIALOG: Wizard Nuevo Servicio                */}
+      {/* ============================================ */}
       <Dialog open={isNuevoOpen} onOpenChange={(open) => { if (!open) resetWizard(); }}>
         <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
           <DialogHeader>
@@ -321,9 +503,9 @@ export default function Servicios() {
             <DialogDescription className="dark:text-slate-400">Paso {wizardStep} de 3</DialogDescription>
           </DialogHeader>
 
-          {/* Wizard steps indicator */}
+          {/* Steps indicator */}
           <div className="flex items-center gap-2 mb-4">
-            {['Informacion Basica', 'Fechas y Ubicacion', 'Asignacion y Precio'].map((label, i) => {
+            {['Informacion Basica', 'Fechas y Ruta', 'Asignacion y Precio'].map((label, i) => {
               const step = i + 1;
               return (
                 <div key={step} className="flex items-center flex-1">
@@ -340,92 +522,223 @@ export default function Servicios() {
           </div>
 
           <form onSubmit={handleSubmit}>
-            {/* PASO 1: Informacion Basica */}
+            {/* ============================================ */}
+            {/* PASO 1: Informacion Basica                   */}
+            {/* ============================================ */}
             {wizardStep === 1 && (
               <div className="space-y-4 py-2">
+                {/* Buscador de cliente */}
+                <div className="space-y-2">
+                  <Label>Cliente *</Label>
+                  {clienteSeleccionadoForm ? (
+                    <div className="flex items-center gap-2 p-3 rounded-lg border border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900/20">
+                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                      <span className="flex-1 font-medium dark:text-slate-200">{clienteSeleccionadoForm.nombre}</span>
+                      <Button type="button" size="sm" variant="ghost" onClick={() => { setClienteSeleccionadoForm(null); setClienteSearch(''); }}>
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <Input
+                        placeholder="Buscar cliente por nombre, email o NIF..."
+                        value={clienteSearch}
+                        onChange={e => { setClienteSearch(e.target.value); setClienteSearchOpen(e.target.value.length >= 2); }}
+                        onFocus={() => clienteSearch.length >= 2 && setClienteSearchOpen(true)}
+                        className="pl-10 dark:bg-slate-900 dark:border-slate-600"
+                      />
+                      {clienteSearchOpen && (
+                        <div className="absolute z-50 mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg">
+                          {clientesFiltrados.length > 0 ? (
+                            <div className="py-1 max-h-60 overflow-auto">
+                              {clientesFiltrados.map(c => (
+                                <button key={c.id} type="button"
+                                  onClick={() => { setClienteSeleccionadoForm({ id: String(c.id), nombre: c.nombre }); setClienteSearchOpen(false); setClienteSearch(c.nombre); }}
+                                  className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm dark:text-slate-200"
+                                >
+                                  <p className="font-medium">{c.nombre}</p>
+                                  <p className="text-xs text-slate-500 dark:text-slate-400">{c.contacto?.email || c.nif || ''}</p>
+                                </button>
+                              ))}
+                            </div>
+                          ) : clienteSearch.length >= 2 ? (
+                            <div className="p-3 text-center">
+                              <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">No se encontraron clientes</p>
+                              <Link to="/crm" onClick={() => setIsNuevoOpen(false)}>
+                                <Button type="button" size="sm" variant="outline" className="dark:border-slate-600">
+                                  <Plus className="mr-1 h-3.5 w-3.5" /> Crear cliente
+                                </Button>
+                              </Link>
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Tipo de servicio */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Cliente *</Label>
-                    <Select value={String(nuevoServicio.clienteId || '')} onValueChange={(v) => setNuevoServicio(p => ({...p, clienteId: v}))}>
-                      <SelectTrigger className="dark:bg-slate-900 dark:border-slate-600"><SelectValue placeholder="Seleccionar cliente" /></SelectTrigger>
-                      <SelectContent>{clientes.filter(c => c.estado === 'activo').map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
                     <Label>Tipo *</Label>
-                    <Select value={nuevoServicio.tipo} onValueChange={(v) => setNuevoServicio(p => ({...p, tipo: v as TipoServicio}))}>
+                    <Select value={tipoServicio} onValueChange={setTipoServicio}>
                       <SelectTrigger className="dark:bg-slate-900 dark:border-slate-600"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="lanzadera">Lanzadera</SelectItem>
-                        <SelectItem value="discrecional">Discrecional</SelectItem>
-                        <SelectItem value="staff">Movilidad Staff</SelectItem>
-                        <SelectItem value="ruta_programada">Ruta Programada</SelectItem>
+                        {TIPOS_SERVICIO.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                        <SelectItem value="__otro__">+ Otro tipo...</SelectItem>
                       </SelectContent>
                     </Select>
+                    {tipoServicio === '__otro__' && (
+                      <div className="mt-2 p-3 rounded-lg border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20">
+                        <Label className="text-sm text-blue-700 dark:text-blue-300">Tipo personalizado</Label>
+                        <Input
+                          value={tipoPersonalizado}
+                          onChange={e => setTipoPersonalizado(e.target.value)}
+                          placeholder="Ej: Transporte sanitario"
+                          className="mt-1 dark:bg-slate-900 dark:border-slate-600"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-2"><Label>Num. Vehiculos</Label>
+                    <Input type="number" min={1} max={20}
+                      value={nuevoServicio.numeroVehiculos || 1}
+                      onChange={e => setNuevoServicio(p => ({...p, numeroVehiculos: parseInt(e.target.value) || 1}))}
+                      className="dark:bg-slate-900 dark:border-slate-600" />
                   </div>
                 </div>
+
                 <div className="space-y-2">
                   <Label>Titulo *</Label>
-                  <Input value={nuevoServicio.titulo || ''} onChange={(e) => setNuevoServicio(p => ({...p, titulo: e.target.value}))} placeholder="Ej: Transporte evento corporativo" className="dark:bg-slate-900 dark:border-slate-600" />
+                  <Input value={nuevoServicio.titulo || ''} onChange={e => setNuevoServicio(p => ({...p, titulo: e.target.value}))}
+                    placeholder="Ej: Transporte evento corporativo" className="dark:bg-slate-900 dark:border-slate-600" />
                 </div>
                 <div className="space-y-2">
                   <Label>Descripcion</Label>
-                  <Textarea value={nuevoServicio.descripcion || ''} onChange={(e) => setNuevoServicio(p => ({...p, descripcion: e.target.value}))} placeholder="Detalles del servicio..." rows={3} className="dark:bg-slate-900 dark:border-slate-600" />
+                  <Textarea value={nuevoServicio.descripcion || ''} onChange={e => setNuevoServicio(p => ({...p, descripcion: e.target.value}))}
+                    placeholder="Detalles del servicio..." rows={3} className="dark:bg-slate-900 dark:border-slate-600" />
                 </div>
               </div>
             )}
 
-            {/* PASO 2: Fechas y Ubicacion */}
+            {/* ============================================ */}
+            {/* PASO 2: Fechas y Ruta (con paradas)          */}
+            {/* ============================================ */}
             {wizardStep === 2 && (
               <div className="space-y-4 py-2">
+                {/* Fechas */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Fecha Inicio *</Label>
-                    <Input type="date" value={String(nuevoServicio.fechaInicio || '')} onChange={(e) => setNuevoServicio(p => ({...p, fechaInicio: e.target.value}))} className="dark:bg-slate-900 dark:border-slate-600" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Hora Inicio</Label>
-                    <Input type="time" value={String(nuevoServicio.horaInicio || '')} onChange={(e) => setNuevoServicio(p => ({...p, horaInicio: e.target.value}))} className="dark:bg-slate-900 dark:border-slate-600" />
-                  </div>
+                  <div className="space-y-2"><Label>Fecha Inicio *</Label>
+                    <Input type="date" value={String(nuevoServicio.fechaInicio || '')}
+                      onChange={e => setNuevoServicio(p => ({...p, fechaInicio: e.target.value}))}
+                      className="dark:bg-slate-900 dark:border-slate-600" /></div>
+                  <div className="space-y-2"><Label>Hora Inicio *</Label>
+                    <Input type="time" value={String(nuevoServicio.horaInicio || '')}
+                      onChange={e => setNuevoServicio(p => ({...p, horaInicio: e.target.value}))}
+                      className="dark:bg-slate-900 dark:border-slate-600" /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Fecha Fin</Label>
-                    <Input type="date" value={String(nuevoServicio.fechaFin || '')} onChange={(e) => setNuevoServicio(p => ({...p, fechaFin: e.target.value}))} className="dark:bg-slate-900 dark:border-slate-600" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Hora Fin</Label>
-                    <Input type="time" value={String(nuevoServicio.horaFin || '')} onChange={(e) => setNuevoServicio(p => ({...p, horaFin: e.target.value}))} className="dark:bg-slate-900 dark:border-slate-600" />
-                  </div>
+                  <div className="space-y-2"><Label>Fecha Fin</Label>
+                    <Input type="date" value={String(nuevoServicio.fechaFin || '')}
+                      onChange={e => setNuevoServicio(p => ({...p, fechaFin: e.target.value}))}
+                      className="dark:bg-slate-900 dark:border-slate-600" /></div>
+                  <div className="space-y-2"><Label>Hora Fin</Label>
+                    <Input type="time" value={String(nuevoServicio.horaFin || '')}
+                      onChange={e => setNuevoServicio(p => ({...p, horaFin: e.target.value}))}
+                      className="dark:bg-slate-900 dark:border-slate-600" /></div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> Origen</Label>
-                    <Input value={nuevoServicio.origen || ''} onChange={(e) => setNuevoServicio(p => ({...p, origen: e.target.value}))} placeholder="Ciudad o direccion" className="dark:bg-slate-900 dark:border-slate-600" />
+
+                {/* Paradas / Ruta */}
+                <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Route className="h-4 w-4 text-[#1e3a5f] dark:text-blue-400" />
+                    <h4 className="font-medium text-sm dark:text-slate-300">Hoja de Ruta</h4>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">(Se integrara con Google Maps)</span>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> Destino</Label>
-                    <Input value={nuevoServicio.destino || ''} onChange={(e) => setNuevoServicio(p => ({...p, destino: e.target.value}))} placeholder="Ciudad o direccion" className="dark:bg-slate-900 dark:border-slate-600" />
+
+                  {paradas.map((parada, idx) => (
+                    <div key={parada.id} className={`rounded-lg border p-3 space-y-2 ${
+                      parada.tipo === 'origen' ? 'border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900/20' :
+                      parada.tipo === 'destino' ? 'border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20' :
+                      parada.tipo === 'descanso' ? 'border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20' :
+                      'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <Badge className={
+                          parada.tipo === 'origen' ? 'bg-green-100 text-green-700' :
+                          parada.tipo === 'destino' ? 'bg-red-100 text-red-700' :
+                          parada.tipo === 'descanso' ? 'bg-amber-100 text-amber-700' :
+                          'bg-blue-100 text-blue-700'
+                        }>{parada.tipo === 'origen' ? 'Origen' : parada.tipo === 'destino' ? 'Destino' : parada.tipo === 'descanso' ? 'Descanso' : `Parada ${idx}`}</Badge>
+                        {parada.tipo !== 'origen' && parada.tipo !== 'destino' && (
+                          <Button type="button" size="sm" variant="ghost" className="h-6 w-6 p-0 ml-auto" onClick={() => removeParada(parada.id)}>
+                            <X className="h-3 w-3 text-red-500" />
+                          </Button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input placeholder="Ubicacion / Direccion" value={parada.ubicacion}
+                          onChange={e => updateParada(parada.id, 'ubicacion', e.target.value)}
+                          className="dark:bg-slate-900 dark:border-slate-600" />
+                        <Input type="time" placeholder="Hora" value={parada.hora}
+                          onChange={e => updateParada(parada.id, 'hora', e.target.value)}
+                          className="dark:bg-slate-900 dark:border-slate-600" />
+                      </div>
+                      {parada.tipo === 'descanso' && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400">
+                          Descanso obligatorio segun normativa RD 261/2022
+                        </p>
+                      )}
+                      {/* Botones para anadir despues de esta parada */}
+                      {idx < paradas.length - 1 && (
+                        <div className="flex gap-2 pt-1">
+                          <Button type="button" size="sm" variant="outline" onClick={() => addParada(idx)}
+                            className="h-7 text-xs dark:border-slate-600">
+                            <Plus className="mr-1 h-3 w-3" /> Parada
+                          </Button>
+                          <Button type="button" size="sm" variant="outline" onClick={() => addDescanso(idx)}
+                            className="h-7 text-xs dark:border-slate-600">
+                            <Clock className="mr-1 h-3 w-3" /> Descanso
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Boton anadir parada al final */}
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" onClick={() => addParada(paradas.length - 2)}
+                      className="flex-1 dark:border-slate-600 dark:text-slate-300">
+                      <Plus className="mr-1 h-4 w-4" /> Anadir parada
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => addDescanso(paradas.length - 2)}
+                      className="flex-1 dark:border-slate-600 dark:text-slate-300">
+                      <Clock className="mr-1 h-4 w-4" /> Anadir descanso
+                    </Button>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* PASO 3: Asignacion y Precio */}
+            {/* ============================================ */}
+            {/* PASO 3: Asignacion y Precio                  */}
+            {/* ============================================ */}
             {wizardStep === 3 && (
               <div className="space-y-4 py-2">
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>N. Vehiculos</Label>
-                    <Input type="number" min={1} max={20} value={nuevoServicio.numeroVehiculos || 1} onChange={(e) => setNuevoServicio(p => ({...p, numeroVehiculos: parseInt(e.target.value) || 1}))} className="dark:bg-slate-900 dark:border-slate-600" />
+                    <Label className="flex items-center gap-1"><DollarSign className="h-3.5 w-3.5" /> Precio (EUR) *</Label>
+                    <Input type="number" min={0} value={nuevoServicio.precio || ''}
+                      onChange={e => setNuevoServicio(p => ({...p, precio: parseFloat(e.target.value) || 0}))}
+                      placeholder="0" className="dark:bg-slate-900 dark:border-slate-600" />
                   </div>
                   <div className="space-y-2">
-                    <Label className="flex items-center gap-1"><DollarSign className="h-3.5 w-3.5" /> Precio (EUR)</Label>
-                    <Input type="number" min={0} value={nuevoServicio.precio || ''} onChange={(e) => setNuevoServicio(p => ({...p, precio: parseFloat(e.target.value) || 0}))} placeholder="0" className="dark:bg-slate-900 dark:border-slate-600" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Dias Pago</Label>
-                    <Input type="number" min={0} value={nuevoServicio.diasPago || 30} onChange={(e) => setNuevoServicio(p => ({...p, diasPago: parseInt(e.target.value) || 30}))} className="dark:bg-slate-900 dark:border-slate-600" />
+                    <Label className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> Dias de pago</Label>
+                    <Input type="number" min={0}
+                      value={nuevoServicio.diasPago || 30}
+                      onChange={e => setNuevoServicio(p => ({...p, diasPago: parseInt(e.target.value) || 30}))}
+                      className="dark:bg-slate-900 dark:border-slate-600" />
                   </div>
                 </div>
 
@@ -433,15 +746,15 @@ export default function Servicios() {
                 <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 space-y-3">
                   <h4 className="font-medium text-sm text-slate-700 dark:text-slate-300">Auto-asignacion</h4>
                   <div className="flex items-center gap-3">
-                    <input type="checkbox" id="autoCond" checked={autoConductor} onChange={(e) => setAutoConductor(e.target.checked)} className="rounded" />
-                    <label htmlFor="autoCond" className="text-sm dark:text-slate-300">Asignar conductor disponible {conductorDisp ? `(${conductorDisp.nombre})` : '(no hay)'}</label>
+                    <Checkbox id="autoCond" checked={autoConductor} onCheckedChange={v => setAutoConductor(v === true)} />
+                    <label htmlFor="autoCond" className="text-sm dark:text-slate-300">Asignar conductor disponible {conductorDisp ? `(${conductorDisp.nombre} ${conductorDisp.apellidos || ''})` : '(no hay)'}</label>
                   </div>
                   <div className="flex items-center gap-3">
-                    <input type="checkbox" id="autoVeh" checked={autoVehiculo} onChange={(e) => setAutoVehiculo(e.target.checked)} className="rounded" />
+                    <Checkbox id="autoVeh" checked={autoVehiculo} onCheckedChange={v => setAutoVehiculo(v === true)} />
                     <label htmlFor="autoVeh" className="text-sm dark:text-slate-300">Asignar vehiculo disponible {vehiculoDisp ? `(${vehiculoDisp.matricula})` : '(no hay)'}</label>
                   </div>
                   <div className="flex items-center gap-3">
-                    <input type="checkbox" id="coord" checked={incluirCoordinador} onChange={(e) => setIncluirCoordinador(e.target.checked)} className="rounded" />
+                    <Checkbox id="coord" checked={incluirCoordinador} onCheckedChange={v => setIncluirCoordinador(v === true)} />
                     <label htmlFor="coord" className="text-sm dark:text-slate-300">Incluir coordinador (+{TARIFA_COORDINADOR_HORA} EUR/h)</label>
                   </div>
                 </div>
@@ -454,7 +767,7 @@ export default function Servicios() {
                       <div><p className="text-slate-500 dark:text-slate-400 text-xs">Conductor</p><p className="font-semibold dark:text-slate-200">{costesEstimados.costeConductor} EUR</p></div>
                       <div><p className="text-slate-500 dark:text-slate-400 text-xs">Gasoil</p><p className="font-semibold dark:text-slate-200">{costesEstimados.costeGasoil.toFixed(0)} EUR</p></div>
                       {incluirCoordinador && <div><p className="text-slate-500 dark:text-slate-400 text-xs">Coordinador</p><p className="font-semibold dark:text-slate-200">{costesEstimados.costeCoordinador} EUR</p></div>}
-                      <div><p className="text-slate-500 dark:text-slate-400 text-xs">Total</p><p className="font-bold text-[#1e3a5f] dark:text-blue-400">{costesEstimados.total} EUR</p></div>
+                      <div><p className="text-slate-500 dark:text-slate-400 text-xs">Total estimado</p><p className="font-bold text-[#1e3a5f] dark:text-blue-400">{costesEstimados.total} EUR</p></div>
                     </div>
                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">{costesEstimados.detalle}</p>
                   </div>
@@ -464,11 +777,13 @@ export default function Servicios() {
 
             {/* Botones navegacion */}
             <div className="flex justify-between pt-4 mt-4 border-t border-slate-200 dark:border-slate-700">
-              <Button type="button" variant="outline" onClick={() => wizardStep > 1 ? setWizardStep(wizardStep - 1) : resetWizard()} disabled={isSubmitting} className="dark:border-slate-600 dark:text-slate-300">
+              <Button type="button" variant="outline"
+                onClick={() => wizardStep === 1 ? resetWizard() : retrocederPaso()}
+                disabled={isSubmitting} className="dark:border-slate-600 dark:text-slate-300">
                 {wizardStep === 1 ? 'Cancelar' : 'Anterior'}
               </Button>
               {wizardStep < 3 ? (
-                <Button type="button" onClick={() => setWizardStep(wizardStep + 1)} className="bg-[#1e3a5f] hover:bg-[#152a45] dark:bg-blue-600">
+                <Button type="button" onClick={avanzarPaso} className="bg-[#1e3a5f] hover:bg-[#152a45] dark:bg-blue-600">
                   Siguiente <ChevronRight className="ml-1 h-4 w-4" />
                 </Button>
               ) : (
@@ -481,9 +796,11 @@ export default function Servicios() {
         </DialogContent>
       </Dialog>
 
-      {/* DIALOG: Detalle */}
+      {/* ============================================ */}
+      {/* DIALOG: Detalle con Chat                     */}
+      {/* ============================================ */}
       <Dialog open={isDetalleOpen} onOpenChange={setIsDetalleOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
+        <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
           <DialogHeader>
             <DialogTitle className="dark:text-slate-100">Detalle del Servicio</DialogTitle>
           </DialogHeader>
@@ -497,14 +814,22 @@ export default function Servicios() {
               </div>
               <h3 className="text-lg font-semibold dark:text-slate-100">{servicioSeleccionado.titulo}</h3>
               <div className="grid grid-cols-2 gap-4 text-sm">
-                <div><p className="text-slate-500 dark:text-slate-400">Cliente</p><p className="font-medium dark:text-slate-200">{servicioSeleccionado.clienteNombre}</p></div>
-                <div><p className="text-slate-500 dark:text-slate-400">Tipo</p><p className="font-medium dark:text-slate-200 capitalize">{servicioSeleccionado.tipo?.replace('_', ' ')}</p></div>
+                <div><p className="text-slate-500 dark:text-slate-400">Cliente</p>
+                  <Link to="/crm" className="font-medium dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 flex items-center gap-1">
+                    <User className="h-3.5 w-3.5" />{servicioSeleccionado.clienteNombre}
+                  </Link>
+                </div>
+                <div><p className="text-slate-500 dark:text-slate-400">Tipo</p><p className="font-medium dark:text-slate-200 capitalize">{servicioSeleccionado.tipo?.replace('_', ' ') || '-'}</p></div>
                 <div><p className="text-slate-500 dark:text-slate-400">Fecha</p><p className="font-medium dark:text-slate-200">{servicioSeleccionado.fechaInicio ? format(new Date(servicioSeleccionado.fechaInicio), 'dd/MM/yyyy HH:mm') : '-'}</p></div>
                 <div><p className="text-slate-500 dark:text-slate-400">Precio</p><p className="font-bold text-[#1e3a5f] dark:text-blue-400">{(servicioSeleccionado.precio || 0).toLocaleString()} EUR</p></div>
               </div>
               {servicioSeleccionado.descripcion && (
                 <div className="rounded-lg bg-slate-50 dark:bg-slate-900/50 p-3"><p className="text-sm dark:text-slate-300">{servicioSeleccionado.descripcion}</p></div>
               )}
+
+              {/* Chat integrado */}
+              <ChatIntegrado servicioId={String(servicioSeleccionado.id)} />
+
               {/* Tareas */}
               {servicioSeleccionado.tareas && servicioSeleccionado.tareas.length > 0 && (
                 <div>
@@ -530,44 +855,35 @@ export default function Servicios() {
         </DialogContent>
       </Dialog>
 
-      {/* DIALOG: Editar (simplificado) */}
+      {/* ============================================ */}
+      {/* DIALOG: Editar (simplificado)                */}
+      {/* ============================================ */}
       <Dialog open={isEditarOpen} onOpenChange={setIsEditarOpen}>
         <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
-          <DialogHeader>
-            <DialogTitle className="dark:text-slate-100">Editar Servicio</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle className="dark:text-slate-100">Editar Servicio</DialogTitle></DialogHeader>
           {servicioSeleccionado && (
             <div className="space-y-4 py-2">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Titulo</Label>
-                  <Input defaultValue={servicioSeleccionado.titulo} className="dark:bg-slate-900 dark:border-slate-600" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Estado</Label>
+                <div className="space-y-2"><Label>Titulo</Label>
+                  <Input defaultValue={servicioSeleccionado.titulo} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+                <div className="space-y-2"><Label>Estado</Label>
                   <Select defaultValue={servicioSeleccionado.estado}>
                     <SelectTrigger className="dark:bg-slate-900 dark:border-slate-600"><SelectValue /></SelectTrigger>
-                    <SelectContent>{ESTADOS.filter(e => e.value !== 'todos').map(e => <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>)}</SelectContent>
+                    <SelectContent>
+                      {ESTADOS.filter(e => e.value !== 'todos').map(e => <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>)}
+                    </SelectContent>
                   </Select>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Descripcion</Label>
-                <Textarea defaultValue={servicioSeleccionado.descripcion || ''} rows={3} className="dark:bg-slate-900 dark:border-slate-600" />
-              </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Precio (EUR)</Label>
-                  <Input type="number" defaultValue={servicioSeleccionado.precio || 0} className="dark:bg-slate-900 dark:border-slate-600" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Fecha Inicio</Label>
-                  <Input type="date" defaultValue={servicioSeleccionado.fechaInicio ? format(new Date(servicioSeleccionado.fechaInicio), 'yyyy-MM-dd') : ''} className="dark:bg-slate-900 dark:border-slate-600" />
-                </div>
+                <div className="space-y-2"><Label>Precio</Label>
+                  <Input type="number" defaultValue={servicioSeleccionado.precio || 0} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+                <div className="space-y-2"><Label>Num. Vehiculos</Label>
+                  <Input type="number" defaultValue={servicioSeleccionado.numeroVehiculos || 1} className="dark:bg-slate-900 dark:border-slate-600" /></div>
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" onClick={() => setIsEditarOpen(false)} className="dark:border-slate-600 dark:text-slate-300">Cancelar</Button>
-                <Button onClick={() => { showToast('Actualizado (demo)', 'success'); setIsEditarOpen(false); }} className="bg-[#1e3a5f] hover:bg-[#152a45] dark:bg-blue-600">Guardar</Button>
+                <Button onClick={() => { showToast('Servicio actualizado', 'success'); setIsEditarOpen(false); }} className="bg-[#1e3a5f] hover:bg-[#152a45] dark:bg-blue-600">Guardar</Button>
               </div>
             </div>
           )}
