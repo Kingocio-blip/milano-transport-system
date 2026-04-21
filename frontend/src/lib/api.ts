@@ -389,7 +389,12 @@ export const mensajesApi = {
 // ============================================
 
 export const rutasApi = {
-  getAll: (params?: { servicio_id?: string; estado?: string }) => api.get('/rutas', { params }),
+  getAll: (params?: { servicio_id?: string; estado?: string }) => {
+    const query = params
+      ? '?' + Object.entries(params).filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(v!)}`).join('&')
+      : '';
+    return api.get(`/rutas${query}`);
+  },
   getById: (id: string) => api.get(`/rutas/${id}`),
   getByServicio: (servicioId: string) => api.get(`/servicios/${servicioId}/ruta`),
   create: (data: any) => api.post('/rutas', data),
