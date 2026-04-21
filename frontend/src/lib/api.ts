@@ -133,21 +133,28 @@ function getHeaders(): HeadersInit {
 
 // Manejar errores con renovación automática de token
 async function handleResponse(response: Response, retryFunc?: () => Promise<any>) {
-  // Si es 401 (Unauthorized), intentar renovar el token
+  // 401 (Unauthorized) = token expirado, intentar renovar
   if (response.status === 401) {
     console.warn('⚠️ Token expirado (401), intentando renovar...');
     
     const newToken = await refreshAccessToken();
     
     if (newToken && retryFunc) {
-      // Reintentar la petición original con el nuevo token
       console.log('🔄 Reintentando petición con nuevo token...');
       return retryFunc();
     } else {
-      // No se pudo renovar, redirigir a login
       window.location.href = '/login';
-      throw new Error('Sesión expirada. Por favor, inicie sesión nuevamente.');
+      throw new Error('Sesion expirada. Por favor, inicie sesion nuevamente.');
     }
+  }
+
+  // 403 (Forbidden) = sin permisos, NO intentar renovar token
+  if (response.status === 403) {
+    let errorData: any = {};
+    try { errorData = await response.json(); } catch (e) { /* ignorar */ }
+    const msg = errorData.detail || 'No tiene permisos para realizar esta accion';
+    console.error('❌ Sin permisos (403):', msg);
+    throw new Error(`PERMISO_REQUERIDO: ${msg}`);
   }
 
   if (!response.ok) {
@@ -165,7 +172,6 @@ async function handleResponse(response: Response, retryFunc?: () => Promise<any>
       error: errorData
     });
     
-    // Parsear detalle de error 422 de Pydantic
     let errorMessage = errorData.detail || errorData.error || `Error ${response.status}: ${response.statusText}`;
     if (Array.isArray(errorData.detail)) {
       errorMessage = errorData.detail.map((e: any) => `${e.loc?.join('.')}: ${e.msg}`).join('; ');

@@ -11,6 +11,7 @@ from permissions import (
     get_permisos_usuario
 )
 from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import joinedload
@@ -82,6 +83,41 @@ app.add_middleware(
     expose_headers=["*"],
     max_age=3600,
 )
+
+# ============================================
+# EXCEPTION HANDLER - CORS en errores
+# Asegura que TODAS las respuestas incluyan headers CORS
+# ============================================
+
+@app.exception_handler(HTTPException)
+async def cors_aware_exception_handler(request, exc: HTTPException):
+    """Añade headers CORS a las respuestas de error para que el navegador pueda leerlas"""
+    origin = request.headers.get("origin", "")
+    allowed_origin = origin if origin in origins else "https://milanobus.netlify.app"
+    
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers={
+            "Access-Control-Allow-Origin": allowed_origin,
+            "Access-Control-Allow-Credentials": "true",
+        }
+    )
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request, exc: Exception):
+    """Manejo generico de excepciones con CORS headers"""
+    origin = request.headers.get("origin", "")
+    allowed_origin = origin if origin in origins else "https://milanobus.netlify.app"
+    
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Error interno del servidor"},
+        headers={
+            "Access-Control-Allow-Origin": allowed_origin,
+            "Access-Control-Allow-Credentials": "true",
+        }
+    )
 
 # ============================================
 # PYDANTIC SCHEMAS ADICIONALES PARA AUTH

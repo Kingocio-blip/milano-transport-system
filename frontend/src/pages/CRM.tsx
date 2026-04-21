@@ -342,9 +342,15 @@ export default function CRM() {
         await fetchClientes();
       } else { throw new Error('Error al crear cliente'); }
     } catch (err: any) {
-      let errorMsg = err.message;
-      try { const parsed = JSON.parse(err.message); errorMsg = parsed.detail || 'Error desconocido'; } catch {}
-      showToast(`Error: ${errorMsg}`, 'error');
+      let errorMsg = err.message || 'Error desconocido';
+      // Detectar error de permisos
+      if (errorMsg.includes('PERMISO_REQUERIDO')) {
+        errorMsg = errorMsg.replace('PERMISO_REQUERIDO: ', '');
+        showToast(`Sin permisos: ${errorMsg}. Contacta al administrador.`, 'error');
+      } else {
+        try { const parsed = JSON.parse(errorMsg); errorMsg = parsed.detail || errorMsg; } catch {}
+        showToast(`Error: ${errorMsg}`, 'error');
+      }
     } finally { setIsSubmitting(false); }
   }, [nuevoCliente, addCliente, fetchClientes, showToast]);
 
