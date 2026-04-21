@@ -471,9 +471,10 @@ export default function CRM() {
             <SelectTrigger className="w-[140px] dark:bg-slate-900 dark:border-slate-700"><SelectValue placeholder="Estado" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos</SelectItem>
-              {Object.entries(estadoLabels).map(([k, l]) => (
-                <SelectItem key={k} value={k}>{l}</SelectItem>
-              ))}
+              <SelectItem value="activo">Activo</SelectItem>
+              <SelectItem value="inactivo">Inactivo</SelectItem>
+              <SelectItem value="potencial">Potencial</SelectItem>
+              <SelectItem value="bloqueado">Bloqueado</SelectItem>
             </SelectContent>
           </Select>
           <div className="flex border rounded-lg overflow-hidden dark:border-slate-700">

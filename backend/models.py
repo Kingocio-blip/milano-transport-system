@@ -25,7 +25,8 @@ class TipoCliente(str, enum.Enum):
 class EstadoCliente(str, enum.Enum):
     ACTIVO = "activo"
     INACTIVO = "inactivo"
-    PROSPECTO = "prospecto"
+    POTENCIAL = "potencial"
+    BLOQUEADO = "bloqueado"
 
 class EstadoConductor(str, enum.Enum):
     ACTIVO = "activo"
