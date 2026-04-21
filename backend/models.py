@@ -519,6 +519,85 @@ class Factura(Base):
     )
 
 # ============================================
+# MENSAJES (Chat persistente por servicio)
+# ============================================
+
+class Mensaje(Base):
+    __tablename__ = "mensajes"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    servicio_id = Column(Integer, ForeignKey("servicios.id"), nullable=False, index=True)
+    autor_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    autor_nombre = Column(String(100), nullable=False)
+    autor_tipo = Column(String(20), default="sistema")  # sistema, operador, conductor, cliente
+    texto = Column(Text, nullable=False)
+    leido = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    servicio = relationship("Servicio", backref="mensajes")
+    
+    __table_args__ = (
+        Index('idx_mensaje_servicio', 'servicio_id', 'created_at'),
+        Index('idx_mensaje_autor', 'autor_id'),
+    )
+
+# ============================================
+# RUTAS (Hojas de ruta generadas por servicio)
+# ============================================
+
+class Ruta(Base):
+    __tablename__ = "rutas"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    servicio_id = Column(Integer, ForeignKey("servicios.id"), nullable=False, index=True)
+    codigo = Column(String(20), unique=True, nullable=True)
+    
+    # Info general
+    titulo = Column(String(200), nullable=False)
+    descripcion = Column(Text, nullable=True)
+    estado = Column(String(20), default="planificada")  # planificada, activa, completada, cancelada
+    
+    # Origen y destino
+    origen = Column(String(200), nullable=True)
+    destino = Column(String(200), nullable=True)
+    origen_lat = Column(Numeric(10, 8), nullable=True)
+    origen_lng = Column(Numeric(11, 8), nullable=True)
+    destino_lat = Column(Numeric(10, 8), nullable=True)
+    destino_lng = Column(Numeric(11, 8), nullable=True)
+    
+    # Paradas (JSON con array de paradas)
+    paradas = Column(JSON, default=list)
+    
+    # Distancia y tiempo
+    distancia_km = Column(Numeric(10, 2), nullable=True)
+    duracion_minutos = Column(Integer, nullable=True)
+    
+    # Google Maps
+    google_maps_url = Column(String(1000), nullable=True)
+    polyline = Column(Text, nullable=True)
+    
+    # Normativa transporte
+    requiere_pernocta = Column(Boolean, default=False)
+    conductores_necesarios = Column(Integer, default=1)
+    observaciones_normativa = Column(Text, nullable=True)
+    
+    # Tracking en tiempo real
+    tracking_activo = Column(Boolean, default=False)
+    ultima_posicion_lat = Column(Numeric(10, 8), nullable=True)
+    ultima_posicion_lng = Column(Numeric(11, 8), nullable=True)
+    ultima_posicion_fecha = Column(DateTime, nullable=True)
+    
+    fecha_creacion = Column(DateTime, default=datetime.datetime.utcnow)
+    fecha_modificacion = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    
+    servicio = relationship("Servicio", backref="ruta_obj")
+    
+    __table_args__ = (
+        Index('idx_ruta_servicio', 'servicio_id'),
+        Index('idx_ruta_estado', 'estado'),
+    )
+
+# ============================================
 # SISTEMA DE PERMISOS GRANULAR (NUEVO - SaaS Ready)
 # ============================================
 

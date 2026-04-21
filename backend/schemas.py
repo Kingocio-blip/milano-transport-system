@@ -512,3 +512,78 @@ class Empresa(EmpresaBase):
     fecha_fin_plan: Optional[datetime]
     created_at: datetime
     updated_at: datetime
+
+# ============================================
+# MENSAJE SCHEMAS
+# ============================================
+
+class MensajeBase(BaseModel):
+    texto: str
+    autor_tipo: Optional[str] = "operador"
+
+class MensajeCreate(MensajeBase):
+    servicio_id: int
+
+class Mensaje(MensajeBase):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    servicio_id: int
+    autor_id: Optional[int] = None
+    autor_nombre: str
+    leido: bool = False
+    created_at: datetime
+
+# ============================================
+# RUTA SCHEMAS
+# ============================================
+
+class ParadaSchema(BaseModel):
+    tipo: str  # origen, parada, descanso, destino
+    ubicacion: str
+    hora: Optional[str] = None
+    notas: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    orden: Optional[int] = None
+
+class RutaBase(BaseModel):
+    titulo: str
+    descripcion: Optional[str] = None
+    estado: Optional[str] = "planificada"
+    origen: Optional[str] = None
+    destino: Optional[str] = None
+    origen_lat: Optional[float] = None
+    origen_lng: Optional[float] = None
+    destino_lat: Optional[float] = None
+    destino_lng: Optional[float] = None
+    paradas: Optional[List[ParadaSchema]] = []
+    distancia_km: Optional[float] = None
+    duracion_minutos: Optional[int] = None
+    google_maps_url: Optional[str] = None
+    polyline: Optional[str] = None
+    requiere_pernocta: Optional[bool] = False
+    conductores_necesarios: Optional[int] = 1
+    observaciones_normativa: Optional[str] = None
+    tracking_activo: Optional[bool] = False
+
+class RutaCreate(RutaBase):
+    servicio_id: int
+
+class RutaUpdate(BaseModel):
+    estado: Optional[str] = None
+    tracking_activo: Optional[bool] = None
+    ultima_posicion_lat: Optional[float] = None
+    ultima_posicion_lng: Optional[float] = None
+
+class Ruta(RutaBase):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    servicio_id: int
+    codigo: Optional[str] = None
+    ultima_posicion_lat: Optional[float] = None
+    ultima_posicion_lng: Optional[float] = None
+    ultima_posicion_fecha: Optional[datetime] = None
+    fecha_creacion: datetime
+    fecha_modificacion: datetime

@@ -92,15 +92,42 @@ interface Parada {
 // ============================================
 
 function ChatIntegrado({ servicioId }: { servicioId: string }) {
+  const { fetchMensajes, addMensaje } = useServiciosStore();
+  const { showToast } = useUIStore();
   const [mensaje, setMensaje] = useState('');
-  const [mensajes, setMensajes] = useState([
-    { id: '1', autor: 'Sistema', texto: 'Chat habilitado para este servicio. Pueden participar: cliente, conductor y operadores.', fecha: new Date(), tipo: 'sistema' },
-  ]);
+  const [mensajes, setMensajes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const enviar = () => {
+  useEffect(() => {
+    const cargar = async () => {
+      setLoading(true);
+      const data = await fetchMensajes(servicioId);
+      if (data.length === 0) {
+        setMensajes([{ id: '1', autor_nombre: 'Sistema', texto: 'Chat habilitado para este servicio. Pueden participar: cliente, conductor y operadores.', created_at: new Date().toISOString(), autor_tipo: 'sistema' }]);
+      } else {
+        setMensajes(data);
+      }
+      setLoading(false);
+    };
+    cargar();
+    // Polling cada 10 segundos
+    const interval = setInterval(cargar, 10000);
+    return () => clearInterval(interval);
+  }, [servicioId, fetchMensajes]);
+
+  const enviar = async () => {
     if (!mensaje.trim()) return;
-    setMensajes(p => [...p, { id: `${Date.now()}`, autor: 'Operador', texto: mensaje, fecha: new Date(), tipo: 'operador' }]);
-    setMensaje('');
+    const ok = await addMensaje(servicioId, mensaje, 'operador');
+    if (ok) {
+      setMensajes(p => [...p, { id: `${Date.now()}`, autor_nombre: 'Operador', texto: mensaje, created_at: new Date().toISOString(), autor_tipo: 'operador' }]);
+      setMensaje('');
+    } else {
+      showToast('Error al enviar mensaje', 'error');
+    }
+  };
+
+  const fechaFmt = (d: string) => {
+    try { return format(new Date(d), 'HH:mm'); } catch { return '--:--'; }
   };
 
   return (
@@ -108,12 +135,12 @@ function ChatIntegrado({ servicioId }: { servicioId: string }) {
       <div className="bg-slate-50 dark:bg-slate-900/50 px-3 py-2 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
         <MessageSquare className="h-4 w-4 text-[#1e3a5f] dark:text-blue-400" />
         <span className="text-sm font-medium dark:text-slate-200">Chat del servicio</span>
-        <span className="text-xs text-slate-400 ml-auto">{mensajes.length} mensajes</span>
+        <span className="text-xs text-slate-400 ml-auto">{mensajes.length} mensajes {loading && '· cargando...'}</span>
       </div>
       <ScrollArea className="flex-1 p-3 space-y-2">
         {mensajes.map(m => (
-          <div key={m.id} className={`text-sm ${m.tipo === 'sistema' ? 'text-center text-xs text-slate-500 dark:text-slate-400 italic py-1' : m.tipo === 'operador' ? 'ml-auto max-w-[80%] bg-[#1e3a5f] text-white rounded-lg rounded-tr-sm px-3 py-2' : 'mr-auto max-w-[80%] bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg rounded-tl-sm px-3 py-2'}`}>
-            {m.tipo !== 'sistema' && <p className="text-xs opacity-70 mb-0.5">{m.autor} · {format(m.fecha, 'HH:mm')}</p>}
+          <div key={m.id} className={`text-sm ${m.autor_tipo === 'sistema' ? 'text-center text-xs text-slate-500 dark:text-slate-400 italic py-1' : m.autor_tipo === 'operador' ? 'ml-auto max-w-[80%] bg-[#1e3a5f] text-white rounded-lg rounded-tr-sm px-3 py-2' : 'mr-auto max-w-[80%] bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg rounded-tl-sm px-3 py-2'}`}>
+            {m.autor_tipo !== 'sistema' && <p className="text-xs opacity-70 mb-0.5">{m.autor_nombre} · {fechaFmt(m.created_at)}</p>}
             <p>{m.texto}</p>
           </div>
         ))}
@@ -122,6 +149,130 @@ function ChatIntegrado({ servicioId }: { servicioId: string }) {
         <Input placeholder="Escribe un mensaje..." value={mensaje} onChange={e => setMensaje(e.target.value)} onKeyDown={e => e.key === 'Enter' && enviar()} className="flex-1 dark:bg-slate-900 dark:border-slate-600 h-9 text-sm" />
         <Button size="sm" onClick={enviar} className="bg-[#1e3a5f] dark:bg-blue-600 h-9 px-3"><Send className="h-4 w-4" /></Button>
       </div>
+    </div>
+  );
+}
+
+// ============================================
+// COMPONENTE: MapaRuta (Google Maps iframe)
+// ============================================
+
+function MapaRuta({ paradas, height = 300 }: { paradas: Parada[]; height?: number }) {
+  const origen = paradas.find(p => p.tipo === 'origen')?.ubicacion;
+  const destino = paradas.find(p => p.tipo === 'destino')?.ubicacion;
+  
+  if (!origen || !destino) {
+    return (
+      <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-center" style={{ height }}>
+        <div className="text-center text-slate-500 dark:text-slate-400">
+          <Navigation className="h-8 w-8 mx-auto mb-2" />
+          <p className="text-sm">Introduce origen y destino para ver el mapa</p>
+          <p className="text-xs mt-1">Se integrara con Google Maps cuando configures tu API key</p>
+        </div>
+      </div>
+    );
+  }
+
+  // URL de Google Maps Embed (gratis, sin API key para modo direccion)
+  const waypoints = paradas.filter(p => p.tipo === 'parada' && p.ubicacion).map(p => encodeURIComponent(p.ubicacion)).join('|');
+  const directionsUrl = `https://www.google.com/maps/embed?pb=!1m28!1m12!1m3!1d0!2d0!3d0!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!4m13!3e0!4m5!1s${encodeURIComponent(origen)}!2s${encodeURIComponent(origen)}!3m2!1d0!2d0!4m5!1s${encodeURIComponent(destino)}!2s${encodeURIComponent(destino)}!3m2!1d0!2d0!5e0!3m2!1ses!2ses!4v1`;
+  const simpleUrl = `https://maps.google.com/maps?q=${encodeURIComponent(origen + ' a ' + destino)}&t=m&z=10&ie=UTF8&iwloc=&output=embed`;
+
+  return (
+    <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden" style={{ height }}>
+      <iframe
+        width="100%"
+        height="100%"
+        style={{ border: 0 }}
+        loading="lazy"
+        src={simpleUrl}
+        title="Mapa de ruta"
+      />
+    </div>
+  );
+}
+
+// ============================================
+// COMPONENTE: AnalisisNormativa
+// ============================================
+
+function AnalisisNormativa({
+  paradas,
+  fechaInicio,
+  horaInicio,
+  fechaFin,
+  horaFin,
+  numeroVehiculos
+}: {
+  paradas: Parada[];
+  fechaInicio: string;
+  horaInicio: string;
+  fechaFin?: string;
+  horaFin?: string;
+  numeroVehiculos?: number;
+}) {
+  if (!fechaInicio || !horaInicio) return null;
+
+  const fi = new Date(`${fechaInicio}T${horaInicio || '00:00'}`);
+  const ff = fechaFin && horaFin ? new Date(`${fechaFin}T${horaFin}`) : new Date(fi.getTime() + 8 * 60 * 60 * 1000);
+  const duracionHoras = Math.max(1, differenceInHours(ff, fi));
+  const descansos = paradas.filter(p => p.tipo === 'descanso').length;
+  const paradasCount = paradas.filter(p => p.tipo === 'parada').length;
+
+  // Normativa RD 261/2022
+  const TIEMPO_MAXIMO_CONDUCCION = 9; // horas diarias
+  const DESCANSO_MINIMO = 11; // horas entre jornadas
+  const NECESITA_DOS_CONDUCTORES = duracionHoras > TIEMPO_MAXIMO_CONDUCCION && descansos === 0;
+  const conductoresNecesarios = NECESITA_DOS_CONDUCTORES ? 2 : 1;
+  const pernocta = duracionHoras > 24;
+  const nv = numeroVehiculos || 1;
+  const totalConductores = conductoresNecesarios * nv;
+
+  return (
+    <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 space-y-2 bg-slate-50 dark:bg-slate-900/30">
+      <h4 className="font-medium text-sm flex items-center gap-1.5 dark:text-slate-300">
+        <AlertCircle className="h-4 w-4 text-amber-500" />
+        Analisis Normativa (RD 261/2022)
+      </h4>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+        <div><p className="text-xs text-slate-500 dark:text-slate-400">Duracion</p><p className="font-semibold dark:text-slate-200">{duracionHoras}h</p></div>
+        <div><p className="text-xs text-slate-500 dark:text-slate-400">Descansos</p><p className="font-semibold dark:text-slate-200">{descansos} programados</p></div>
+        <div><p className="text-xs text-slate-500 dark:text-slate-400">Paradas</p><p className="font-semibold dark:text-slate-200">{paradasCount}</p></div>
+        <div><p className="text-xs text-slate-500 dark:text-slate-400">Max conduccion</p><p className={`font-semibold ${duracionHoras > TIEMPO_MAXIMO_CONDUCCION ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>{TIEMPO_MAXIMO_CONDUCCION}h/dia</p></div>
+      </div>
+
+      {NECESITA_DOS_CONDUCTORES && (
+        <div className="flex items-start gap-2 p-2 rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700">
+          <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-red-700 dark:text-red-300">
+            <strong>Atencion:</strong> La duracion ({duracionHoras}h) supera las {TIEMPO_MAXIMO_CONDUCCION}h maximas de conduccion diaria.
+            Se necesitan <strong>{conductoresNecesarios} conductores por vehiculo</strong> = {totalConductores} conductores total.
+            {!pernocta && ' Considera anadir un descanso obligatorio.'}
+          </p>
+        </div>
+      )}
+
+      {pernocta && (
+        <div className="flex items-start gap-2 p-2 rounded bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700">
+          <Clock className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-amber-700 dark:text-amber-300">
+            <strong>Pernocta detectada:</strong> El servicio dura mas de 24h. Se anadira el coste de alojamiento al presupuesto.
+          </p>
+        </div>
+      )}
+
+      {!NECESITA_DOS_CONDUCTORES && !pernocta && (
+        <div className="flex items-start gap-2 p-2 rounded bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700">
+          <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-green-700 dark:text-green-300">
+            <strong>OK:</strong> El servicio cumple la normativa. {conductoresNecesarios} conductor por vehiculo = {totalConductores} total.
+          </p>
+        </div>
+      )}
+
+      <p className="text-xs text-slate-400 dark:text-slate-500">
+        Referencia: <a href="https://www.mitma.gob.es/transporte-terrestre/transporte-por-carretera/ordenanza-de-transporte" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-600">MITMA - Ordenanza de Transporte RD 261/2022</a>
+      </p>
     </div>
   );
 }
@@ -718,6 +869,19 @@ export default function Servicios() {
                     </Button>
                   </div>
                 </div>
+
+                {/* Google Maps */}
+                <MapaRuta paradas={paradas} height={280} />
+
+                {/* Analisis normativa */}
+                <AnalisisNormativa
+                  paradas={paradas}
+                  fechaInicio={String(nuevoServicio.fechaInicio || '')}
+                  horaInicio={String(nuevoServicio.horaInicio || '')}
+                  fechaFin={String(nuevoServicio.fechaFin || '')}
+                  horaFin={String(nuevoServicio.horaFin || '')}
+                  numeroVehiculos={nuevoServicio.numeroVehiculos || 1}
+                />
               </div>
             )}
 

@@ -5,7 +5,7 @@
 
 import { create } from 'zustand';
 import { localStorageService } from '@/lib/localStorage';
-import { clientesApi, vehiculosApi, conductoresApi, serviciosApi, facturasApi, dashboardApi, authApi } from '@/lib/api';
+import { clientesApi, vehiculosApi, conductoresApi, serviciosApi, facturasApi, dashboardApi, authApi, mensajesApi, rutasApi } from '@/lib/api';
 import type {
   Cliente,
   Vehiculo,
@@ -908,6 +908,11 @@ interface ServiciosState {
   getServiciosByCliente: (clienteId: string) => Servicio[];
   getServiciosHoy: () => Servicio[];
   getServiciosPendientesFacturar: () => Servicio[];
+  // Mensajes
+  fetchMensajes: (servicioId: string) => Promise<any[]>;
+  addMensaje: (servicioId: string, texto: string, autorTipo?: string) => Promise<boolean>;
+  // Rutas
+  fetchRutaByServicio: (servicioId: string) => Promise<any | null>;
 }
 
 export const useServiciosStore = create<ServiciosState>((set, get) => ({
@@ -1023,6 +1028,35 @@ export const useServiciosStore = create<ServiciosState>((set, get) => ({
       const nuevo = await serviciosApi.create(servicioParaBackend);
       
       console.log('✅ Servicio creado:', nuevo);
+
+      // Auto-crear ruta si hay paradas
+      try {
+        if (servicio.paradas && servicio.paradas.length > 0) {
+          const paradasData = servicio.paradas.map((p: any, idx: number) => ({
+            tipo: p.tipo || 'parada',
+            ubicacion: p.ubicacion || '',
+            hora: p.hora || null,
+            notas: p.notas || null,
+            lat: p.lat || null,
+            lng: p.lng || null,
+            orden: idx
+          }));
+          
+          await rutasApi.create({
+            servicio_id: nuevo.id,
+            titulo: `Ruta - ${nuevo.titulo}`,
+            origen: servicio.origen || servicio.origen || paradasData[0]?.ubicacion,
+            destino: servicio.destino || servicio.destino || paradasData[paradasData.length - 1]?.ubicacion,
+            paradas: paradasData,
+            conductores_necesarios: servicio.conductores_necesarios || 1,
+            requiere_pernocta: servicio.requiere_pernocta || false,
+          });
+          console.log('✅ Ruta auto-creada para servicio', nuevo.id);
+        }
+      } catch (rutaError) {
+        console.warn('⚠️ No se pudo crear la ruta:', rutaError);
+        // No falla el servicio si la ruta no se crea
+      }
 
       const servicioFormateado: Servicio = {
         id: String(nuevo.id),
@@ -1258,6 +1292,38 @@ export const useServiciosStore = create<ServiciosState>((set, get) => ({
   getServiciosPendientesFacturar: () => get().servicios.filter(s =>
     s.estado === 'completado' && !s.facturado
   ),
+
+  // MENSAJES
+  fetchMensajes: async (servicioId: string) => {
+    try {
+      const response = await mensajesApi.getByServicio(servicioId);
+      return response.data || [];
+    } catch (error: any) {
+      console.warn('⚠️ Error fetchMensajes:', error.message);
+      return [];
+    }
+  },
+
+  addMensaje: async (servicioId: string, texto: string, autorTipo: string = 'operador') => {
+    try {
+      await mensajesApi.create(servicioId, { texto, autor_tipo: autorTipo });
+      return true;
+    } catch (error: any) {
+      console.warn('⚠️ Error addMensaje:', error.message);
+      return false;
+    }
+  },
+
+  // RUTAS
+  fetchRutaByServicio: async (servicioId: string) => {
+    try {
+      const response = await rutasApi.getByServicio(servicioId);
+      return response.data || null;
+    } catch (error: any) {
+      console.warn('⚠️ Error fetchRutaByServicio:', error.message);
+      return null;
+    }
+  },
 }));
 
 // ============================================

@@ -1380,6 +1380,170 @@ def delete_role(
     return {"message": "Rol eliminado"}
 
 # ============================================
+# MENSAJES (Chat por servicio)
+# ============================================
+
+@app.get("/servicios/{servicio_id}/mensajes", response_model=List[schemas.Mensaje])
+def get_mensajes(
+    servicio_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("servicios.ver"))
+):
+    """Obtener todos los mensajes de un servicio"""
+    mensajes = db.query(models.Mensaje).filter(
+        models.Mensaje.servicio_id == servicio_id
+    ).order_by(models.Mensaje.created_at.asc()).all()
+    return mensajes
+
+@app.post("/servicios/{servicio_id}/mensajes", response_model=schemas.Mensaje)
+def create_mensaje(
+    servicio_id: int,
+    mensaje: schemas.MensajeCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("servicios.ver"))
+):
+    """Crear un mensaje en el chat del servicio"""
+    db_mensaje = models.Mensaje(
+        servicio_id=servicio_id,
+        autor_id=current_user.id,
+        autor_nombre=current_user.nombre_completo or current_user.username,
+        autor_tipo=mensaje.autor_tipo,
+        texto=mensaje.texto
+    )
+    db.add(db_mensaje)
+    db.commit()
+    db.refresh(db_mensaje)
+    return db_mensaje
+
+@app.patch("/mensajes/{mensaje_id}/leido")
+def marcar_mensaje_leido(
+    mensaje_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("servicios.ver"))
+):
+    """Marcar un mensaje como leido"""
+    db_mensaje = db.query(models.Mensaje).filter(models.Mensaje.id == mensaje_id).first()
+    if not db_mensaje:
+        raise HTTPException(status_code=404, detail="Mensaje no encontrado")
+    db_mensaje.leido = True
+    db.commit()
+    return {"message": "Mensaje marcado como leido"}
+
+# ============================================
+# RUTAS (Hojas de ruta)
+# ============================================
+
+@app.get("/rutas", response_model=List[schemas.Ruta])
+def get_rutas(
+    servicio_id: Optional[int] = None,
+    estado: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("servicios.ver"))
+):
+    """Listar rutas, opcionalmente filtradas por servicio o estado"""
+    query = db.query(models.Ruta)
+    if servicio_id:
+        query = query.filter(models.Ruta.servicio_id == servicio_id)
+    if estado:
+        query = query.filter(models.Ruta.estado == estado)
+    return query.order_by(models.Ruta.fecha_creacion.desc()).all()
+
+@app.get("/rutas/{ruta_id}", response_model=schemas.Ruta)
+def get_ruta(
+    ruta_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("servicios.ver"))
+):
+    """Obtener una ruta por ID"""
+    db_ruta = db.query(models.Ruta).filter(models.Ruta.id == ruta_id).first()
+    if not db_ruta:
+        raise HTTPException(status_code=404, detail="Ruta no encontrada")
+    return db_ruta
+
+@app.get("/servicios/{servicio_id}/ruta", response_model=Optional[schemas.Ruta])
+def get_ruta_by_servicio(
+    servicio_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("servicios.ver"))
+):
+    """Obtener la ruta de un servicio"""
+    db_ruta = db.query(models.Ruta).filter(models.Ruta.servicio_id == servicio_id).first()
+    return db_ruta
+
+@app.post("/rutas", response_model=schemas.Ruta)
+def create_ruta(
+    ruta: schemas.RutaCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("servicios.editar"))
+):
+    """Crear una nueva ruta"""
+    codigo = f"RT-{datetime.utcnow().strftime('%Y%m%d')}-{str(ruta.servicio_id).zfill(4)}"
+    db_ruta = models.Ruta(
+        servicio_id=ruta.servicio_id,
+        codigo=codigo,
+        titulo=ruta.titulo,
+        descripcion=ruta.descripcion,
+        estado=ruta.estado or "planificada",
+        origen=ruta.origen,
+        destino=ruta.destino,
+        origen_lat=ruta.origen_lat,
+        origen_lng=ruta.origen_lng,
+        destino_lat=ruta.destino_lat,
+        destino_lng=ruta.destino_lng,
+        paradas=[p.model_dump() for p in ruta.paradas] if ruta.paradas else [],
+        distancia_km=ruta.distancia_km,
+        duracion_minutos=ruta.duracion_minutos,
+        google_maps_url=ruta.google_maps_url,
+        polyline=ruta.polyline,
+        requiere_pernocta=ruta.requiere_pernocta or False,
+        conductores_necesarios=ruta.conductores_necesarios or 1,
+        observaciones_normativa=ruta.observaciones_normativa,
+        tracking_activo=False
+    )
+    db.add(db_ruta)
+    db.commit()
+    db.refresh(db_ruta)
+    return db_ruta
+
+@app.put("/rutas/{ruta_id}", response_model=schemas.Ruta)
+def update_ruta(
+    ruta_id: int,
+    ruta: schemas.RutaUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("servicios.editar"))
+):
+    """Actualizar una ruta"""
+    db_ruta = db.query(models.Ruta).filter(models.Ruta.id == ruta_id).first()
+    if not db_ruta:
+        raise HTTPException(status_code=404, detail="Ruta no encontrada")
+    if ruta.estado is not None:
+        db_ruta.estado = ruta.estado
+    if ruta.tracking_activo is not None:
+        db_ruta.tracking_activo = ruta.tracking_activo
+    if ruta.ultima_posicion_lat is not None:
+        db_ruta.ultima_posicion_lat = ruta.ultima_posicion_lat
+    if ruta.ultima_posicion_lng is not None:
+        db_ruta.ultima_posicion_lng = ruta.ultima_posicion_lng
+        db_ruta.ultima_posicion_fecha = datetime.utcnow()
+    db.commit()
+    db.refresh(db_ruta)
+    return db_ruta
+
+@app.delete("/rutas/{ruta_id}")
+def delete_ruta(
+    ruta_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("servicios.eliminar"))
+):
+    """Eliminar una ruta"""
+    db_ruta = db.query(models.Ruta).filter(models.Ruta.id == ruta_id).first()
+    if not db_ruta:
+        raise HTTPException(status_code=404, detail="Ruta no encontrada")
+    db.delete(db_ruta)
+    db.commit()
+    return {"message": "Ruta eliminada"}
+
+# ============================================
 # HEALTH CHECK Y ROOT
 # ============================================
 

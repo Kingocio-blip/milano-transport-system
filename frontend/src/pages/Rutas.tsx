@@ -1,662 +1,418 @@
 // ============================================
-// MILANO - Rutas Page (OPTIMIZADO)
+// MILANO - Rutas (Rediseñado v2)
+// Conectado con servicios + Google Maps + normativa RD 261/2022
 // ============================================
-// FUTURO: Integración con Google Maps Directions API
-// - Calcular paradas automáticas entre origen y destino
-// - Distancia real en km (no estimada)
-// - Mostrar ruta visual en el panel del conductor
-// - Navegación turn-by-turn
 
-import { useState, useMemo, useCallback } from 'react';
-import { useServiciosStore, useVehiculosStore, useConductoresStore, useUIStore } from '../store';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { useState, useEffect, useMemo } from 'react';
+import { useServiciosStore, useUIStore } from '../store';
+import { rutasApi } from '@/lib/api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
-import { Progress } from '../components/ui/progress';
-import {
- Table,
- TableBody,
- TableCell,
- TableHead,
- TableHeader,
- TableRow,
-} from '../components/ui/table';
-import {
- Dialog,
- DialogContent,
- DialogDescription,
- DialogHeader,
- DialogTitle,
- DialogFooter,
-} from '../components/ui/dialog';
-import {
- DropdownMenu,
- DropdownMenuContent,
- DropdownMenuItem,
- DropdownMenuTrigger,
-} from '../components/ui/dropdown-menu';
-import { Label } from '../components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { ScrollArea } from '../components/ui/scroll-area';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import {
- Route,
- MapPin,
- Clock,
- Bus,
- UserCircle,
- Search,
- Plus,
- MoreVertical,
- Eye,
- Edit,
- Trash2,
- FileDown,
- Navigation,
- Calendar,
- Loader2,
- Calculator,
- Fuel,
- Euro,
- AlertTriangle,
- CheckCircle2,
- ExternalLink,
+  Route, MapPin, Clock, Bus, Search, Navigation, Eye,
+  AlertCircle, CheckCircle2, ExternalLink, Loader2, X,
+  LayoutGrid, List, Phone, MessageSquare, Calendar, TrendingUp
 } from 'lucide-react';
-import type { Ruta, Parada, Horario, Servicio } from '../types';
-import { format, parseISO, isValid, differenceInMinutes } from 'date-fns';
+import { Link } from 'react-router-dom';
+import { SkeletonPage } from '../components/LoadingScreen';
+import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-// FIX: Helpers de fechas (igual que en otros archivos)
+// ============================================
+// HELPERS
+// ============================================
+
 const parseDateSafe = (date: string | Date | undefined): Date | null => {
- if (!date) return null;
- try {
-  const dateStr = typeof date === 'string' ? date : date.toISOString();
-  const parsed = parseISO(dateStr);
-  return isValid(parsed) ? parsed : null;
- } catch {
-  return null;
- }
+  if (!date) return null;
+  try {
+    const parsed = typeof date === 'string' ? parseISO(date) : date;
+    return isValid(parsed) ? parsed : null;
+  } catch { return null; }
 };
 
-const formatDateSafe = (date: string | Date | undefined, formatStr: string = 'dd/MM/yyyy'): string => {
- const parsed = parseDateSafe(date);
- return parsed ? format(parsed, formatStr) : '-';
+const fmtDate = (d: string | Date | undefined): string => {
+  const date = parseDateSafe(d);
+  return date ? format(date, 'dd/MM/yyyy HH:mm', { locale: es }) : '-';
 };
 
-// FUTURO: Constantes para cálculo de costes de ruta
-const CONSUMO_LITROS_100KM = 35;
-const PRECIO_GASOIL_LITRO = 1.6;
-const COSTE_KM_CONDUCTOR = 0.5; // €/km estimado
+const estadoColors: Record<string, string> = {
+  planificada: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  activa: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+  completada: 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300',
+  cancelada: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+};
 
-// FUTURO: Interfaz para datos de Google Maps
-interface RouteMapData {
- distanceMeters: number;
- durationSeconds: number;
- polyline: string;
- steps: Array<{
-  instruction: string;
-  distanceMeters: number;
-  durationSeconds: number;
- }>;
+const estadoLabels: Record<string, string> = {
+  planificada: 'Planificada', activa: 'Activa', completada: 'Completada', cancelada: 'Cancelada',
+};
+
+// ============================================
+// COMPONENTE: MapaRuta
+// ============================================
+
+function MapaRuta({ origen, destino, paradas, height = 350 }: {
+  origen?: string; destino?: string; paradas?: any[]; height?: number;
+}) {
+  if (!origen || !destino) {
+    return (
+      <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-center" style={{ height }}>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Sin datos de ruta</p>
+      </div>
+    );
+  }
+  const url = `https://maps.google.com/maps?q=${encodeURIComponent(`${origen} a ${destino}`)}&t=m&z=10&ie=UTF8&iwloc=&output=embed`;
+  return (
+    <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden" style={{ height }}>
+      <iframe width="100%" height="100%" style={{ border: 0 }} loading="lazy" src={url} title="Mapa de ruta" />
+    </div>
+  );
 }
 
-// FIX: Interfaz extendida para rutas con datos del servicio padre
-interface RutaExtendida extends Ruta {
- servicioId: string;
- servicioCodigo: string;
- servicioFecha: string;
-}
+// ============================================
+// COMPONENTE PRINCIPAL
+// ============================================
 
 export default function Rutas() {
- const { servicios, isLoading } = useServiciosStore();
- const { vehiculos } = useVehiculosStore();
- const { conductores } = useConductoresStore();
- const { showToast } = useUIStore();
- 
- const [searchQuery, setSearchQuery] = useState('');
- const [rutaSeleccionada, setRutaSeleccionada] = useState<RutaExtendida | null>(null);
- const [activeTab, setActiveTab] = useState('todas');
+  const { servicios, fetchServicios } = useServiciosStore();
+  const { showToast } = useUIStore();
 
- // Obtener todas las rutas de todos los servicios con referencia al servicio padre
- const todasLasRutas = useMemo((): RutaExtendida[] => {
-  const rutas: RutaExtendida[] = [];
-  servicios.forEach(s => {
-   if (s.rutas) {
-    s.rutas.forEach(r => {
-     rutas.push({
-      ...r,
-      servicioId: String(s.id),
-      servicioCodigo: s.codigo || '',
-      servicioFecha: s.fechaInicio ? String(s.fechaInicio) : '',
-     });
+  const [rutas, setRutas] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [estadoFiltro, setEstadoFiltro] = useState('todos');
+  const [vistaMode, setVistaMode] = useState<'cards' | 'lista'>('cards');
+  const [rutaSeleccionada, setRutaSeleccionada] = useState<any | null>(null);
+  const [isDetalleOpen, setIsDetalleOpen] = useState(false);
+
+  useEffect(() => {
+    fetchRutas();
+    fetchServicios();
+  }, [fetchServicios]);
+
+  const fetchRutas = async () => {
+    setLoading(true);
+    try {
+      const response = await rutasApi.getAll();
+      setRutas(response.data || []);
+    } catch (err: any) {
+      console.warn('Error fetchRutas:', err.message);
+      // Fallback: mostrar rutas desde servicios
+      const rutasFromServicios = servicios
+        .filter(s => s.origen && s.destino)
+        .map(s => ({
+          id: `srv-${s.id}`,
+          servicio_id: s.id,
+          codigo: s.codigo,
+          titulo: s.titulo,
+          estado: s.estado === 'en_curso' ? 'activa' : 'planificada',
+          origen: s.origen,
+          destino: s.destino,
+          paradas: s.rutas || [],
+          servicio: s,
+          fecha_creacion: s.fechaCreacion,
+        }));
+      setRutas(rutasFromServicios);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Filtrar
+  const filtradas = useMemo(() => {
+    return rutas.filter(r => {
+      const sq = searchQuery.toLowerCase().trim();
+      const ms = sq === '' ||
+        r.titulo?.toLowerCase().includes(sq) ||
+        r.codigo?.toLowerCase().includes(sq) ||
+        r.origen?.toLowerCase().includes(sq) ||
+        r.destino?.toLowerCase().includes(sq);
+      return ms && (estadoFiltro === 'todos' || r.estado === estadoFiltro);
     });
-   }
-  });
-  return rutas;
- }, [servicios]);
+  }, [rutas, searchQuery, estadoFiltro]);
 
- // Filtrar rutas
- const rutasFiltradas = useMemo(() => {
-  return todasLasRutas.filter(ruta => {
-   const searchLower = searchQuery.toLowerCase();
-   const matchesSearch = searchLower === '' ||
-    ruta.nombre?.toLowerCase().includes(searchLower) ||
-    ruta.origen?.toLowerCase().includes(searchLower) ||
-    ruta.destino?.toLowerCase().includes(searchLower) ||
-    ruta.servicioCodigo?.toLowerCase().includes(searchLower);
-   
-   // Filtro por tab
-   if (activeTab === 'hoy') {
-    const fechaRuta = parseDateSafe(ruta.servicioFecha);
-    const hoy = new Date();
-    return matchesSearch && fechaRuta && format(fechaRuta, 'yyyy-MM-dd') === format(hoy, 'yyyy-MM-dd');
-   }
-   if (activeTab === 'activas') {
-    return matchesSearch && ruta.estado === 'activa';
-   }
-   
-   return matchesSearch;
-  });
- }, [todasLasRutas, searchQuery, activeTab]);
+  // Stats
+  const stats = useMemo(() => ({
+    total: rutas.length,
+    activas: rutas.filter(r => r.estado === 'activa').length,
+    planificadas: rutas.filter(r => r.estado === 'planificada').length,
+    completadas: rutas.filter(r => r.estado === 'completada').length,
+  }), [rutas]);
 
- // Estadísticas
- const stats = useMemo(() => ({
-  total: todasLasRutas.length,
-  activas: todasLasRutas.filter(r => r.estado === 'activa').length,
-  hoy: todasLasRutas.filter(r => {
-   const fecha = parseDateSafe(r.servicioFecha);
-   return fecha && format(fecha, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
-  }).length,
-  totalParadas: todasLasRutas.reduce((sum, r) => sum + (r.paradas?.length || 0), 0),
-  totalHorarios: todasLasRutas.reduce((sum, r) => sum + (r.horarios?.length || 0), 0),
-  // FUTURO: Distancia total calculada
-  distanciaTotalKm: todasLasRutas.reduce((sum, r) => sum + (r.distanciaKm || 0), 0),
- }), [todasLasRutas]);
+  // Obtener servicio asociado
+  const getServicio = (ruta: any) => {
+    if (ruta.servicio) return ruta.servicio;
+    return servicios.find(s => String(s.id) === String(ruta.servicio_id));
+  };
 
- // FUTURO: Calcular coste estimado de una ruta
- const calcularCosteRuta = useCallback((ruta: Ruta): number => {
-  const distancia = ruta.distanciaKm || 0;
-  const litrosGasoil = (distancia * CONSUMO_LITROS_100KM) / 100;
-  const costeGasoil = litrosGasoil * PRECIO_GASOIL_LITRO;
-  const costeConductor = distancia * COSTE_KM_CONDUCTOR;
-  return costeGasoil + costeConductor;
- }, []);
+  if (loading && rutas.length === 0) return <SkeletonPage type="mixed" tableCols={6} vistaMode={vistaMode} />;
 
- const getVehiculoNombre = (id?: string) => {
-  if (!id) return 'No asignado';
-  const v = vehiculos.find(ve => String(ve.id) === id);
-  return v ? `${v.marca} ${v.modelo} (${v.matricula})` : 'No asignado';
- };
-
- const getConductorNombre = (id?: string) => {
-  if (!id) return 'No asignado';
-  const c = conductores.find(co => String(co.id) === id);
-  return c ? `${c.nombre} ${c.apellidos}` : 'No asignado';
- };
-
- // FUTURO: Abrir ruta en Google Maps
- const abrirEnGoogleMaps = (origen: string, destino: string, paradas?: Parada[]) => {
-  const waypoints = paradas?.map(p => encodeURIComponent(p.direccion || p.nombre)).join('|') || '';
-  const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origen)}&destination=${encodeURIComponent(destino)}${waypoints ? `&waypoints=${waypoints}` : ''}&travelmode=driving`;
-  window.open(url, '_blank');
- };
-
- // FUTURO: Calcular ruta con Google Maps API (requiere API key)
- const calcularRutaMaps = async (origen: string, destino: string, paradas?: Parada[]) => {
-  // Implementación futura con Directions API
-  // const response = await fetch(`https://maps.googleapis.com/maps/api/directions/json?origin=${origen}&destination=${destino}&key=${API_KEY}`);
-  showToast('Función disponible próximamente: integración con Google Maps', 'info');
- };
-
- if (isLoading) {
   return (
-   <div className="flex items-center justify-center h-96">
-    <Loader2 className="h-12 w-12 animate-spin text-[#1e3a5f] dark:text-blue-400" />
-   </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Rutas</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Hojas de ruta generadas desde servicios</p>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={fetchRutas} variant="outline" className="dark:border-slate-600 dark:text-slate-300">
+            <Loader2 className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Actualizar
+          </Button>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Total Rutas', value: stats.total, icon: Route, color: 'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400' },
+          { label: 'Activas', value: stats.activas, icon: TrendingUp, color: 'bg-green-100 text-green-600 dark:bg-green-500/20 dark:text-green-400' },
+          { label: 'Planificadas', value: stats.planificadas, icon: Clock, color: 'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400' },
+          { label: 'Completadas', value: stats.completadas, icon: CheckCircle2, color: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400' },
+        ].map(s => (
+          <div key={s.label} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 flex items-center gap-3">
+            <div className={`rounded-lg p-2.5 ${s.color}`}><s.icon className="h-5 w-5" /></div>
+            <div><p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{s.value}</p><p className="text-xs text-slate-500 dark:text-slate-400">{s.label}</p></div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filtros */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Input placeholder="Buscar ruta..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-10 dark:bg-slate-900 dark:border-slate-700" />
+        </div>
+        <div className="flex gap-2">
+          <select value={estadoFiltro} onChange={e => setEstadoFiltro(e.target.value)}
+            className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm dark:text-slate-200">
+            <option value="todos">Todos</option>
+            <option value="planificada">Planificadas</option>
+            <option value="activa">Activas</option>
+            <option value="completada">Completadas</option>
+            <option value="cancelada">Canceladas</option>
+          </select>
+          <div className="flex border rounded-lg overflow-hidden dark:border-slate-700">
+            <button onClick={() => setVistaMode('cards')} className={`p-2 ${vistaMode === 'cards' ? 'bg-[#1e3a5f] text-white' : 'bg-white dark:bg-slate-800 text-slate-500'}`}><LayoutGrid className="h-4 w-4" /></button>
+            <button onClick={() => setVistaMode('lista')} className={`p-2 ${vistaMode === 'lista' ? 'bg-[#1e3a5f] text-white' : 'bg-white dark:bg-slate-800 text-slate-500'}`}><List className="h-4 w-4" /></button>
+          </div>
+        </div>
+      </div>
+
+      {/* Vista CARDS */}
+      {vistaMode === 'cards' ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {filtradas.length === 0 ? (
+            <div className="col-span-full flex flex-col items-center py-16 text-slate-400 dark:text-slate-500">
+              <Route className="h-12 w-12 mb-3" /><p className="text-sm">No hay rutas</p>
+              <p className="text-xs mt-1">Las rutas se generan automaticamente al crear servicios con paradas</p>
+            </div>
+          ) : filtradas.map(r => {
+            const svc = getServicio(r);
+            const numParadas = r.paradas?.length || 0;
+            return (
+              <div key={r.id} onClick={() => { setRutaSeleccionada(r); setIsDetalleOpen(true); }}
+                className="group rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 cursor-pointer hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <span className="font-mono text-xs text-[#1e3a5f] dark:text-blue-400 font-semibold">{r.codigo || r.servicio?.codigo || 'SIN-CODIGO'}</span>
+                    <h3 className="font-semibold text-slate-900 dark:text-slate-100 mt-0.5 line-clamp-1">{r.titulo}</h3>
+                  </div>
+                  <Badge className={estadoColors[r.estado] || estadoColors.planificada}>{estadoLabels[r.estado] || r.estado}</Badge>
+                </div>
+
+                <div className="space-y-2 mb-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    <MapPin className="h-3.5 w-3.5 text-green-500" />
+                    <span className="text-slate-600 dark:text-slate-400 truncate flex-1">{r.origen || 'Sin origen'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Navigation className="h-3.5 w-3.5 text-red-500" />
+                    <span className="text-slate-600 dark:text-slate-400 truncate flex-1">{r.destino || 'Sin destino'}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 mb-3">
+                  <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{r.duracion_minutos ? `${Math.round(r.duracion_minutos / 60)}h` : '-'}</span>
+                  <span className="flex items-center gap-1"><Route className="h-3 w-3" />{numParadas} paradas</span>
+                  <span className="flex items-center gap-1"><Bus className="h-3 w-3" />{r.conductores_necesarios || 1} conductor{r.conductores_necesarios > 1 ? 'es' : ''}</span>
+                </div>
+
+                {r.requiere_pernocta && (
+                  <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 mb-3 p-1.5 rounded bg-amber-50 dark:bg-amber-900/20">
+                    <AlertCircle className="h-3 w-3" /> Requiere pernocta
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-700">
+                  {svc && (
+                    <Link to={`/servicios?id=${svc.id}`} onClick={e => e.stopPropagation()}
+                      className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1">
+                      <ExternalLink className="h-3 w-3" /> Ver servicio
+                    </Link>
+                  )}
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-auto">
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={e => { e.stopPropagation(); setRutaSeleccionada(r); setIsDetalleOpen(true); }}><Eye className="h-3.5 w-3.5" /></Button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* Vista LISTA */
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-900/50 text-left">
+                <tr><th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">Codigo</th><th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">Ruta</th><th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">Origen {'->'} Destino</th><th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">Estado</th><th className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">Paradas</th><th className="px-4 py-3"></th></tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                {filtradas.length === 0 ? (
+                  <tr><td colSpan={6} className="text-center py-12 text-slate-400 dark:text-slate-500"><Route className="h-10 w-10 mx-auto mb-2" />No hay rutas</td></tr>
+                ) : filtradas.map(r => (
+                  <tr key={r.id} onClick={() => { setRutaSeleccionada(r); setIsDetalleOpen(true); }} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors">
+                    <td className="px-4 py-3 font-mono text-xs font-semibold text-[#1e3a5f] dark:text-blue-400">{r.codigo || '-'}</td>
+                    <td className="px-4 py-3 font-medium dark:text-slate-200">{r.titulo}</td>
+                    <td className="px-4 py-3 text-slate-500 dark:text-slate-400 text-xs">{r.origen || '-'} {'->'} {r.destino || '-'}</td>
+                    <td className="px-4 py-3"><Badge className={estadoColors[r.estado] || ''}>{estadoLabels[r.estado] || r.estado}</Badge></td>
+                    <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{(r.paradas || []).length}</td>
+                    <td className="px-4 py-3"><Button size="icon" variant="ghost" className="h-7 w-7" onClick={e => { e.stopPropagation(); setRutaSeleccionada(r); setIsDetalleOpen(true); }}><Eye className="h-3.5 w-3.5" /></Button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* DIALOG: Detalle de Ruta */}
+      <Dialog open={isDetalleOpen} onOpenChange={setIsDetalleOpen}>
+        <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
+          {rutaSeleccionada && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="dark:text-slate-100 flex items-center gap-2">
+                  <Route className="h-5 w-5" />{rutaSeleccionada.titulo}
+                </DialogTitle>
+              </DialogHeader>
+
+              <div className="flex items-center gap-2 mb-4">
+                <Badge className={estadoColors[rutaSeleccionada.estado] || ''}>{estadoLabels[rutaSeleccionada.estado] || rutaSeleccionada.estado}</Badge>
+                <span className="font-mono text-xs text-slate-500 dark:text-slate-400">{rutaSeleccionada.codigo}</span>
+                {rutaSeleccionada.requiere_pernocta && (
+                  <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">Pernocta</Badge>
+                )}
+              </div>
+
+              {/* Mapa */}
+              <MapaRuta
+                origen={rutaSeleccionada.origen}
+                destino={rutaSeleccionada.destino}
+                paradas={rutaSeleccionada.paradas}
+                height={350}
+              />
+
+              {/* Info grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
+                <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Distancia</p>
+                  <p className="font-semibold dark:text-slate-200">{rutaSeleccionada.distancia_km ? `${rutaSeleccionada.distancia_km} km` : 'Calculando...'}</p>
+                </div>
+                <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Duracion</p>
+                  <p className="font-semibold dark:text-slate-200">{rutaSeleccionada.duracion_minutos ? `${Math.round(rutaSeleccionada.duracion_minutos / 60)}h ${rutaSeleccionada.duracion_minutos % 60}min` : '-'}</p>
+                </div>
+                <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Conductores</p>
+                  <p className="font-semibold dark:text-slate-200">{rutaSeleccionada.conductores_necesarios || 1} necesarios</p>
+                </div>
+                <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Creada</p>
+                  <p className="font-semibold dark:text-slate-200">{fmtDate(rutaSeleccionada.fecha_creacion)}</p>
+                </div>
+              </div>
+
+              {/* Paradas */}
+              {rutaSeleccionada.paradas && rutaSeleccionada.paradas.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="font-medium text-sm mb-2 dark:text-slate-300">Paradas ({rutaSeleccionada.paradas.length})</h4>
+                  <ScrollArea className="max-h-60">
+                    <div className="space-y-2">
+                      {rutaSeleccionada.paradas.map((p: any, idx: number) => (
+                        <div key={idx} className={`flex items-center gap-3 p-2.5 rounded-lg border ${
+                          p.tipo === 'origen' ? 'border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900/20' :
+                          p.tipo === 'destino' ? 'border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20' :
+                          p.tipo === 'descanso' ? 'border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20' :
+                          'border-slate-200 dark:border-slate-700'
+                        }`}>
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                            p.tipo === 'origen' ? 'bg-green-500 text-white' :
+                            p.tipo === 'destino' ? 'bg-red-500 text-white' :
+                            p.tipo === 'descanso' ? 'bg-amber-500 text-white' :
+                            'bg-blue-500 text-white'
+                          }`}>{idx + 1}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium dark:text-slate-200 truncate">{p.ubicacion || '-'}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{p.tipo} {p.hora && `· ${p.hora}`}</p>
+                          </div>
+                          {p.notas && <p className="text-xs text-slate-400 dark:text-slate-500 max-w-[200px] truncate">{p.notas}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
+              )}
+
+              {/* Servicio asociado */}
+              {(() => {
+                const svc = getServicio(rutaSeleccionada);
+                return svc ? (
+                  <div className="mt-4 p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/30">
+                    <h4 className="text-sm font-medium mb-2 dark:text-slate-300">Servicio asociado</h4>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium dark:text-slate-200">{svc.codigo} · {svc.titulo}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{svc.clienteNombre} · {svc.estado}</p>
+                      </div>
+                      <Button size="sm" variant="outline" asChild className="dark:border-slate-600">
+                        <Link to={`/servicios?id=${svc.id}`} onClick={() => setIsDetalleOpen(false)}>Ver servicio</Link>
+                      </Button>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Normativa */}
+              {rutaSeleccionada.observaciones_normativa && (
+                <div className="mt-4 p-3 rounded-lg border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20">
+                  <h4 className="text-sm font-medium text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                    <AlertCircle className="h-4 w-4" /> Observaciones normativa
+                  </h4>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">{rutaSeleccionada.observaciones_normativa}</p>
+                </div>
+              )}
+
+              {/* Enlace Google Maps */}
+              {rutaSeleccionada.google_maps_url && (
+                <div className="mt-4">
+                  <a href={rutaSeleccionada.google_maps_url} target="_blank" rel="noopener noreferrer"
+                    className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1">
+                    <ExternalLink className="h-4 w-4" /> Abrir en Google Maps
+                  </a>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setIsDetalleOpen(false)} className="dark:border-slate-600 dark:text-slate-300">Cerrar</Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
   );
- }
-
- return (
-  <div className="space-y-6">
-   {/* Header */}
-   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-    <div>
-     <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Rutas</h1>
-     <p className="text-slate-500 dark:text-slate-400">Planificación de rutas, paradas y horarios</p>
-    </div>
-    <Button className="bg-[#1e3a5f] hover:bg-[#152a45]">
-     <Plus className="mr-2 h-4 w-4" />
-     Nueva Ruta
-    </Button>
-   </div>
-
-   {/* Stats Cards */}
-   <div className="grid gap-4 md:grid-cols-6">
-    <Card>
-     <CardContent className="p-4">
-      <div className="flex items-center justify-between">
-       <div>
-        <p className="text-sm font-medium text-slate-500">Total Rutas</p>
-        <p className="text-2xl font-bold">{stats.total}</p>
-       </div>
-       <div className="rounded-full bg-blue-100 p-2">
-        <Route className="h-5 w-5 text-blue-600" />
-       </div>
-      </div>
-     </CardContent>
-    </Card>
-    <Card>
-     <CardContent className="p-4">
-      <div className="flex items-center justify-between">
-       <div>
-        <p className="text-sm font-medium text-slate-500">Hoy</p>
-        <p className="text-2xl font-bold">{stats.hoy}</p>
-       </div>
-       <div className="rounded-full bg-green-100 p-2">
-        <Calendar className="h-5 w-5 text-green-600" />
-       </div>
-      </div>
-     </CardContent>
-    </Card>
-    <Card>
-     <CardContent className="p-4">
-      <div className="flex items-center justify-between">
-       <div>
-        <p className="text-sm font-medium text-slate-500">Activas</p>
-        <p className="text-2xl font-bold">{stats.activas}</p>
-       </div>
-       <div className="rounded-full bg-purple-100 p-2">
-        <Navigation className="h-5 w-5 text-purple-600" />
-       </div>
-      </div>
-     </CardContent>
-    </Card>
-    <Card>
-     <CardContent className="p-4">
-      <div className="flex items-center justify-between">
-       <div>
-        <p className="text-sm font-medium text-slate-500">Paradas</p>
-        <p className="text-2xl font-bold">{stats.totalParadas}</p>
-       </div>
-       <div className="rounded-full bg-amber-100 p-2">
-        <MapPin className="h-5 w-5 text-amber-600" />
-       </div>
-      </div>
-     </CardContent>
-    </Card>
-    <Card>
-     <CardContent className="p-4">
-      <div className="flex items-center justify-between">
-       <div>
-        <p className="text-sm font-medium text-slate-500">Horarios</p>
-        <p className="text-2xl font-bold">{stats.totalHorarios}</p>
-       </div>
-       <div className="rounded-full bg-cyan-100 p-2">
-        <Clock className="h-5 w-5 text-cyan-600" />
-       </div>
-      </div>
-     </CardContent>
-    </Card>
-    <Card>
-     <CardContent className="p-4">
-      <div className="flex items-center justify-between">
-       <div>
-        <p className="text-sm font-medium text-slate-500">Dist. Total</p>
-        <p className="text-2xl font-bold">{stats.distanciaTotalKm} km</p>
-       </div>
-       <div className="rounded-full bg-red-100 p-2">
-        <Navigation className="h-5 w-5 text-red-600" />
-       </div>
-      </div>
-     </CardContent>
-    </Card>
-   </div>
-
-   {/* Tabs y Filtros */}
-   <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-    <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-     <TabsList>
-      <TabsTrigger value="todas">Todas ({stats.total})</TabsTrigger>
-      <TabsTrigger value="hoy">Hoy ({stats.hoy})</TabsTrigger>
-      <TabsTrigger value="activas">Activas ({stats.activas})</TabsTrigger>
-     </TabsList>
-     
-     <div className="relative w-full sm:w-64">
-      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-      <Input
-       placeholder="Buscar rutas..."
-       value={searchQuery}
-       onChange={(e) => setSearchQuery(e.target.value)}
-       className="pl-10"
-      />
-     </div>
-    </div>
-
-    <TabsContent value={activeTab} className="m-0">
-     {/* Routes Table */}
-     <Card>
-      <CardContent className="p-0">
-       <Table>
-        <TableHeader>
-         <TableRow>
-          <TableHead>Ruta</TableHead>
-          <TableHead>Servicio / Fecha</TableHead>
-          <TableHead>Origen → Destino</TableHead>
-          <TableHead>Distancia / Coste</TableHead>
-          <TableHead>Vehículo / Conductor</TableHead>
-          <TableHead>Paradas</TableHead>
-          <TableHead className="text-right">Acciones</TableHead>
-         </TableRow>
-        </TableHeader>
-        <TableBody>
-         {rutasFiltradas.length === 0 ? (
-          <TableRow>
-           <TableCell colSpan={7} className="text-center py-8 text-slate-500">
-            <Route className="mx-auto h-12 w-12 mb-2 text-slate-300" />
-            <p>No se encontraron rutas</p>
-           </TableCell>
-          </TableRow>
-         ) : (
-          rutasFiltradas.map((ruta) => {
-           const costeEstimado = calcularCosteRuta(ruta);
-           return (
-            <TableRow key={`${ruta.servicioId}-${ruta.id}`} className="hover:bg-slate-50">
-             <TableCell>
-              <div>
-               <p className="font-medium">{ruta.nombre}</p>
-               {ruta.descripcion && (
-                <p className="text-xs text-slate-500 truncate max-w-[150px]">{ruta.descripcion}</p>
-               )}
-              </div>
-             </TableCell>
-             <TableCell>
-              <div className="text-sm">
-               <p className="font-medium text-[#1e3a5f]">{ruta.servicioCodigo}</p>
-               <p className="text-slate-500 dark:text-slate-400">{formatDateSafe(ruta.servicioFecha)}</p>
-              </div>
-             </TableCell>
-             <TableCell>
-              <div className="flex flex-col text-sm">
-               <span className="truncate max-w-[150px]" title={ruta.origen}>{ruta.origen}</span>
-               <span className="text-xs text-slate-400">↓ {ruta.duracionEstimada} min</span>
-               <span className="truncate max-w-[150px]" title={ruta.destino}>{ruta.destino}</span>
-              </div>
-             </TableCell>
-             <TableCell>
-              <div className="text-sm">
-               <p>{ruta.distanciaKm} km</p>
-               <p className="text-slate-500 flex items-center gap-1">
-                <Calculator className="h-3 w-3" />
-                ~{costeEstimado.toFixed(2)}€
-               </p>
-              </div>
-             </TableCell>
-             <TableCell>
-              <div className="flex flex-col gap-1 text-xs">
-               <div className="flex items-center gap-1">
-                <Bus className="h-3 w-3 text-slate-400" />
-                <span className="truncate max-w-[120px]">{getVehiculoNombre(ruta.vehiculoAsignadoId)}</span>
-               </div>
-               <div className="flex items-center gap-1">
-                <UserCircle className="h-3 w-3 text-slate-400" />
-                <span className="truncate max-w-[120px]">{getConductorNombre(ruta.conductorAsignadoId)}</span>
-               </div>
-              </div>
-             </TableCell>
-             <TableCell>
-              <Badge variant="outline" className="text-xs">
-               <MapPin className="mr-1 h-3 w-3" />
-               {ruta.paradas?.length || 0} paradas
-              </Badge>
-             </TableCell>
-             <TableCell className="text-right">
-              <DropdownMenu>
-               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                 <MoreVertical className="h-4 w-4" />
-                </Button>
-               </DropdownMenuTrigger>
-               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setRutaSeleccionada(ruta)}>
-                 <Eye className="mr-2 h-4 w-4" />
-                 Ver detalles
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => abrirEnGoogleMaps(ruta.origen || '', ruta.destino || '', ruta.paradas)}>
-                 <ExternalLink className="mr-2 h-4 w-4" />
-                 Ver en Google Maps
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                 <Edit className="mr-2 h-4 w-4" />
-                 Editar
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                 <FileDown className="mr-2 h-4 w-4" />
-                 Exportar PDF
-                </DropdownMenuItem>
-                <DropdownMenuItem className="text-red-600">
-                 <Trash2 className="mr-2 h-4 w-4" />
-                 Eliminar
-                </DropdownMenuItem>
-               </DropdownMenuContent>
-              </DropdownMenu>
-             </TableCell>
-            </TableRow>
-           );
-          })
-         )}
-        </TableBody>
-       </Table>
-      </CardContent>
-     </Card>
-    </TabsContent>
-   </Tabs>
-
-   {/* Route Detail Dialog - MEJORADO */}
-   <Dialog open={!!rutaSeleccionada} onOpenChange={() => setRutaSeleccionada(null)}>
-    <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
-     {rutaSeleccionada && (
-      <>
-       <DialogHeader>
-        <div className="flex items-start justify-between">
-         <div>
-          <DialogTitle className="flex items-center gap-2">
-           <Route className="h-5 w-5" />
-           {rutaSeleccionada.nombre}
-          </DialogTitle>
-          <DialogDescription>
-           {rutaSeleccionada.servicioCodigo} • {formatDateSafe(rutaSeleccionada.servicioFecha)}
-          </DialogDescription>
-         </div>
-         <Button 
-          variant="outline" 
-          size="sm"
-          onClick={() => abrirEnGoogleMaps(
-           rutaSeleccionada.origen || '',
-           rutaSeleccionada.destino || '',
-           rutaSeleccionada.paradas
-          )}
-         >
-          <ExternalLink className="mr-2 h-4 w-4" />
-          Google Maps
-         </Button>
-        </div>
-       </DialogHeader>
-       
-       <div className="space-y-6 py-4">
-        {/* Info General con Costes */}
-        <div className="grid grid-cols-4 gap-4">
-         <div className="rounded-lg bg-slate-50 p-3">
-          <Label className="text-slate-500 text-xs">Origen</Label>
-          <p className="text-sm font-medium flex items-center gap-1">
-           <MapPin className="h-3 w-3" />
-           {rutaSeleccionada.origen}
-          </p>
-         </div>
-         <div className="rounded-lg bg-slate-50 p-3">
-          <Label className="text-slate-500 text-xs">Destino</Label>
-          <p className="text-sm font-medium flex items-center gap-1">
-           <Navigation className="h-3 w-3" />
-           {rutaSeleccionada.destino}
-          </p>
-         </div>
-         <div className="rounded-lg bg-slate-50 p-3">
-          <Label className="text-slate-500 text-xs">Distancia / Tiempo</Label>
-          <p className="text-sm font-medium">{rutaSeleccionada.distanciaKm} km / {rutaSeleccionada.duracionEstimada} min</p>
-         </div>
-         <div className="rounded-lg bg-blue-50 p-3">
-          <Label className="text-blue-600 text-xs">Coste Estimado</Label>
-          <p className="text-sm font-bold text-blue-700 flex items-center gap-1">
-           <Euro className="h-3 w-3" />
-           {calcularCosteRuta(rutaSeleccionada).toFixed(2)}€
-          </p>
-         </div>
-        </div>
-
-        {/* Asignaciones */}
-        <div className="grid grid-cols-2 gap-4">
-         <div className="rounded-lg border p-4">
-          <Label className="text-slate-500 mb-2 block">Vehículo Asignado</Label>
-          <div className="flex items-center gap-3">
-           <div className="rounded-full bg-blue-100 p-2">
-            <Bus className="h-5 w-5 text-blue-600" />
-           </div>
-           <div>
-            <p className="font-medium">{getVehiculoNombre(rutaSeleccionada.vehiculoAsignadoId)}</p>
-           </div>
-          </div>
-         </div>
-         <div className="rounded-lg border p-4">
-          <Label className="text-slate-500 mb-2 block">Conductor Asignado</Label>
-          <div className="flex items-center gap-3">
-           <div className="rounded-full bg-green-100 p-2">
-            <UserCircle className="h-5 w-5 text-green-600" />
-           </div>
-           <div>
-            <p className="font-medium">{getConductorNombre(rutaSeleccionada.conductorAsignadoId)}</p>
-           </div>
-          </div>
-         </div>
-        </div>
-
-        {/* Paradas con Timeline */}
-        {rutaSeleccionada.paradas && rutaSeleccionada.paradas.length > 0 && (
-         <div>
-          <Label className="text-slate-500 mb-3 block flex items-center gap-2">
-           <MapPin className="h-4 w-4" />
-           Paradas ({rutaSeleccionada.paradas.length})
-          </Label>
-          <div className="relative space-y-0">
-           {rutaSeleccionada.paradas.map((parada, index) => (
-            <div key={parada.id} className="flex gap-4 pb-4 last:pb-0">
-             <div className="flex flex-col items-center">
-              <div className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium ${
-               index === 0 ? 'bg-green-500 text-white' :
-               index === (rutaSeleccionada.paradas?.length || 0) - 1 ? 'bg-red-500 text-white' :
-               'bg-[#1e3a5f] text-white'
-              }`}>
-               {index + 1}
-              </div>
-              {index < (rutaSeleccionada.paradas?.length || 0) - 1 && (
-               <div className="w-0.5 flex-1 bg-slate-200 my-1" />
-              )}
-             </div>
-             <div className="flex-1 pb-4">
-              <div className="flex items-start justify-between">
-               <div>
-                <p className="font-medium">{parada.nombre}</p>
-                <p className="text-sm text-slate-500">{parada.direccion}</p>
-               </div>
-               {parada.horaLlegada && (
-                <Badge variant="outline">
-                 <Clock className="mr-1 h-3 w-3" />
-                 {parada.horaLlegada}
-                </Badge>
-               )}
-              </div>
-              {/* FUTURO: Mostrar distancia desde parada anterior */}
-              {index > 0 && (
-               <p className="text-xs text-slate-400 mt-1">
-                ~{Math.round((rutaSeleccionada.distanciaKm || 0) / (rutaSeleccionada.paradas?.length || 1))} km desde anterior
-               </p>
-              )}
-             </div>
-            </div>
-           ))}
-          </div>
-         </div>
-        )}
-
-        {/* Horarios */}
-        {rutaSeleccionada.horarios && rutaSeleccionada.horarios.length > 0 && (
-         <div>
-          <Label className="text-slate-500 mb-2 block">Horarios</Label>
-          <div className="grid grid-cols-2 gap-2">
-           {rutaSeleccionada.horarios.map((horario) => (
-            <div key={horario.id} className="flex items-center justify-between p-3 rounded-lg border">
-             <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-slate-400" />
-              <span>{horario.horaSalida} - {horario.horaLlegada}</span>
-             </div>
-             <div className="flex gap-1">
-              {horario.diasSemana?.map(dia => (
-               <span key={dia} className="h-6 w-6 rounded-full bg-slate-100 flex items-center justify-center text-xs">
-                {['L', 'M', 'X', 'J', 'V', 'S', 'D'][dia] || dia}
-               </span>
-              ))}
-             </div>
-            </div>
-           ))}
-          </div>
-         </div>
-        )}
-
-        {/* Notas */}
-        {rutaSeleccionada.notasConductor && (
-         <div className="rounded-lg bg-amber-50 p-4">
-          <Label className="text-amber-700 mb-1 block flex items-center gap-2">
-           <AlertTriangle className="h-4 w-4" />
-           Notas para el Conductor
-          </Label>
-          <p className="text-sm text-amber-800">{rutaSeleccionada.notasConductor}</p>
-         </div>
-        )}
-
-        {/* FUTURO: Sección de Mapa */}
-        <div className="rounded-lg border-2 border-dashed border-slate-200 p-8 text-center">
-         <Navigation className="mx-auto h-12 w-12 text-slate-300 mb-2" />
-         <p className="text-slate-500 font-medium">Mapa de la Ruta</p>
-         <p className="text-sm text-slate-400 mb-4">
-          Próximamente: Visualización interactiva con Google Maps
-         </p>
-         <Button 
-          variant="outline" 
-          onClick={() => abrirEnGoogleMaps(
-           rutaSeleccionada.origen || '',
-           rutaSeleccionada.destino || '',
-           rutaSeleccionada.paradas
-          )}
-         >
-          <ExternalLink className="mr-2 h-4 w-4" />
-          Abrir en Google Maps
-         </Button>
-        </div>
-       </div>
-
-       <DialogFooter className="gap-2">
-        <Button variant="outline">
-         <FileDown className="mr-2 h-4 w-4" />
-         Exportar PDF
-        </Button>
-        <Button className="bg-[#1e3a5f] hover:bg-[#152a45]">
-         <Edit className="mr-2 h-4 w-4" />
-         Editar Ruta
-        </Button>
-       </DialogFooter>
-      </>
-     )}
-    </DialogContent>
-   </Dialog>
-  </div>
- );
 }

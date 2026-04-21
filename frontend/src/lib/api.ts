@@ -355,3 +355,26 @@ export const rolesApi = {
   update: (id: string, data: any) => api.put(`/roles/${id}`, data),
   delete: (id: string) => api.delete(`/roles/${id}`),
 };
+
+// ============================================
+// MENSAJES (Chat por servicio)
+// ============================================
+
+export const mensajesApi = {
+  getByServicio: (servicioId: string) => api.get(`/servicios/${servicioId}/mensajes`),
+  create: (servicioId: string, data: any) => api.post(`/servicios/${servicioId}/mensajes`, data),
+  marcarLeido: (mensajeId: string) => api.patch(`/mensajes/${mensajeId}/leido`),
+};
+
+// ============================================
+// RUTAS (Hojas de ruta)
+// ============================================
+
+export const rutasApi = {
+  getAll: (params?: { servicio_id?: string; estado?: string }) => api.get('/rutas', { params }),
+  getById: (id: string) => api.get(`/rutas/${id}`),
+  getByServicio: (servicioId: string) => api.get(`/servicios/${servicioId}/ruta`),
+  create: (data: any) => api.post('/rutas', data),
+  update: (id: string, data: any) => api.put(`/rutas/${id}`, data),
+  delete: (id: string) => api.delete(`/rutas/${id}`),
+};
