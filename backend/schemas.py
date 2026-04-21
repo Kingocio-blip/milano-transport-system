@@ -249,6 +249,30 @@ class VehiculoBase(BaseModel):
     seguro_fecha_inicio: Optional[datetime] = None
     seguro_fecha_vencimiento: Optional[datetime] = None
     seguro_prima: Optional[Decimal] = None
+    
+    # Documentacion obligatoria
+    tarjeta_transportes_numero: Optional[str] = None
+    tarjeta_transportes_fecha_renovacion: Optional[datetime] = None
+    tarjeta_transportes_documento_url: Optional[str] = None
+    
+    tacografo_fecha_calibracion: Optional[datetime] = None
+    tacografo_documento_url: Optional[str] = None
+    
+    extintores_fecha_vencimiento: Optional[datetime] = None
+    extintores_documento_url: Optional[str] = None
+    
+    itv_documento_url: Optional[str] = None
+    seguro_documento_url: Optional[str] = None
+    
+    # Estado taller
+    taller_fecha_inicio: Optional[datetime] = None
+    taller_fecha_fin: Optional[datetime] = None
+    taller_motivo: Optional[str] = None
+    
+    # Estado baja
+    baja_motivo: Optional[str] = None
+    baja_fecha: Optional[datetime] = None
+    
     estado: Optional[str] = "operativo"
     ubicacion: Optional[str] = None
     notas: Optional[str] = None
@@ -513,6 +537,45 @@ class Empresa(EmpresaBase):
     fecha_fin_plan: Optional[datetime]
     created_at: datetime
     updated_at: datetime
+
+# ============================================
+# VEHICULO TAREA SCHEMAS
+# ============================================
+
+class VehiculoTareaBase(BaseModel):
+    tipo: str
+    estado: Optional[str] = "pendiente"
+    fecha: datetime
+    fecha_completada: Optional[datetime] = None
+    concepto: Optional[str] = None
+    gasto: Optional[float] = None
+    anotaciones: Optional[str] = None
+    factura_url: Optional[str] = None
+    documento_url: Optional[str] = None
+    auto_generada: Optional[bool] = False
+
+class VehiculoTareaCreate(VehiculoTareaBase):
+    vehiculo_id: int
+
+class VehiculoTareaUpdate(BaseModel):
+    estado: Optional[str] = None
+    fecha_completada: Optional[datetime] = None
+    concepto: Optional[str] = None
+    gasto: Optional[float] = None
+    anotaciones: Optional[str] = None
+    factura_url: Optional[str] = None
+    documento_url: Optional[str] = None
+    completado_por: Optional[int] = None
+
+class VehiculoTarea(VehiculoTareaBase):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    vehiculo_id: int
+    creado_por: Optional[int] = None
+    completado_por: Optional[int] = None
+    fecha_creacion: datetime
+    fecha_actualizacion: datetime
 
 # ============================================
 # MENSAJE SCHEMAS

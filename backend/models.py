@@ -54,6 +54,23 @@ class UserRole(str, enum.Enum):
     OPERADOR = "operador"
     CONDUCTOR = "conductor"
 
+class TipoTareaVehiculo(str, enum.Enum):
+    MANTENIMIENTO = "mantenimiento"
+    AVERIA = "averia"
+    ITV = "itv"
+    TARJETA_TRANSPORTES = "tarjeta_transportes"
+    SEGURO = "seguro"
+    CALIBRACION = "calibracion"
+    EXTINTORES = "extintores"
+    OTRO = "otro"
+
+class EstadoTareaVehiculo(str, enum.Enum):
+    PENDIENTE = "pendiente"
+    EN_PROCESO = "en_proceso"
+    COMPLETADA = "completada"
+    CANCELADA = "cancelada"
+
+# Enums legacy (mantener compatibilidad)
 class TipoMantenimiento(str, enum.Enum):
     PREVENTIVO = "preventivo"
     CORRECTIVO = "correctivo"
@@ -276,7 +293,31 @@ class Vehiculo(Base):
     seguro_fecha_vencimiento = Column(Date, nullable=True)
     seguro_prima = Column(Numeric(10, 2), nullable=True)
     
+    # Documentacion obligatoria (para estado operativo)
+    tarjeta_transportes_numero = Column(String(50), nullable=True)
+    tarjeta_transportes_fecha_renovacion = Column(Date, nullable=True)
+    tarjeta_transportes_documento_url = Column(String(500), nullable=True)
+    
+    tacografo_fecha_calibracion = Column(Date, nullable=True)
+    tacografo_documento_url = Column(String(500), nullable=True)
+    
+    extintores_fecha_vencimiento = Column(Date, nullable=True)
+    extintores_documento_url = Column(String(500), nullable=True)
+    
+    itv_fecha_proxima = Column(Date, nullable=True)
+    itv_documento_url = Column(String(500), nullable=True)
+    seguro_documento_url = Column(String(500), nullable=True)
+    
     estado = Column(SQLEnum(EstadoVehiculo), default=EstadoVehiculo.OPERATIVO)
+    
+    # Estado taller
+    taller_fecha_inicio = Column(DateTime, nullable=True)
+    taller_fecha_fin = Column(DateTime, nullable=True)
+    taller_motivo = Column(String(200), nullable=True)
+    
+    # Estado baja
+    baja_motivo = Column(Text, nullable=True)
+    baja_fecha = Column(DateTime, nullable=True)
     ubicacion = Column(String(200), nullable=True)
     
     fecha_creacion = Column(DateTime, default=datetime.datetime.utcnow)
@@ -402,6 +443,44 @@ class AnotacionVehiculo(Base):
         Index('idx_anotacion_servicio', 'servicio_id'),
         Index('idx_anotacion_conductor', 'conductor_id'),
         Index('idx_anotacion_fecha', 'fecha'),
+    )
+
+# ============================================
+# VEHICULO TAREAS (mantenimiento, averias, documentacion)
+# ============================================
+
+class VehiculoTarea(Base):
+    __tablename__ = "vehiculo_tareas"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    vehiculo_id = Column(Integer, ForeignKey("vehiculos.id"), nullable=False, index=True)
+    
+    tipo = Column(SQLEnum(TipoTareaVehiculo), nullable=False, default=TipoTareaVehiculo.MANTENIMIENTO)
+    estado = Column(SQLEnum(EstadoTareaVehiculo), nullable=False, default=EstadoTareaVehiculo.PENDIENTE)
+    
+    fecha = Column(DateTime, nullable=False)
+    fecha_completada = Column(DateTime, nullable=True)
+    
+    concepto = Column(String(300), nullable=True)
+    gasto = Column(Numeric(10, 2), nullable=True)
+    anotaciones = Column(Text, nullable=True)
+    
+    factura_url = Column(String(500), nullable=True)
+    documento_url = Column(String(500), nullable=True)
+    
+    creado_por = Column(Integer, ForeignKey("users.id"), nullable=True)
+    completado_por = Column(Integer, ForeignKey("users.id"), nullable=True)
+    
+    auto_generada = Column(Boolean, default=False)
+    
+    fecha_creacion = Column(DateTime, default=datetime.datetime.utcnow)
+    fecha_actualizacion = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    
+    vehiculo = relationship("Vehiculo", backref="tareas")
+    
+    __table_args__ = (
+        Index('idx_tarea_vehiculo', 'vehiculo_id', 'fecha'),
+        Index('idx_tarea_estado', 'estado'),
     )
 
 # ============================================

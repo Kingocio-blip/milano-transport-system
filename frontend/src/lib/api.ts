@@ -381,6 +381,26 @@ export const rolesApi = {
 };
 
 // ============================================
+// VEHICULO TAREAS (mantenimiento, averias, documentacion)
+// ============================================
+
+export const vehiculoTareasApi = {
+  getByVehiculo: (vehiculoId: string, params?: { tipo?: string; estado?: string }) => {
+    const query = params
+      ? '?' + Object.entries(params).filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(v!)}`).join('&')
+      : '';
+    return api.get(`/vehiculos/${vehiculoId}/tareas${query}`);
+  },
+  create: (vehiculoId: string, data: any) => api.post(`/vehiculos/${vehiculoId}/tareas`, data),
+  update: (tareaId: string, data: any) => api.put(`/vehiculo-tareas/${tareaId}`, data),
+  delete: (tareaId: string) => api.delete(`/vehiculo-tareas/${tareaId}`),
+};
+
+export const vehiculoEstadoApi = {
+  update: (vehiculoId: string, estado: string, data?: any) => api.put(`/vehiculos/${vehiculoId}/estado?estado=${estado}`, data),
+};
+
+// ============================================
 // MENSAJES (Chat por servicio)
 // ============================================
 

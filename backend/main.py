@@ -1416,6 +1416,116 @@ def delete_role(
     return {"message": "Rol eliminado"}
 
 # ============================================
+# VEHICULO TAREAS (mantenimiento, averias, documentacion)
+# ============================================
+
+@app.get("/vehiculos/{vehiculo_id}/tareas", response_model=List[schemas.VehiculoTarea])
+def get_vehiculo_tareas(
+    vehiculo_id: int,
+    tipo: Optional[str] = None,
+    estado: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("vehiculos.ver"))
+):
+    query = db.query(models.VehiculoTarea).filter(models.VehiculoTarea.vehiculo_id == vehiculo_id)
+    if tipo:
+        query = query.filter(models.VehiculoTarea.tipo == tipo)
+    if estado:
+        query = query.filter(models.VehiculoTarea.estado == estado)
+    return query.order_by(models.VehiculoTarea.fecha.asc()).all()
+
+@app.post("/vehiculos/{vehiculo_id}/tareas", response_model=schemas.VehiculoTarea)
+def create_vehiculo_tarea(
+    vehiculo_id: int,
+    tarea: schemas.VehiculoTareaCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("vehiculos.crear"))
+):
+    db_tarea = models.VehiculoTarea(
+        vehiculo_id=vehiculo_id,
+        tipo=tarea.tipo,
+        estado=tarea.estado or "pendiente",
+        fecha=tarea.fecha,
+        concepto=tarea.concepto,
+        gasto=tarea.gasto,
+        anotaciones=tarea.anotaciones,
+        factura_url=tarea.factura_url,
+        documento_url=tarea.documento_url,
+        auto_generada=tarea.auto_generada or False,
+        creado_por=current_user.id
+    )
+    db.add(db_tarea)
+    db.commit()
+    db.refresh(db_tarea)
+    return db_tarea
+
+@app.put("/vehiculo-tareas/{tarea_id}", response_model=schemas.VehiculoTarea)
+def update_vehiculo_tarea(
+    tarea_id: int,
+    tarea: schemas.VehiculoTareaUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("vehiculos.editar"))
+):
+    db_tarea = db.query(models.VehiculoTarea).filter(models.VehiculoTarea.id == tarea_id).first()
+    if not db_tarea:
+        raise HTTPException(status_code=404, detail="Tarea no encontrada")
+    
+    update_data = tarea.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_tarea, field, value)
+    
+    db.commit()
+    db.refresh(db_tarea)
+    return db_tarea
+
+@app.delete("/vehiculo-tareas/{tarea_id}")
+def delete_vehiculo_tarea(
+    tarea_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("vehiculos.eliminar"))
+):
+    db_tarea = db.query(models.VehiculoTarea).filter(models.VehiculoTarea.id == tarea_id).first()
+    if not db_tarea:
+        raise HTTPException(status_code=404, detail="Tarea no encontrada")
+    db.delete(db_tarea)
+    db.commit()
+    return {"message": "Tarea eliminada"}
+
+@app.put("/vehiculos/{vehiculo_id}/estado")
+def update_vehiculo_estado(
+    vehiculo_id: int,
+    estado: str,
+    motivo: Optional[str] = None,
+    fecha_inicio: Optional[datetime] = None,
+    fecha_fin: Optional[datetime] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("vehiculos.editar"))
+):
+    vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
+    if not vehiculo:
+        raise HTTPException(status_code=404, detail="Vehiculo no encontrado")
+    
+    vehiculo.estado = estado
+    
+    if estado == "taller":
+        vehiculo.taller_fecha_inicio = fecha_inicio or datetime.utcnow()
+        vehiculo.taller_fecha_fin = fecha_fin
+        vehiculo.taller_motivo = motivo
+        # TODO: Verificar servicios reservados y alertar
+    elif estado == "baja_temporal":
+        vehiculo.baja_fecha = datetime.utcnow()
+        vehiculo.baja_motivo = motivo
+    elif estado == "operativo":
+        vehiculo.taller_fecha_inicio = None
+        vehiculo.taller_fecha_fin = None
+        vehiculo.taller_motivo = None
+        vehiculo.baja_fecha = None
+        vehiculo.baja_motivo = None
+    
+    db.commit()
+    return {"message": f"Estado actualizado a {estado}"}
+
+# ============================================
 # MENSAJES (Chat por servicio)
 # ============================================
 
