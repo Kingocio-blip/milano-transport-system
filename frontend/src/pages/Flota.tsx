@@ -342,7 +342,6 @@ export default function Flota() {
                       <td className="px-4 py-3"><div className="flex gap-1 justify-end"><Button size="icon" variant="ghost" className="h-7 w-7" onClick={e => { e.stopPropagation(); setVehSeleccionado(v); setIsEditarOpen(true); }}><Edit3 className="h-3.5 w-3.5" /></Button><Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" onClick={e => { e.stopPropagation(); handleEliminar(String(v.id)); }}><Trash2 className="h-3.5 w-3.5" /></Button></div></td>
                     </tr>
                   ))}
-                }
               </tbody>
             </table>
           </div>
