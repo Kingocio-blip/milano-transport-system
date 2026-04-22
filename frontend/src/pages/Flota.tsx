@@ -74,6 +74,13 @@ const diasRestantes = (d: string | Date | undefined): number | null => {
   try { return differenceInDays(parseISO(d as string), new Date()); } catch { return null; }
 };
 
+// Helper: convertir fecha YYYY-MM-DD a datetime ISO para el backend
+const toDateTime = (dateStr: string | null | undefined): string | null => {
+  if (!dateStr) return null;
+  if (dateStr.includes('T')) return dateStr;
+  return dateStr + 'T00:00:00';
+};
+
 // Verificar si documentacion obligatoria esta completa
 const documentacionCompleta = (v: any): boolean => {
   return !!(
@@ -211,10 +218,32 @@ export default function Flota() {
     setIsSubmitting(true);
     try {
       const tipoFinal = (nuevoVeh.tipo === '__otro__') ? (tipoPersonalizado.trim() || 'autobus') : nuevoVeh.tipo;
-      const success = await addVehiculo({
-        ...nuevoVeh, tipo: tipoFinal,
+      // Construir payload con fechas convertidas a datetime ISO (el backend Pydantic lo requiere)
+      const payload = {
+        ...nuevoVeh,
+        tipo: tipoFinal,
         estado: documentacionCompleta(nuevoVeh) ? 'operativo' : 'baja',
-      } as any);
+        // Convertir fechas de documentación de YYYY-MM-DD a YYYY-MM-DDTHH:mm:ss
+        tarjetaTransportesNumero: nuevoVeh.tarjeta_transportes_numero || null,
+        tarjetaTransportesFechaRenovacion: toDateTime(nuevoVeh.tarjeta_transportes_fecha_renovacion),
+        itvFechaProxima: toDateTime(nuevoVeh.itv_fecha_proxima),
+        seguroCompania: nuevoVeh.seguro_compania || null,
+        seguroPoliza: nuevoVeh.seguro_poliza || null,
+        seguroFechaVencimiento: toDateTime(nuevoVeh.seguro_fecha_vencimiento),
+        tacografoFechaCalibracion: toDateTime(nuevoVeh.tacografo_fecha_calibracion),
+        extintoresFechaVencimiento: toDateTime(nuevoVeh.extintores_fecha_vencimiento),
+      };
+      // Limpiar snake_case del form (el store espera camelCase)
+      delete (payload as any).tarjeta_transportes_numero;
+      delete (payload as any).tarjeta_transportes_fecha_renovacion;
+      delete (payload as any).itv_fecha_proxima;
+      delete (payload as any).seguro_compania;
+      delete (payload as any).seguro_poliza;
+      delete (payload as any).seguro_fecha_vencimiento;
+      delete (payload as any).tacografo_fecha_calibracion;
+      delete (payload as any).extintores_fecha_vencimiento;
+
+      const success = await addVehiculo(payload as any);
       if (success) { setIsNuevoOpen(false); setNuevoVeh({ tipo: 'autobus', combustible: 'diesel', plazas: 50, añoFabricacion: new Date().getFullYear() }); setTipoPersonalizado(''); showToast('Vehiculo creado', 'success'); fetchVehiculos(); }
     } catch (err: any) { showToast(`Error: ${err.message}`, 'error'); }
     finally { setIsSubmitting(false); }
@@ -284,11 +313,41 @@ export default function Flota() {
     if (!vehSeleccionado) return;
     setIsSubmitting(true);
     try {
-      const payload = { ...editForm };
-      // Limpiar campos internos
-      ['id', 'fecha_creacion', 'fecha_actualizacion', 'tareas', 'mantenimientos', 'averias', 'anotaciones'].forEach(k => delete payload[k]);
+      // El backend VehiculoUpdate requiere matricula y fechas en formato ISO datetime
+      const payload: Record<string, any> = {
+        // Campos obligatorios para el backend
+        matricula: editForm.matricula || vehSeleccionado.matricula,
+        plazas: editForm.plazas !== undefined ? editForm.plazas : (vehSeleccionado.plazas || 0),
+        // Campos básicos
+        bastidor: editForm.bastidor || vehSeleccionado.bastidor || '',
+        marca: editForm.marca || vehSeleccionado.marca || '',
+        modelo: editForm.modelo || vehSeleccionado.modelo || '',
+        tipo: editForm.tipo || vehSeleccionado.tipo || 'autobus',
+        combustible: editForm.combustible || vehSeleccionado.combustible || 'diesel',
+        kilometraje: editForm.kilometraje !== undefined ? editForm.kilometraje : (vehSeleccionado.kilometraje || 0),
+        notas: editForm.notas || vehSeleccionado.notas || null,
+        // Documentación con fechas convertidas a datetime ISO
+        tarjetaTransportesNumero: editForm.tarjeta_transportes_numero || editForm.tarjetaTransportesNumero || vehSeleccionado.tarjetaTransportesNumero || null,
+        tarjetaTransportesFechaRenovacion: toDateTime(editForm.tarjeta_transportes_fecha_renovacion || editForm.tarjetaTransportesFechaRenovacion || vehSeleccionado.tarjetaTransportesFechaRenovacion),
+        itvFechaProxima: toDateTime(editForm.itv_fecha_proxima || editForm.itvFechaProxima || vehSeleccionado.itvFechaProxima),
+        seguroCompania: editForm.seguro_compania || editForm.seguroCompania || vehSeleccionado.seguroCompania || null,
+        seguroPoliza: editForm.seguro_poliza || editForm.seguroPoliza || vehSeleccionado.seguroPoliza || null,
+        seguroFechaVencimiento: toDateTime(editForm.seguro_fecha_vencimiento || editForm.seguroFechaVencimiento || vehSeleccionado.seguroFechaVencimiento),
+        tacografoFechaCalibracion: toDateTime(editForm.tacografo_fecha_calibracion || editForm.tacografoFechaCalibracion || vehSeleccionado.tacografoFechaCalibracion),
+        extintoresFechaVencimiento: toDateTime(editForm.extintores_fecha_vencimiento || editForm.extintoresFechaVencimiento || vehSeleccionado.extintoresFechaVencimiento),
+      };
 
-      await updateVehiculo(String(vehSeleccionado.id), payload as any);
+      // Si la documentacion está incompleta, forzar estado baja
+      const docCompleta = !!(
+        payload.tarjetaTransportesNumero && payload.tarjetaTransportesFechaRenovacion &&
+        payload.itvFechaProxima && payload.seguroCompania && payload.seguroPoliza &&
+        payload.seguroFechaVencimiento && payload.tacografoFechaCalibracion && payload.extintoresFechaVencimiento
+      );
+      if (!docCompleta && vehSeleccionado.estado === 'operativo') {
+        payload.estado = 'baja';
+      }
+
+      await updateVehiculo(String(vehSeleccionado.id), payload);
       showToast('Vehiculo actualizado', 'success');
       setIsEditarOpen(false);
       fetchVehiculos();
@@ -306,14 +365,16 @@ export default function Flota() {
     setIsSubmitting(true);
     try {
       const payload = {
+        matricula: vehSeleccionado.matricula, // requerido por backend
+        plazas: vehSeleccionado.plazas || 0,  // requerido por backend
         tarjetaTransportesNumero: docEdits.tarjeta_transportes_numero || null,
-        tarjetaTransportesFechaRenovacion: docEdits.tarjeta_transportes_fecha_renovacion || null,
-        itvFechaProxima: docEdits.itv_fecha_proxima || null,
+        tarjetaTransportesFechaRenovacion: toDateTime(docEdits.tarjeta_transportes_fecha_renovacion),
+        itvFechaProxima: toDateTime(docEdits.itv_fecha_proxima),
         seguroCompania: docEdits.seguro_compania || null,
         seguroPoliza: docEdits.seguro_poliza || null,
-        seguroFechaVencimiento: docEdits.seguro_fecha_vencimiento || null,
-        tacografoFechaCalibracion: docEdits.tacografo_fecha_calibracion || null,
-        extintoresFechaVencimiento: docEdits.extintores_fecha_vencimiento || null,
+        seguroFechaVencimiento: toDateTime(docEdits.seguro_fecha_vencimiento),
+        tacografoFechaCalibracion: toDateTime(docEdits.tacografo_fecha_calibracion),
+        extintoresFechaVencimiento: toDateTime(docEdits.extintores_fecha_vencimiento),
       };
       await updateVehiculo(String(vehSeleccionado.id), payload as any);
       showToast('Documentacion actualizada', 'success');
