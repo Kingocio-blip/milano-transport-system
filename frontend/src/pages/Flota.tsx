@@ -46,7 +46,7 @@ const COMBUSTIBLES = [
 const ESTADOS_VEHICULO = [
   { value: 'operativo', label: 'Operativo', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' },
   { value: 'taller', label: 'Taller', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' },
-  { value: 'baja_temporal', label: 'Baja temporal', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
+  { value: 'baja', label: 'Baja temporal', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
 ];
 const TIPOS_TAREA = [
   { value: 'mantenimiento', label: 'Mantenimiento' },
@@ -145,7 +145,7 @@ export default function Flota() {
     total: vehiculos.length,
     operativos: vehiculos.filter(v => v.estado === 'operativo').length,
     taller: vehiculos.filter(v => v.estado === 'taller').length,
-    baja: vehiculos.filter(v => v.estado === 'baja_temporal').length,
+    baja: vehiculos.filter(v => v.estado === 'baja').length,
   }), [vehiculos]);
 
   const filtrados = useMemo(() => vehiculos.filter(v => {
@@ -156,9 +156,9 @@ export default function Flota() {
 
   // Validar estado operativo
   const validarEstado = (v: any): string => {
-    if (v.estado === 'baja_temporal') return 'baja_temporal';
+    if (v.estado === 'baja') return 'baja';
     if (v.estado === 'taller') return 'taller';
-    if (!documentacionCompleta(v)) return 'baja_temporal';
+    if (!documentacionCompleta(v)) return 'baja';
     return 'operativo';
   };
 
@@ -170,7 +170,7 @@ export default function Flota() {
       const tipoFinal = (nuevoVeh.tipo === '__otro__') ? (tipoPersonalizado.trim() || 'autobus') : nuevoVeh.tipo;
       const success = await addVehiculo({
         ...nuevoVeh, tipo: tipoFinal,
-        estado: documentacionCompleta(nuevoVeh) ? 'operativo' : 'baja_temporal',
+        estado: documentacionCompleta(nuevoVeh) ? 'operativo' : 'baja',
       });
       if (success) { setIsNuevoOpen(false); setNuevoVeh({ tipo: 'autobus', combustible: 'diesel', numero_plazas: 50, ano_fabricacion: new Date().getFullYear() }); setTipoPersonalizado(''); showToast('Vehiculo creado', 'success'); fetchVehiculos(); }
     } catch (err: any) { showToast(`Error: ${err.message}`, 'error'); }
@@ -498,7 +498,7 @@ export default function Flota() {
                       {vehSeleccionado.taller_motivo && <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">Motivo: {vehSeleccionado.taller_motivo}</p>}
                     </div>
                   )}
-                  {vehSeleccionado.estado === 'baja_temporal' && (
+                  {vehSeleccionado.estado === 'baja' && (
                     <div className="rounded-lg border border-red-200 dark:border-red-700 p-3 bg-red-50 dark:bg-red-900/20">
                       <h4 className="text-sm font-medium text-red-800 dark:text-red-300 flex items-center gap-1"><AlertTriangle className="h-4 w-4" />Baja temporal</h4>
                       {vehSeleccionado.baja_motivo && <p className="text-xs text-red-700 dark:text-red-400 mt-1">Motivo: {vehSeleccionado.baja_motivo}</p>}
