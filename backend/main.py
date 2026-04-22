@@ -1512,7 +1512,7 @@ def update_vehiculo_estado(
         vehiculo.taller_fecha_fin = fecha_fin
         vehiculo.taller_motivo = motivo
         # TODO: Verificar servicios reservados y alertar
-    elif estado == "baja_temporal":
+    elif estado == "baja":
         vehiculo.baja_fecha = datetime.utcnow()
         vehiculo.baja_motivo = motivo
     elif estado == "operativo":

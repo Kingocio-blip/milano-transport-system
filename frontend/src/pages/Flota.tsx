@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useVehiculosStore, useUIStore } from '../store';
-import { vehiculoTareasApi } from '@/lib/api';
+import { vehiculoTareasApi, vehiculoEstadoApi } from '@/lib/api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
@@ -185,7 +185,8 @@ export default function Flota() {
       if (estado === 'operativo' && !documentacionCompleta(veh)) {
         showToast('No se puede poner operativo: falta documentacion obligatoria', 'error'); return;
       }
-      await updateVehiculo(id, { estado: estado as any });
+      // Usar endpoint dedicado para cambio de estado
+      await vehiculoEstadoApi.update(id, estado);
       showToast(`Estado cambiado a ${estado}`, 'success');
       fetchVehiculos();
       if (vehSeleccionado && String(vehSeleccionado.id) === id) setVehSeleccionado({ ...vehSeleccionado, estado });
