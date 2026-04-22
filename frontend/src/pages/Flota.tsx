@@ -160,14 +160,14 @@ export default function Flota() {
   useEffect(() => {
     if (vehSeleccionado) {
       setDocEdits({
-        tarjeta_transportes_numero: vehSeleccionado.tarjeta_transportes_numero || '',
-        tarjeta_transportes_fecha_renovacion: toDateInput(vehSeleccionado.tarjeta_transportes_fecha_renovacion),
-        itv_fecha_proxima: toDateInput(vehSeleccionado.itv_fecha_proxima),
-        seguro_compania: vehSeleccionado.seguro_compania || '',
-        seguro_poliza: vehSeleccionado.seguro_poliza || '',
-        seguro_fecha_vencimiento: toDateInput(vehSeleccionado.seguro_fecha_vencimiento),
-        tacografo_fecha_calibracion: toDateInput(vehSeleccionado.tacografo_fecha_calibracion),
-        extintores_fecha_vencimiento: toDateInput(vehSeleccionado.extintores_fecha_vencimiento),
+        tarjeta_transportes_numero: vehSeleccionado.tarjetaTransportesNumero || '',
+        tarjeta_transportes_fecha_renovacion: toDateInput(vehSeleccionado.tarjetaTransportesFechaRenovacion),
+        itv_fecha_proxima: toDateInput(vehSeleccionado.itvFechaProxima),
+        seguro_compania: vehSeleccionado.seguroCompania || '',
+        seguro_poliza: vehSeleccionado.seguroPoliza || '',
+        seguro_fecha_vencimiento: toDateInput(vehSeleccionado.seguroFechaVencimiento),
+        tacografo_fecha_calibracion: toDateInput(vehSeleccionado.tacografoFechaCalibracion),
+        extintores_fecha_vencimiento: toDateInput(vehSeleccionado.extintoresFechaVencimiento),
       });
     }
   }, [vehSeleccionado]);
@@ -288,7 +288,7 @@ export default function Flota() {
       // Limpiar campos internos
       ['id', 'fecha_creacion', 'fecha_actualizacion', 'tareas', 'mantenimientos', 'averias', 'anotaciones'].forEach(k => delete payload[k]);
 
-      await updateVehiculo(String(vehSeleccionado.id), payload);
+      await updateVehiculo(String(vehSeleccionado.id), payload as any);
       showToast('Vehiculo actualizado', 'success');
       setIsEditarOpen(false);
       fetchVehiculos();
@@ -306,16 +306,16 @@ export default function Flota() {
     setIsSubmitting(true);
     try {
       const payload = {
-        tarjeta_transportes_numero: docEdits.tarjeta_transportes_numero || null,
-        tarjeta_transportes_fecha_renovacion: docEdits.tarjeta_transportes_fecha_renovacion || null,
-        itv_fecha_proxima: docEdits.itv_fecha_proxima || null,
-        seguro_compania: docEdits.seguro_compania || null,
-        seguro_poliza: docEdits.seguro_poliza || null,
-        seguro_fecha_vencimiento: docEdits.seguro_fecha_vencimiento || null,
-        tacografo_fecha_calibracion: docEdits.tacografo_fecha_calibracion || null,
-        extintores_fecha_vencimiento: docEdits.extintores_fecha_vencimiento || null,
+        tarjetaTransportesNumero: docEdits.tarjeta_transportes_numero || null,
+        tarjetaTransportesFechaRenovacion: docEdits.tarjeta_transportes_fecha_renovacion || null,
+        itvFechaProxima: docEdits.itv_fecha_proxima || null,
+        seguroCompania: docEdits.seguro_compania || null,
+        seguroPoliza: docEdits.seguro_poliza || null,
+        seguroFechaVencimiento: docEdits.seguro_fecha_vencimiento || null,
+        tacografoFechaCalibracion: docEdits.tacografo_fecha_calibracion || null,
+        extintoresFechaVencimiento: docEdits.extintores_fecha_vencimiento || null,
       };
-      await updateVehiculo(String(vehSeleccionado.id), payload);
+      await updateVehiculo(String(vehSeleccionado.id), payload as any);
       showToast('Documentacion actualizada', 'success');
       fetchVehiculos();
       setVehSeleccionado((prev: any) => ({ ...prev, ...payload }));
