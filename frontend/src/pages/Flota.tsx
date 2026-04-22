@@ -118,7 +118,7 @@ export default function Flota() {
   const [detalleTab, setDetalleTab] = useState('info');
 
   // Form nuevo vehiculo
-  const [nuevoVeh, setNuevoVeh] = useState<Record<string, any>>({ tipo: 'autobus', combustible: 'diesel', plazas: 50, anno_fabricacion: new Date().getFullYear() });
+  const [nuevoVeh, setNuevoVeh] = useState<Record<string, any>>({ tipo: 'autobus', combustible: 'diesel', plazas: 50, añoFabricacion: new Date().getFullYear() });
   const [tipoPersonalizado, setTipoPersonalizado] = useState('');
 
   // Form editar vehiculo (CONTROLADO)
@@ -215,7 +215,7 @@ export default function Flota() {
         ...nuevoVeh, tipo: tipoFinal,
         estado: documentacionCompleta(nuevoVeh) ? 'operativo' : 'baja',
       } as any);
-      if (success) { setIsNuevoOpen(false); setNuevoVeh({ tipo: 'autobus', combustible: 'diesel', plazas: 50, anno_fabricacion: new Date().getFullYear() }); setTipoPersonalizado(''); showToast('Vehiculo creado', 'success'); fetchVehiculos(); }
+      if (success) { setIsNuevoOpen(false); setNuevoVeh({ tipo: 'autobus', combustible: 'diesel', plazas: 50, añoFabricacion: new Date().getFullYear() }); setTipoPersonalizado(''); showToast('Vehiculo creado', 'success'); fetchVehiculos(); }
     } catch (err: any) { showToast(`Error: ${err.message}`, 'error'); }
     finally { setIsSubmitting(false); }
   };
@@ -355,7 +355,7 @@ export default function Flota() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Flota</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Gestion de vehiculos y mantenimiento</p>
         </div>
-        <Button onClick={() => { setNuevoVeh({ tipo: 'autobus', combustible: 'diesel', plazas: 50, anno_fabricacion: new Date().getFullYear() }); setTipoPersonalizado(''); setIsNuevoOpen(true); }} className="bg-[#1e3a5f] hover:bg-[#152a45] dark:bg-blue-600">
+        <Button onClick={() => { setNuevoVeh({ tipo: 'autobus', combustible: 'diesel', plazas: 50, añoFabricacion: new Date().getFullYear() }); setTipoPersonalizado(''); setIsNuevoOpen(true); }} className="bg-[#1e3a5f] hover:bg-[#152a45] dark:bg-blue-600">
           <Plus className="mr-2 h-4 w-4" /> Nuevo Vehiculo
         </Button>
       </div>
@@ -424,7 +424,7 @@ export default function Flota() {
                   <span><Gauge className="h-3 w-3 inline mr-1" />{v.kilometraje?.toLocaleString() || 0} km</span>
                   <span><Fuel className="h-3 w-3 inline mr-1" />{v.combustible || '-'}</span>
                   <span><Shield className="h-3 w-3 inline mr-1" />{v.plazas || '-'} plazas</span>
-                  <span><Calendar className="h-3 w-3 inline mr-1" />{v.anno_fabricacion || '-'}</span>
+                  <span><Calendar className="h-3 w-3 inline mr-1" />{v.añoFabricacion || '-'}</span>
                 </div>
                 {alertas.length > 0 && (
                   <div className="space-y-1 mb-3">
@@ -512,7 +512,7 @@ export default function Flota() {
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2"><Label>Plazas</Label><Input type="number" value={nuevoVeh.plazas || ''} onChange={e => setNuevoVeh(p => ({ ...p, plazas: parseInt(e.target.value) || 0 }))} className="dark:bg-slate-900 dark:border-slate-600" /></div>
-              <div className="space-y-2"><Label>Ano fabricacion</Label><Input type="number" value={nuevoVeh.anno_fabricacion || ''} onChange={e => setNuevoVeh(p => ({ ...p, anno_fabricacion: parseInt(e.target.value) || new Date().getFullYear() }))} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+              <div className="space-y-2"><Label>Ano fabricacion</Label><Input type="number" value={nuevoVeh.añoFabricacion || ''} onChange={e => setNuevoVeh(p => ({ ...p, añoFabricacion: parseInt(e.target.value) || new Date().getFullYear() }))} className="dark:bg-slate-900 dark:border-slate-600" /></div>
               <div className="space-y-2"><Label>Kilometraje actual</Label><Input type="number" value={nuevoVeh.kilometraje || ''} onChange={e => setNuevoVeh(p => ({ ...p, kilometraje: parseInt(e.target.value) || 0 }))} className="dark:bg-slate-900 dark:border-slate-600" /></div>
             </div>
 
@@ -611,7 +611,7 @@ export default function Flota() {
                     <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Tipo</p><p className="text-sm font-medium dark:text-slate-200 capitalize">{vehSeleccionado.tipo}</p></div>
                     <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Combustible</p><p className="text-sm font-medium dark:text-slate-200 capitalize">{vehSeleccionado.combustible}</p></div>
                     <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Plazas</p><p className="text-sm font-medium dark:text-slate-200">{vehSeleccionado.plazas || '-'}</p></div>
-                    <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Ano fabricacion</p><p className="text-sm font-medium dark:text-slate-200">{vehSeleccionado.anno_fabricacion || '-'}</p></div>
+                    <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Ano fabricacion</p><p className="text-sm font-medium dark:text-slate-200">{vehSeleccionado.añoFabricacion || '-'}</p></div>
                     <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Kilometraje actual</p><p className="text-sm font-bold text-[#1e3a5f] dark:text-blue-400">{vehSeleccionado.kilometraje?.toLocaleString() || 0} km</p></div>
                     <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Creado</p><p className="text-sm dark:text-slate-200">{fmtDate(vehSeleccionado.fecha_creacion)}</p></div>
                   </div>
