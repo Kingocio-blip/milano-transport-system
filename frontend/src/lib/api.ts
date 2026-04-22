@@ -397,7 +397,7 @@ export const vehiculoTareasApi = {
 };
 
 export const vehiculoEstadoApi = {
-  update: (vehiculoId: string, estado: string, data?: any) => api.put(`/vehiculos/${vehiculoId}/estado?estado=${estado}`, data),
+  update: (vehiculoId: string, data: any) => api.put(`/vehiculos/${vehiculoId}/estado`, data),
 };
 
 // ============================================
