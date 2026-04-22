@@ -22,10 +22,10 @@ import { ScrollArea } from '../components/ui/scroll-area';
 import {
   Bus, Search, Plus, Edit3, Trash2, Eye, Calendar, AlertTriangle, CheckCircle2,
   Wrench, Fuel, Loader2, X, LayoutGrid, List, Gauge, Shield, FileText,
-  AlertCircle, Upload, ChevronDown, Tool, Clock
+  AlertCircle, Upload, ChevronDown, Clock
 } from 'lucide-react';
 import { SkeletonPage } from '../components/LoadingScreen';
-import { format, parseISO, isValid, differenceInDays, isBefore, addDays } from 'date-fns';
+import { format, parseISO, isValid, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 const TIPOS_VEHICULO = [
