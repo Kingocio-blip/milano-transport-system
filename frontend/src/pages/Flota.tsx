@@ -119,7 +119,7 @@ export default function Flota() {
   const [detalleTab, setDetalleTab] = useState('info');
 
   // Form nuevo vehiculo
-  const [nuevoVeh, setNuevoVeh] = useState<Record<string, any>>({ tipo: 'autobus', combustible: 'diesel', numero_plazas: 50, ano_fabricacion: new Date().getFullYear() });
+  const [nuevoVeh, setNuevoVeh] = useState<Record<string, any>>({ tipo: 'autobus', combustible: 'diesel', plazas: 50, añoFabricacion: new Date().getFullYear() });
   const [tipoPersonalizado, setTipoPersonalizado] = useState('');
 
   // Tareas
@@ -172,7 +172,7 @@ export default function Flota() {
         ...nuevoVeh, tipo: tipoFinal,
         estado: documentacionCompleta(nuevoVeh) ? 'operativo' : 'baja',
       } as any);
-      if (success) { setIsNuevoOpen(false); setNuevoVeh({ tipo: 'autobus', combustible: 'diesel', numero_plazas: 50, ano_fabricacion: new Date().getFullYear() }); setTipoPersonalizado(''); showToast('Vehiculo creado', 'success'); fetchVehiculos(); }
+      if (success) { setIsNuevoOpen(false); setNuevoVeh({ tipo: 'autobus', combustible: 'diesel', plazas: 50, añoFabricacion: new Date().getFullYear() }); setTipoPersonalizado(''); showToast('Vehiculo creado', 'success'); fetchVehiculos(); }
     } catch (err: any) { showToast(`Error: ${err.message}`, 'error'); }
     finally { setIsSubmitting(false); }
   };
@@ -227,7 +227,7 @@ export default function Flota() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Flota</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Gestion de vehiculos y mantenimiento</p>
         </div>
-        <Button onClick={() => { setNuevoVeh({ tipo: 'autobus', combustible: 'diesel', numero_plazas: 50, ano_fabricacion: new Date().getFullYear() }); setTipoPersonalizado(''); setIsNuevoOpen(true); }} className="bg-[#1e3a5f] hover:bg-[#152a45] dark:bg-blue-600">
+        <Button onClick={() => { setNuevoVeh({ tipo: 'autobus', combustible: 'diesel', plazas: 50, añoFabricacion: new Date().getFullYear() }); setTipoPersonalizado(''); setIsNuevoOpen(true); }} className="bg-[#1e3a5f] hover:bg-[#152a45] dark:bg-blue-600">
           <Plus className="mr-2 h-4 w-4" /> Nuevo Vehiculo
         </Button>
       </div>
@@ -293,10 +293,10 @@ export default function Flota() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs text-slate-500 dark:text-slate-400 mb-3">
-                  <span><Gauge className="h-3 w-3 inline mr-1" />{v.kilometraje_actual?.toLocaleString() || 0} km</span>
+                  <span><Gauge className="h-3 w-3 inline mr-1" />{v.kilometraje?.toLocaleString() || 0} km</span>
                   <span><Fuel className="h-3 w-3 inline mr-1" />{v.combustible || '-'}</span>
-                  <span><Shield className="h-3 w-3 inline mr-1" />{v.numero_plazas || '-'} plazas</span>
-                  <span><Calendar className="h-3 w-3 inline mr-1" />{v.ano_fabricacion || '-'}</span>
+                  <span><Shield className="h-3 w-3 inline mr-1" />{v.plazas || '-'} plazas</span>
+                  <span><Calendar className="h-3 w-3 inline mr-1" />{v.añoFabricacion || '-'}</span>
                 </div>
                 {alertas.length > 0 && (
                   <div className="space-y-1 mb-3">
@@ -338,7 +338,7 @@ export default function Flota() {
                       <td className="px-4 py-3 dark:text-slate-300">{v.marca} {v.modelo}</td>
                       <td className="px-4 py-3 capitalize dark:text-slate-400">{v.tipo}</td>
                       <td className="px-4 py-3"><Badge className={ESTADOS_VEHICULO.find(e => e.value === v.estado)?.color || ''}>{ESTADOS_VEHICULO.find(e => e.value === v.estado)?.label}</Badge></td>
-                      <td className="px-4 py-3 dark:text-slate-400">{v.kilometraje_actual?.toLocaleString() || 0}</td>
+                      <td className="px-4 py-3 dark:text-slate-400">{v.kilometraje?.toLocaleString() || 0}</td>
                       <td className="px-4 py-3"><div className="flex gap-1 justify-end"><Button size="icon" variant="ghost" className="h-7 w-7" onClick={e => { e.stopPropagation(); setVehSeleccionado(v); setIsEditarOpen(true); }}><Edit3 className="h-3.5 w-3.5" /></Button><Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" onClick={e => { e.stopPropagation(); handleEliminar(String(v.id)); }}><Trash2 className="h-3.5 w-3.5" /></Button></div></td>
                     </tr>
                   ))}
@@ -358,7 +358,7 @@ export default function Flota() {
           <form onSubmit={handleCrear} className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Matricula *</Label><Input value={nuevoVeh.matricula || ''} onChange={e => setNuevoVeh(p => ({ ...p, matricula: e.target.value }))} className="dark:bg-slate-900 dark:border-slate-600" required /></div>
-              <div className="space-y-2"><Label>Bastidor *</Label><Input value={nuevoVeh.numero_bastidor || ''} onChange={e => setNuevoVeh(p => ({ ...p, numero_bastidor: e.target.value }))} className="dark:bg-slate-900 dark:border-slate-600" required /></div>
+              <div className="space-y-2"><Label>Bastidor *</Label><Input value={nuevoVeh.bastidor || ''} onChange={e => setNuevoVeh(p => ({ ...p, bastidor: e.target.value }))} className="dark:bg-slate-900 dark:border-slate-600" required /></div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Marca *</Label><Input value={nuevoVeh.marca || ''} onChange={e => setNuevoVeh(p => ({ ...p, marca: e.target.value }))} className="dark:bg-slate-900 dark:border-slate-600" required /></div>
@@ -384,9 +384,9 @@ export default function Flota() {
               </div>
             </div>
             <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2"><Label>Plazas</Label><Input type="number" value={nuevoVeh.numero_plazas || ''} onChange={e => setNuevoVeh(p => ({ ...p, numero_plazas: parseInt(e.target.value) || 0 }))} className="dark:bg-slate-900 dark:border-slate-600" /></div>
-              <div className="space-y-2"><Label>Ano fabricacion</Label><Input type="number" value={nuevoVeh.ano_fabricacion || ''} onChange={e => setNuevoVeh(p => ({ ...p, ano_fabricacion: parseInt(e.target.value) || new Date().getFullYear() }))} className="dark:bg-slate-900 dark:border-slate-600" /></div>
-              <div className="space-y-2"><Label>Kilometraje actual</Label><Input type="number" value={nuevoVeh.kilometraje_actual || ''} onChange={e => setNuevoVeh(p => ({ ...p, kilometraje_actual: parseInt(e.target.value) || 0 }))} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+              <div className="space-y-2"><Label>Plazas</Label><Input type="number" value={nuevoVeh.plazas || ''} onChange={e => setNuevoVeh(p => ({ ...p, plazas: parseInt(e.target.value) || 0 }))} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+              <div className="space-y-2"><Label>Ano fabricacion</Label><Input type="number" value={nuevoVeh.añoFabricacion || ''} onChange={e => setNuevoVeh(p => ({ ...p, añoFabricacion: parseInt(e.target.value) || new Date().getFullYear() }))} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+              <div className="space-y-2"><Label>Kilometraje actual</Label><Input type="number" value={nuevoVeh.kilometraje || ''} onChange={e => setNuevoVeh(p => ({ ...p, kilometraje: parseInt(e.target.value) || 0 }))} className="dark:bg-slate-900 dark:border-slate-600" /></div>
             </div>
 
             {/* Documentacion obligatoria */}
@@ -480,12 +480,12 @@ export default function Flota() {
                 <TabsContent value="info" className="pt-4 space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Marca/Modelo</p><p className="text-sm font-medium dark:text-slate-200">{vehSeleccionado.marca} {vehSeleccionado.modelo}</p></div>
-                    <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Bastidor</p><p className="text-sm font-medium dark:text-slate-200">{vehSeleccionado.numero_bastidor || '-'}</p></div>
+                    <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Bastidor</p><p className="text-sm font-medium dark:text-slate-200">{vehSeleccionado.bastidor || '-'}</p></div>
                     <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Tipo</p><p className="text-sm font-medium dark:text-slate-200 capitalize">{vehSeleccionado.tipo}</p></div>
                     <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Combustible</p><p className="text-sm font-medium dark:text-slate-200 capitalize">{vehSeleccionado.combustible}</p></div>
-                    <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Plazas</p><p className="text-sm font-medium dark:text-slate-200">{vehSeleccionado.numero_plazas || '-'}</p></div>
-                    <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Ano fabricacion</p><p className="text-sm font-medium dark:text-slate-200">{vehSeleccionado.ano_fabricacion || '-'}</p></div>
-                    <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Kilometraje actual</p><p className="text-sm font-bold text-[#1e3a5f] dark:text-blue-400">{vehSeleccionado.kilometraje_actual?.toLocaleString() || 0} km</p></div>
+                    <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Plazas</p><p className="text-sm font-medium dark:text-slate-200">{vehSeleccionado.plazas || '-'}</p></div>
+                    <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Ano fabricacion</p><p className="text-sm font-medium dark:text-slate-200">{vehSeleccionado.añoFabricacion || '-'}</p></div>
+                    <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Kilometraje actual</p><p className="text-sm font-bold text-[#1e3a5f] dark:text-blue-400">{vehSeleccionado.kilometraje?.toLocaleString() || 0} km</p></div>
                     <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Creado</p><p className="text-sm dark:text-slate-200">{fmtDate(vehSeleccionado.fecha_creacion)}</p></div>
                   </div>
                   {vehSeleccionado.notas && <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3"><p className="text-sm dark:text-slate-300">{vehSeleccionado.notas}</p></div>}
@@ -583,14 +583,14 @@ export default function Flota() {
             <div className="space-y-4 py-2">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2"><Label>Matricula</Label><Input defaultValue={vehSeleccionado.matricula} className="dark:bg-slate-900 dark:border-slate-600" /></div>
-                <div className="space-y-2"><Label>Bastidor</Label><Input defaultValue={vehSeleccionado.numero_bastidor || ''} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+                <div className="space-y-2"><Label>Bastidor</Label><Input defaultValue={vehSeleccionado.bastidor || ''} className="dark:bg-slate-900 dark:border-slate-600" /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2"><Label>Marca</Label><Input defaultValue={vehSeleccionado.marca} className="dark:bg-slate-900 dark:border-slate-600" /></div>
                 <div className="space-y-2"><Label>Modelo</Label><Input defaultValue={vehSeleccionado.modelo} className="dark:bg-slate-900 dark:border-slate-600" /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><Label>Kilometraje</Label><Input type="number" defaultValue={vehSeleccionado.kilometraje_actual || 0} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+                <div className="space-y-2"><Label>Kilometraje</Label><Input type="number" defaultValue={vehSeleccionado.kilometraje || 0} className="dark:bg-slate-900 dark:border-slate-600" /></div>
                 <div className="space-y-2"><Label>Notas</Label><Textarea defaultValue={vehSeleccionado.notas || ''} rows={2} className="dark:bg-slate-900 dark:border-slate-600" /></div>
               </div>
 
