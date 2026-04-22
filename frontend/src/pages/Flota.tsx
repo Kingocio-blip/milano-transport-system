@@ -185,7 +185,7 @@ export default function Flota() {
       if (estado === 'operativo' && !documentacionCompleta(veh)) {
         showToast('No se puede poner operativo: falta documentacion obligatoria', 'error'); return;
       }
-      await updateVehiculo(id, { estado });
+      await updateVehiculo(id, { estado: estado as any });
       showToast(`Estado cambiado a ${estado}`, 'success');
       fetchVehiculos();
       if (vehSeleccionado && String(vehSeleccionado.id) === id) setVehSeleccionado({ ...vehSeleccionado, estado });
