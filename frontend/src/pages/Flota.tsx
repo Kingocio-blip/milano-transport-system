@@ -81,24 +81,29 @@ const toDateTime = (dateStr: string | null | undefined): string | null => {
   return dateStr + 'T00:00:00';
 };
 
-// Verificar si documentacion obligatoria esta completa
+// Verificar si documentacion obligatoria esta completa (usa camelCase del store)
 const documentacionCompleta = (v: any): boolean => {
   return !!(
-    v.tarjeta_transportes_numero && v.tarjeta_transportes_fecha_renovacion &&
-    v.itv_fecha_proxima && v.seguro_compania && v.seguro_poliza && v.seguro_fecha_vencimiento &&
-    v.tacografo_fecha_calibracion && v.extintores_fecha_vencimiento
+    (v.tarjetaTransportesNumero || v.tarjeta_transportes_numero) &&
+    (v.tarjetaTransportesFechaRenovacion || v.tarjeta_transportes_fecha_renovacion) &&
+    (v.itvFechaProxima || v.itv_fecha_proxima) &&
+    (v.seguroCompania || v.seguro_compania) &&
+    (v.seguroPoliza || v.seguro_poliza) &&
+    (v.seguroFechaVencimiento || v.seguro_fecha_vencimiento) &&
+    (v.tacografoFechaCalibracion || v.tacografo_fecha_calibracion) &&
+    (v.extintoresFechaVencimiento || v.extintores_fecha_vencimiento)
   );
 };
 
-// Alertas de documentacion
+// Alertas de documentacion (usa camelCase del store, con fallback a snake_case)
 const getAlertasDoc = (v: any) => {
   const alertas: { texto: string; dias: number; tipo: 'critica' | 'aviso' | 'ok' }[] = [];
   const checks = [
-    { campo: v.tarjeta_transportes_fecha_renovacion, nombre: 'Tarjeta transportes', alertaDias: 30 },
-    { campo: v.itv_fecha_proxima, nombre: 'ITV', alertaDias: 20 },
-    { campo: v.seguro_fecha_vencimiento, nombre: 'Seguro', alertaDias: 20 },
-    { campo: v.tacografo_fecha_calibracion, nombre: 'Tacografo', alertaDias: 10 },
-    { campo: v.extintores_fecha_vencimiento, nombre: 'Extintores', alertaDias: 10 },
+    { campo: v.tarjetaTransportesFechaRenovacion || v.tarjeta_transportes_fecha_renovacion, nombre: 'Tarjeta transportes', alertaDias: 30 },
+    { campo: v.itvFechaProxima || v.itv_fecha_proxima, nombre: 'ITV', alertaDias: 20 },
+    { campo: v.seguroFechaVencimiento || v.seguro_fecha_vencimiento, nombre: 'Seguro', alertaDias: 20 },
+    { campo: v.tacografoFechaCalibracion || v.tacografo_fecha_calibracion, nombre: 'Tacografo', alertaDias: 10 },
+    { campo: v.extintoresFechaVencimiento || v.extintores_fecha_vencimiento, nombre: 'Extintores', alertaDias: 10 },
   ];
   checks.forEach(c => {
     if (!c.campo) { alertas.push({ texto: `${c.nombre}: Sin fecha`, dias: -999, tipo: 'critica' }); }
@@ -180,8 +185,28 @@ export default function Flota() {
   }, [vehSeleccionado]);
 
   const cargarTareas = async (vehiculoId: string) => {
-    try { const res = await vehiculoTareasApi.getByVehiculo(vehiculoId); setTareas(res.data || []); }
-    catch { setTareas([]); }
+    try {
+      const res = await vehiculoTareasApi.getByVehiculo(vehiculoId);
+      // La API puede devolver el array directamente o envuelto en {data: [...]}
+      const lista = Array.isArray(res) ? res : (res.data || []);
+      // Normalizar snake_case a camelCase
+      const normalizadas = lista.map((t: any) => ({
+        id: t.id,
+        vehiculoId: t.vehiculo_id || t.vehiculoId,
+        tipo: t.tipo,
+        estado: t.estado,
+        fecha: t.fecha,
+        fechaCompletada: t.fecha_completada || t.fechaCompletada,
+        concepto: t.concepto || t.descripcion || '',
+        gasto: t.gasto || t.coste || 0,
+        anotaciones: t.anotaciones || t.observaciones || '',
+        facturaUrl: t.factura_url || t.facturaUrl,
+        documentoUrl: t.documento_url || t.documentoUrl,
+        autoGenerada: t.auto_generada || t.autoGenerada,
+        creadoPor: t.creado_por || t.creadoPor,
+      }));
+      setTareas(normalizadas);
+    } catch { setTareas([]); }
   };
 
   const stats = useMemo(() => ({
