@@ -1,5 +1,5 @@
 # ============================================
-# MILANO - Pydantic Schemas (v2)
+# MILANO - Pydantic Schemas (v2.1)
 # ============================================
 
 from pydantic import BaseModel, ConfigDict
@@ -115,13 +115,13 @@ class UserPermissionOverride(BaseModel):
     permission_id: int
     permission_codigo: str
     permission_nombre: str
-    tipo: str  # "allow" o "deny"
+    tipo: str # "allow" o "deny"
     razon: Optional[str] = None
     expires_at: Optional[datetime] = None
 
 class UserPermissionCreate(BaseModel):
     permission_id: int
-    tipo: str  # "allow" o "deny"
+    tipo: str # "allow" o "deny"
     razon: Optional[str] = None
     expires_at: Optional[datetime] = None
 
@@ -290,6 +290,17 @@ class Vehiculo(VehiculoBase):
     id: int
     fecha_creacion: datetime
     fecha_actualizacion: datetime
+
+# ============================================
+# VEHICULO ESTADO SCHEMA (NUEVO)
+# ============================================
+
+class VehiculoEstadoUpdate(BaseModel):
+    estado: str
+    motivo: Optional[str] = None
+    taller_fecha_inicio: Optional[datetime] = None
+    taller_fecha_fin: Optional[datetime] = None
+    baja_motivo: Optional[str] = None
 
 # ============================================
 # MANTENIMIENTO SCHEMAS
@@ -578,6 +589,40 @@ class VehiculoTarea(VehiculoTareaBase):
     fecha_actualizacion: datetime
 
 # ============================================
+# NOTIFICACION SCHEMAS (NUEVO)
+# ============================================
+
+class NotificacionBase(BaseModel):
+    tipo: str
+    titulo: str
+    mensaje: str
+    vehiculo_id: Optional[int] = None
+    servicio_id: Optional[int] = None
+    user_id: Optional[int] = None
+    fecha_referencia: Optional[datetime] = None
+    dias_antelacion: Optional[int] = None
+
+class NotificacionCreate(NotificacionBase):
+    pass
+
+class NotificacionUpdate(BaseModel):
+    leida: Optional[bool] = None
+
+class Notificacion(NotificacionBase):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    leida: bool
+    fecha_leida: Optional[datetime]
+    fecha_creacion: datetime
+
+class NotificacionResumen(BaseModel):
+    total: int
+    no_leidas: int
+    alertas_criticas: int
+    alertas_aviso: int
+
+# ============================================
 # MENSAJE SCHEMAS
 # ============================================
 
@@ -603,7 +648,7 @@ class Mensaje(MensajeBase):
 # ============================================
 
 class ParadaSchema(BaseModel):
-    tipo: str  # origen, parada, descanso, destino
+    tipo: str # origen, parada, descanso, destino
     ubicacion: str
     hora: Optional[str] = None
     notas: Optional[str] = None

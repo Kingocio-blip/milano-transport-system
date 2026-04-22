@@ -1,5 +1,5 @@
 # ============================================
-# MILANO - Backend Main (JWT ROBUSTO v1.3.0)
+# MILANO - Backend Main (JWT ROBUSTO v1.4.0)
 # ============================================
 
 from permissions import (
@@ -10,14 +10,14 @@ from permissions import (
     user_can,
     get_permisos_usuario
 )
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Query
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Optional, List
 import os
 import logging
@@ -55,7 +55,7 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="MILANO Transport Management API",
-    version="1.3.0",
+    version="1.4.0",
     description="API con JWT robusto (access + refresh tokens) y permisos granulares",
     docs_url="/docs",
     redoc_url="/redoc"
@@ -86,12 +86,10 @@ app.add_middleware(
 
 # ============================================
 # EXCEPTION HANDLER - CORS en errores
-# Asegura que TODAS las respuestas incluyan headers CORS
 # ============================================
 
 @app.exception_handler(HTTPException)
 async def cors_aware_exception_handler(request, exc: HTTPException):
-    """Añade headers CORS a las respuestas de error para que el navegador pueda leerlas"""
     origin = request.headers.get("origin", "")
     allowed_origin = origin if origin in origins else "https://milanobus.netlify.app"
     
@@ -106,7 +104,6 @@ async def cors_aware_exception_handler(request, exc: HTTPException):
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request, exc: Exception):
-    """Manejo generico de excepciones con CORS headers"""
     origin = request.headers.get("origin", "")
     allowed_origin = origin if origin in origins else "https://milanobus.netlify.app"
     
@@ -129,16 +126,95 @@ class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
-    expires_in: int  # segundos
+    expires_in: int # segundos
 
 class RefreshRequest(BaseModel):
     refresh_token: str
 
 class LogoutRequest(BaseModel):
-    refresh_token: Optional[str] = None  # Si no se envía, revoca todos
+    refresh_token: Optional[str] = None # Si no se envía, revoca todos
 
 # ============================================
-# STARTUP - Crear admin, permisos y verificar DB
+# HELPERS
+# ============================================
+
+def documentacion_completa(v: models.Vehiculo) -> bool:
+    """Verifica si la documentación obligatoria está completa"""
+    return bool(
+        v.tarjeta_transportes_numero and v.tarjeta_transportes_fecha_renovacion and
+        v.itv_fecha_proxima and v.seguro_compania and v.seguro_poliza and v.seguro_fecha_vencimiento and
+        v.tacografo_fecha_calibracion and v.extintores_fecha_vencimiento
+    )
+
+def auto_generar_tareas_documentacion(db: Session, vehiculo: models.Vehiculo):
+    """Genera tareas automáticas desde fechas de documentación"""
+    docs = [
+        ("itv", vehiculo.itv_fecha_proxima, "ITV programada"),
+        ("tarjeta_transportes", vehiculo.tarjeta_transportes_fecha_renovacion, "Renovación tarjeta transportes"),
+        ("seguro", vehiculo.seguro_fecha_vencimiento, "Renovación seguro"),
+        ("calibracion", vehiculo.tacografo_fecha_calibracion, "Calibración tacógrafo"),
+        ("extintores", vehiculo.extintores_fecha_vencimiento, "Revisión extintores"),
+    ]
+    
+    for tipo_str, fecha, concepto in docs:
+        if not fecha:
+            continue
+            
+        # Verificar si ya existe una tarea pendiente de este tipo para esta fecha
+        existing = db.query(models.VehiculoTarea).filter(
+            models.VehiculoTarea.vehiculo_id == vehiculo.id,
+            models.VehiculoTarea.tipo == tipo_str,
+            models.VehiculoTarea.estado.in_(["pendiente", "en_proceso"]),
+            models.VehiculoTarea.fecha == datetime.combine(fecha, datetime.min.time())
+        ).first()
+        
+        if existing:
+            continue
+            
+        tarea = models.VehiculoTarea(
+            vehiculo_id=vehiculo.id,
+            tipo=getattr(models.TipoTareaVehiculo, tipo_str.upper(), models.TipoTareaVehiculo.OTRO),
+            estado=models.EstadoTareaVehiculo.PENDIENTE,
+            fecha=datetime.combine(fecha, datetime.min.time()),
+            concepto=concepto,
+            auto_generada=True
+        )
+        db.add(tarea)
+        logger.info(f"📝 Tarea auto-generada: {concepto} para vehículo {vehiculo.matricula}")
+
+def verificar_servicios_reservados(db: Session, vehiculo_id: int):
+    """Verifica si hay servicios futuros asignados a este vehículo"""
+    ahora = datetime.utcnow()
+    servicios = db.query(models.Servicio).filter(
+        models.Servicio.vehiculos_asignados.contains([vehiculo_id]),
+        models.Servicio.fecha_inicio >= ahora,
+        models.Servicio.estado.in_(["planificando", "asignado", "en_curso"])
+    ).all()
+    return servicios
+
+def crear_notificacion_flota(db: Session, tipo: models.TipoNotificacion, titulo: str, mensaje: str, 
+                             vehiculo_id: Optional[int] = None, servicio_id: Optional[int] = None,
+                             fecha_referencia: Optional[datetime] = None, dias_antelacion: Optional[int] = None):
+    """Crea notificación para todos los usuarios con permiso de flota"""
+    # Buscar usuarios con permiso vehiculos.ver
+    from permissions import has_permission
+    
+    # Crear notificación global (user_id = null = todos ven)
+    notif = models.Notificacion(
+        tipo=tipo,
+        titulo=titulo,
+        mensaje=mensaje,
+        vehiculo_id=vehiculo_id,
+        servicio_id=servicio_id,
+        user_id=None,  # null = visible para todos
+        fecha_referencia=fecha_referencia,
+        dias_antelacion=dias_antelacion
+    )
+    db.add(notif)
+    return notif
+
+# ============================================
+# STARTUP
 # ============================================
 
 @app.on_event("startup")
@@ -149,11 +225,9 @@ async def startup_event():
     
     db = SessionLocal()
     try:
-        # Inicializar permisos y roles del sistema
         inicializar_permisos_sistema(db)
         inicializar_roles_sistema(db)
         
-        # Crear admin si no existe
         admin = db.query(models.User).filter(models.User.username == "admin").first()
         if not admin:
             hashed = get_password_hash("admin123")
@@ -177,7 +251,7 @@ async def startup_event():
         db.close()
 
 # ============================================
-# AUTH ENDPOINTS (JWT ROBUSTO - NUEVOS)
+# AUTH ENDPOINTS
 # ============================================
 
 @app.post("/token", response_model=TokenResponse)
@@ -185,9 +259,6 @@ def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(), 
     db: Session = Depends(get_db)
 ):
-    """
-    Login con OAuth2. Devuelve access token (15 min) + refresh token (7 días).
-    """
     user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
@@ -196,10 +267,7 @@ def login_for_access_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Crear access token (corto: 15 min)
     access_token = create_access_token(data={"sub": user.username})
-    
-    # Crear refresh token (largo: 7 días, guardado en BD)
     refresh_token = create_refresh_token(user.id, db, device_info="Web")
     
     logger.info(f"🔐 Login exitoso: {user.username}")
@@ -213,9 +281,6 @@ def login_for_access_token(
 
 @app.post("/auth/login", response_model=TokenResponse)
 def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
-    """
-    Login alternativo con JSON. Devuelve access token + refresh token.
-    """
     user = authenticate_user(db, login_data.username, login_data.password)
     if not user:
         raise HTTPException(
@@ -237,10 +302,6 @@ def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
 
 @app.post("/auth/refresh", response_model=TokenResponse)
 def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)):
-    """
-    Renueva el access token usando un refresh token válido.
-    Implementa rotación de tokens: el refresh anterior se revoca y se genera uno nuevo.
-    """
     user = verify_refresh_token(request.refresh_token, db)
     
     if not user:
@@ -249,11 +310,8 @@ def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)):
             detail="Refresh token inválido o expirado"
         )
     
-    # Crear nuevos tokens
     new_access_token = create_access_token(data={"sub": user.username})
     new_refresh_token = create_refresh_token(user.id, db, device_info="Web")
-    
-    # Revocar el refresh token anterior (rotación de tokens)
     revoke_refresh_token(request.refresh_token, db)
     
     logger.info(f"🔄 Tokens renovados para usuario: {user.username}")
@@ -271,12 +329,7 @@ def logout(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Logout: revoca el refresh token específico (logout de un dispositivo).
-    Si no se envía refresh_token, revoca TODOS los tokens del usuario (logout global).
-    """
     if request.refresh_token:
-        # Logout de un dispositivo específico
         success = revoke_refresh_token(request.refresh_token, db)
         if not success:
             raise HTTPException(
@@ -286,7 +339,6 @@ def logout(
         logger.info(f"👋 Logout dispositivo específico: {current_user.username}")
         return {"message": "Sesión cerrada correctamente"}
     else:
-        # Logout global (todos los dispositivos)
         count = revoke_all_user_tokens(current_user.id, db)
         logger.info(f"👋 Logout global: {current_user.username} ({count} sesiones cerradas)")
         return {"message": f"Cerradas {count} sesiones activas"}
@@ -296,19 +348,12 @@ def logout_all(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Fuerza el cierre de todas las sesiones del usuario en todos los dispositivos.
-    Útil si sospecha que su cuenta fue comprometida.
-    """
     count = revoke_all_user_tokens(current_user.id, db)
     logger.info(f"👋 Logout forzado global: {current_user.username} ({count} sesiones)")
     return {"message": f"Se cerraron {count} sesiones activas en todos los dispositivos"}
 
 @app.get("/auth/me", response_model=schemas.User)
 def read_users_me(current_user: models.User = Depends(get_current_user)):
-    """
-    Obtiene los datos del usuario autenticado.
-    """
     return current_user
 
 @app.get("/auth/permissions")
@@ -316,7 +361,6 @@ def get_my_permissions(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Obtener lista de permisos del usuario actual (para frontend)"""
     permisos = get_permisos_usuario(current_user, db)
     
     return {
@@ -328,7 +372,7 @@ def get_my_permissions(
     }
 
 # ============================================
-# USER ENDPOINTS (PERMISOS GRANULARES)
+# USER ENDPOINTS
 # ============================================
 
 @app.get("/users", response_model=List[schemas.User])
@@ -358,22 +402,18 @@ def create_user(
     db: Session = Depends(get_db), 
     current_user: models.User = Depends(require_permission("usuarios.crear"))
 ):
-    # Check username
     db_user = db.query(models.User).filter(models.User.username == user.username).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Username already registered")
     
-    # Check email
     db_user = db.query(models.User).filter(models.User.email == user.email).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    # Check password strength
     is_strong, error_msg = check_password_strength(user.password)
     if not is_strong:
         raise HTTPException(status_code=400, detail=error_msg)
     
-    # Create user
     hashed_password = get_password_hash(user.password)
     db_user = models.User(
         username=user.username,
@@ -400,7 +440,6 @@ def update_user(
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # No permitir editar a uno mismo ciertos campos críticos (evitar bloqueos)
     if db_user.id == current_user.id:
         allowed_fields = ['nombre_completo', 'email', 'password']
         update_data = user_update.model_dump(exclude_unset=True)
@@ -408,7 +447,6 @@ def update_user(
     else:
         filtered_data = user_update.model_dump(exclude_unset=True)
     
-    # Si se actualiza password, hashearla
     if 'password' in filtered_data and filtered_data['password']:
         is_strong, error_msg = check_password_strength(filtered_data['password'])
         if not is_strong:
@@ -429,7 +467,6 @@ def delete_user(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_permission("usuarios.eliminar"))
 ):
-    # No permitir eliminarse a sí mismo
     if user_id == current_user.id:
         raise HTTPException(status_code=400, detail="No puedes eliminar tu propio usuario")
     
@@ -442,7 +479,7 @@ def delete_user(
     return {"message": "User deleted successfully"}
 
 # ============================================
-# CLIENTE ENDPOINTS (PERMISOS GRANULARES)
+# CLIENTE ENDPOINTS
 # ============================================
 
 @app.get("/clientes", response_model=List[schemas.Cliente])
@@ -472,7 +509,6 @@ def create_cliente(
     db: Session = Depends(get_db), 
     current_user: models.User = Depends(require_permission("clientes.crear"))
 ):
-    # Check codigo
     if cliente.codigo:
         existing = db.query(models.Cliente).filter(models.Cliente.codigo == cliente.codigo).first()
         if existing:
@@ -520,7 +556,7 @@ def delete_cliente(
     return {"message": "Cliente deleted successfully"}
 
 # ============================================
-# CONDUCTOR ENDPOINTS (PERMISOS GRANULARES)
+# CONDUCTOR ENDPOINTS
 # ============================================
 
 @app.get("/conductores", response_model=List[schemas.Conductor])
@@ -552,17 +588,13 @@ def create_conductor(
 ):
     logger.info(f"📥 Creando conductor: {conductor.codigo} - {conductor.nombre} {conductor.apellidos}")
     
-    # Check codigo
     if conductor.codigo:
         existing = db.query(models.Conductor).filter(models.Conductor.codigo == conductor.codigo).first()
         if existing:
-            logger.warning(f"⚠️ Código duplicado: {conductor.codigo}")
             raise HTTPException(status_code=400, detail="Codigo already exists")
     
-    # Check DNI
     existing = db.query(models.Conductor).filter(models.Conductor.dni == conductor.dni).first()
     if existing:
-        logger.warning(f"⚠️ DNI duplicado: {conductor.dni}")
         raise HTTPException(status_code=400, detail="DNI already exists")
     
     try:
@@ -681,7 +713,7 @@ def delete_factura(
     return {"message": "Factura deleted successfully"}
 
 # ============================================
-# VEHICULO ENDPOINTS (PERMISOS GRANULARES)
+# VEHICULO ENDPOINTS
 # ============================================
 
 @app.get("/vehiculos", response_model=List[schemas.Vehiculo])
@@ -713,28 +745,44 @@ def create_vehiculo(
 ):
     logger.info(f"📥 Creando vehículo: {vehiculo.codigo} - {vehiculo.matricula}")
     
-    # Check codigo
     if vehiculo.codigo:
         existing = db.query(models.Vehiculo).filter(models.Vehiculo.codigo == vehiculo.codigo).first()
         if existing:
             raise HTTPException(status_code=400, detail="Codigo already exists")
     
-    # Check matricula
     existing = db.query(models.Vehiculo).filter(models.Vehiculo.matricula == vehiculo.matricula).first()
     if existing:
         raise HTTPException(status_code=400, detail="Matricula already exists")
+    
+    # Forzar estado baja si falta documentación
+    if not documentacion_completa_from_data(vehiculo):
+        vehiculo.estado = "baja"
+        logger.info(f"⚠️ Vehículo {vehiculo.matricula} creado en BAJA: falta documentación")
     
     try:
         db_vehiculo = models.Vehiculo(**vehiculo.model_dump())
         db.add(db_vehiculo)
         db.commit()
         db.refresh(db_vehiculo)
+        
+        # Auto-generar tareas desde documentación
+        auto_generar_tareas_documentacion(db, db_vehiculo)
+        db.commit()
+        
         logger.info(f"✅ Vehículo creado: ID {db_vehiculo.id}")
         return db_vehiculo
     except Exception as e:
         db.rollback()
         logger.error(f"❌ Error creando vehículo: {e}")
         raise HTTPException(status_code=500, detail=f"Error creating vehiculo: {str(e)}")
+
+def documentacion_completa_from_data(v: schemas.VehiculoCreate) -> bool:
+    """Versión para schemas (datos aún no en modelo)"""
+    return bool(
+        v.tarjeta_transportes_numero and v.tarjeta_transportes_fecha_renovacion and
+        v.itv_fecha_proxima and v.seguro_compania and v.seguro_poliza and v.seguro_fecha_vencimiento and
+        v.tacografo_fecha_calibracion and v.extintores_fecha_vencimiento
+    )
 
 @app.put("/vehiculos/{vehiculo_id}", response_model=schemas.Vehiculo)
 def update_vehiculo(
@@ -748,13 +796,48 @@ def update_vehiculo(
         raise HTTPException(status_code=404, detail="Vehiculo not found")
     
     update_data = vehiculo.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        if value is not None:
-            setattr(db_vehiculo, key, value)
+    
+    # Si se actualiza documentación, recalcular estado automáticamente
+    doc_fields = [
+        'tarjeta_transportes_numero', 'tarjeta_transportes_fecha_renovacion',
+        'itv_fecha_proxima', 'seguro_compania', 'seguro_poliza', 'seguro_fecha_vencimiento',
+        'tacografo_fecha_calibracion', 'extintores_fecha_vencimiento'
+    ]
+    doc_updated = any(f in update_data for f in doc_fields)
+    
+    # Si intentan poner operativo, verificar documentación
+    if update_data.get('estado') == 'operativo' and not documentacion_completa(db_vehiculo):
+        # Pero si en esta misma petición están completando docs...
+        # Aplicar primero los cambios para poder verificar
+        for key, value in update_data.items():
+            if value is not None:
+                setattr(db_vehiculo, key, value)
+        
+        if not documentacion_completa(db_vehiculo):
+            raise HTTPException(status_code=400, detail="Documentación incompleta. No se puede poner operativo.")
+    else:
+        for key, value in update_data.items():
+            if value is not None:
+                setattr(db_vehiculo, key, value)
+    
+    # Auto-ajustar estado si se actualizó documentación y no se especificó estado manualmente
+    if doc_updated and 'estado' not in update_data:
+        if documentacion_completa(db_vehiculo) and db_vehiculo.estado.value == 'baja':
+            db_vehiculo.estado = models.EstadoVehiculo.OPERATIVO
+            logger.info(f"✅ Vehículo {db_vehiculo.matricula} auto-puesto operativo: documentación completa")
+        elif not documentacion_completa(db_vehiculo) and db_vehiculo.estado.value == 'operativo':
+            db_vehiculo.estado = models.EstadoVehiculo.BAJA
+            logger.warning(f"⚠️ Vehículo {db_vehiculo.matricula} auto-puesto en BAJA: falta documentación")
     
     db_vehiculo.fecha_actualizacion = datetime.utcnow()
     db.commit()
     db.refresh(db_vehiculo)
+    
+    # Re-generar tareas si cambiaron fechas de documentación
+    if doc_updated:
+        auto_generar_tareas_documentacion(db, db_vehiculo)
+        db.commit()
+    
     return db_vehiculo
 
 @app.delete("/vehiculos/{vehiculo_id}")
@@ -772,7 +855,87 @@ def delete_vehiculo(
     return {"message": "Vehiculo deleted successfully"}
 
 # ============================================
-# VEHICULO HISTORIAL ENDPOINTS (PERMISOS GRANULARES)
+# VEHICULO ESTADO ENDPOINT (CORREGIDO - body JSON)
+# ============================================
+
+@app.put("/vehiculos/{vehiculo_id}/estado")
+def update_vehiculo_estado(
+    vehiculo_id: int,
+    data: schemas.VehiculoEstadoUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("vehiculos.editar"))
+):
+    vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
+    if not vehiculo:
+        raise HTTPException(status_code=404, detail="Vehiculo no encontrado")
+    
+    estado = data.estado
+    
+    # Validaciones según estado
+    if estado == "operativo":
+        if not documentacion_completa(vehiculo):
+            raise HTTPException(status_code=400, detail="Documentación incompleta. No se puede poner operativo.")
+        vehiculo.estado = models.EstadoVehiculo.OPERATIVO
+        vehiculo.taller_fecha_inicio = None
+        vehiculo.taller_fecha_fin = None
+        vehiculo.taller_motivo = None
+        vehiculo.baja_fecha = None
+        vehiculo.baja_motivo = None
+        
+    elif estado == "taller":
+        vehiculo.estado = models.EstadoVehiculo.TALLER
+        vehiculo.taller_fecha_inicio = data.taller_fecha_inicio or datetime.utcnow()
+        vehiculo.taller_fecha_fin = data.taller_fecha_fin
+        vehiculo.taller_motivo = data.motivo
+        vehiculo.baja_fecha = None
+        vehiculo.baja_motivo = None
+        
+        # Verificar servicios reservados
+        servicios = verificar_servicios_reservados(db, vehiculo_id)
+        if servicios:
+            # Crear alerta/notificación
+            fechas = ", ".join([s.fecha_inicio.strftime("%d/%m/%Y") for s in servicios[:3]])
+            crear_notificacion_flota(
+                db, models.TipoNotificacion.TALLER,
+                f"⚠️ Vehículo {vehiculo.matricula} en taller con servicios reservados",
+                f"Tiene servicios planificados para: {fechas}. Buscar vehículo operativo de reemplazo.",
+                vehiculo_id=vehiculo.id,
+                fecha_referencia=servicios[0].fecha_inicio if servicios else None
+            )
+            db.commit()
+            
+            return {
+                "message": f"Estado actualizado a taller. ⚠️ ATENCIÓN: Tiene {len(servicios)} servicio(s) reservado(s).",
+                "servicios_afectados": [{"id": s.id, "fecha": s.fecha_inicio.isoformat(), "titulo": s.titulo} for s in servicios],
+                "estado": estado
+            }
+        
+    elif estado == "baja":
+        vehiculo.estado = models.EstadoVehiculo.BAJA
+        vehiculo.baja_fecha = datetime.utcnow()
+        vehiculo.baja_motivo = data.motivo or data.baja_motivo
+        vehiculo.taller_fecha_inicio = None
+        vehiculo.taller_fecha_fin = None
+        vehiculo.taller_motivo = None
+        
+        # Verificar servicios reservados
+        servicios = verificar_servicios_reservados(db, vehiculo_id)
+        if servicios:
+            fechas = ", ".join([s.fecha_inicio.strftime("%d/%m/%Y") for s in servicios[:3]])
+            crear_notificacion_flota(
+                db, models.TipoNotificacion.SERVICIO,
+                f"🚫 Vehículo {vehiculo.matricula} dado de baja con servicios pendientes",
+                f"Servicios afectados: {fechas}",
+                vehiculo_id=vehiculo.id
+            )
+    else:
+        raise HTTPException(status_code=400, detail=f"Estado no válido: {estado}")
+    
+    db.commit()
+    return {"message": f"Estado actualizado a {estado}", "estado": estado}
+
+# ============================================
+# VEHICULO HISTORIAL ENDPOINTS
 # ============================================
 
 @app.get("/vehiculos/{vehiculo_id}/historial")
@@ -781,25 +944,25 @@ def get_vehiculo_historial(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_permission("vehiculos.historial"))
 ):
-    """Obtener historial completo de un vehículo (mantenimientos, averías, anotaciones)"""
     vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
     if not vehiculo:
         raise HTTPException(status_code=404, detail="Vehículo no encontrado")
     
-    # Obtener mantenimientos
     mantenimientos = db.query(models.Mantenimiento).filter(
         models.Mantenimiento.vehiculo_id == vehiculo_id
     ).order_by(models.Mantenimiento.fecha.desc()).all()
     
-    # Obtener averías
     averias = db.query(models.Averia).filter(
         models.Averia.vehiculo_id == vehiculo_id
     ).order_by(models.Averia.fecha_inicio.desc()).all()
     
-    # Obtener anotaciones
     anotaciones = db.query(models.AnotacionVehiculo).filter(
         models.AnotacionVehiculo.vehiculo_id == vehiculo_id
     ).order_by(models.AnotacionVehiculo.fecha.desc()).all()
+    
+    tareas = db.query(models.VehiculoTarea).filter(
+        models.VehiculoTarea.vehiculo_id == vehiculo_id
+    ).order_by(models.VehiculoTarea.fecha.asc()).all()
     
     return {
         "vehiculo_id": vehiculo_id,
@@ -847,6 +1010,22 @@ def get_vehiculo_historial(
                 "servicio_id": an.servicio_id,
                 "kilometraje": an.kilometraje,
             } for an in anotaciones
+        ],
+        "tareas": [
+            {
+                "id": t.id,
+                "tipo": t.tipo.value if t.tipo else str(t.tipo),
+                "estado": t.estado.value if t.estado else str(t.estado),
+                "fecha": t.fecha.isoformat() if t.fecha else None,
+                "fecha_completada": t.fecha_completada.isoformat() if t.fecha_completada else None,
+                "concepto": t.concepto,
+                "gasto": float(t.gasto) if t.gasto else None,
+                "anotaciones": t.anotaciones,
+                "factura_url": t.factura_url,
+                "documento_url": t.documento_url,
+                "auto_generada": t.auto_generada,
+                "creado_por": t.creado_por,
+            } for t in tareas
         ]
     }
 
@@ -856,7 +1035,6 @@ def get_mantenimientos(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Listar mantenimientos de un vehículo"""
     vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
     if not vehiculo:
         raise HTTPException(status_code=404, detail="Vehículo no encontrado")
@@ -874,7 +1052,6 @@ def create_mantenimiento(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_permission("vehiculos.editar"))
 ):
-    """Registrar nuevo mantenimiento"""
     vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
     if not vehiculo:
         raise HTTPException(status_code=404, detail="Vehículo no encontrado")
@@ -885,7 +1062,6 @@ def create_mantenimiento(
     )
     db.add(db_mantenimiento)
     
-    # Actualizar kilometraje si es mayor
     if mantenimiento.kilometraje and mantenimiento.kilometraje > vehiculo.kilometraje:
         vehiculo.kilometraje = mantenimiento.kilometraje
     
@@ -901,7 +1077,6 @@ def get_averias(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Listar averías de un vehículo"""
     vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
     if not vehiculo:
         raise HTTPException(status_code=404, detail="Vehículo no encontrado")
@@ -919,12 +1094,10 @@ def create_averia(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_permission("vehiculos.editar"))
 ):
-    """Reportar nueva avería"""
     vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
     if not vehiculo:
         raise HTTPException(status_code=404, detail="Vehículo no encontrado")
     
-    # Si la gravedad es crítica, cambiar estado del vehículo
     if averia.gravedad == models.GravedadAveria.CRITICA:
         vehiculo.estado = models.EstadoVehiculo.TALLER
     
@@ -947,7 +1120,6 @@ def update_averia(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_permission("vehiculos.editar"))
 ):
-    """Actualizar avería (resolver, etc.)"""
     db_averia = db.query(models.Averia).filter(
         models.Averia.id == averia_id,
         models.Averia.vehiculo_id == vehiculo_id
@@ -958,24 +1130,21 @@ def update_averia(
     
     update_data = averia_update.model_dump(exclude_unset=True)
     
-    # Si se marca como resuelta
     if update_data.get('estado') == models.EstadoAveria.RESUELTA and not db_averia.fecha_fin:
         update_data['fecha_fin'] = datetime.utcnow()
-        
-        # Verificar si hay más averías abiertas
-        averias_abiertas = db.query(models.Averia).filter(
-            models.Averia.vehiculo_id == vehiculo_id,
-            models.Averia.estado.in_([
-                models.EstadoAveria.REPORTADA,
-                models.EstadoAveria.EN_DIAGNOSTICO,
-                models.EstadoAveria.EN_REPARACION
-            ])
-        ).count()
-        
-        # Si no hay más, poner vehículo como operativo
-        if averias_abiertas == 0:
-            vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
-            vehiculo.estado = models.EstadoVehiculo.OPERATIVO
+    
+    averias_abiertas = db.query(models.Averia).filter(
+        models.Averia.vehiculo_id == vehiculo_id,
+        models.Averia.estado.in_([
+            models.EstadoAveria.REPORTADA,
+            models.EstadoAveria.EN_DIAGNOSTICO,
+            models.EstadoAveria.EN_REPARACION
+        ])
+    ).count()
+    
+    if averias_abiertas == 0:
+        vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
+        vehiculo.estado = models.EstadoVehiculo.OPERATIVO
     
     for key, value in update_data.items():
         setattr(db_averia, key, value)
@@ -990,7 +1159,6 @@ def get_anotaciones(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Listar anotaciones de conductores sobre un vehículo"""
     vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
     if not vehiculo:
         raise HTTPException(status_code=404, detail="Vehículo no encontrado")
@@ -1008,12 +1176,10 @@ def create_anotacion(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Crear anotación de conductor sobre vehículo"""
     vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
     if not vehiculo:
         raise HTTPException(status_code=404, detail="Vehículo no encontrado")
     
-    # Obtener nombre del conductor si hay conductor_id
     conductor_nombre = None
     if anotacion.conductor_id:
         conductor = db.query(models.Conductor).filter(
@@ -1029,7 +1195,6 @@ def create_anotacion(
     )
     db.add(db_anotacion)
     
-    # Actualizar kilometraje si es mayor
     if anotacion.kilometraje and anotacion.kilometraje > vehiculo.kilometraje:
         vehiculo.kilometraje = anotacion.kilometraje
     
@@ -1043,27 +1208,27 @@ def get_alertas_vehiculos(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Alertas de mantenimiento y averías pendientes"""
     from datetime import timedelta
     
     alertas = []
-    fecha_limite = datetime.utcnow() + timedelta(days=30)
+    hoy = date.today()
+    fecha_limite = hoy + timedelta(days=30)
     
     # ITV próxima a vencer
     vehiculos_itv = db.query(models.Vehiculo).filter(
-        models.Vehiculo.itv_fecha_proxima <= fecha_limite.date(),
+        models.Vehiculo.itv_fecha_proxima <= fecha_limite,
         models.Vehiculo.estado != models.EstadoVehiculo.BAJA
     ).all()
     
     for v in vehiculos_itv:
-        dias_restantes = (v.itv_fecha_proxima - datetime.utcnow().date()).days
+        dias_restantes = (v.itv_fecha_proxima - hoy).days if v.itv_fecha_proxima else -999
         alertas.append({
             "tipo": "itv",
             "gravedad": "alta" if dias_restantes <= 7 else "media",
             "vehiculo_id": v.id,
             "vehiculo_matricula": v.matricula,
-            "mensaje": f"ITV vence en {dias_restantes} días",
-            "fecha_limite": v.itv_fecha_proxima.isoformat()
+            "mensaje": f"ITV vence en {dias_restantes} días" if dias_restantes >= 0 else f"ITV vencida hace {abs(dias_restantes)} días",
+            "fecha_limite": v.itv_fecha_proxima.isoformat() if v.itv_fecha_proxima else None
         })
     
     # Averías no resueltas
@@ -1086,337 +1251,13 @@ def get_alertas_vehiculos(
             "fecha_inicio": a.fecha_inicio.isoformat()
         })
     
-    # Ordenar por gravedad
     gravedad_orden = {"critica": 0, "grave": 1, "alta": 2, "media": 3, "leve": 4}
     alertas.sort(key=lambda x: gravedad_orden.get(x["gravedad"], 5))
     
     return alertas
 
 # ============================================
-# SERVICIO ENDPOINTS (PERMISOS GRANULARES)
-# ============================================
-
-@app.get("/servicios", response_model=List[schemas.Servicio])
-def get_servicios(
-    skip: int = 0, 
-    limit: int = 100, 
-    db: Session = Depends(get_db), 
-    current_user: models.User = Depends(get_current_user)
-):
-    servicios = db.query(models.Servicio).offset(skip).limit(limit).all()
-    return servicios
-
-@app.get("/servicios/{servicio_id}", response_model=schemas.Servicio)
-def get_servicio(
-    servicio_id: int, 
-    db: Session = Depends(get_db), 
-    current_user: models.User = Depends(get_current_user)
-):
-    servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
-    if not servicio:
-        raise HTTPException(status_code=404, detail="Servicio not found")
-    return servicio
-
-@app.post("/servicios", response_model=schemas.Servicio)
-def create_servicio(
-    servicio: schemas.ServicioCreate, 
-    db: Session = Depends(get_db), 
-    current_user: models.User = Depends(require_permission("servicios.crear"))
-):
-    # Check codigo
-    if servicio.codigo:
-        existing = db.query(models.Servicio).filter(models.Servicio.codigo == servicio.codigo).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="Codigo already exists")
-    
-    # Get cliente name
-    cliente_nombre = None
-    if servicio.cliente_id:
-        cliente = db.query(models.Cliente).filter(models.Cliente.id == servicio.cliente_id).first()
-        if cliente:
-            cliente_nombre = cliente.nombre
-    
-    servicio_data = servicio.model_dump()
-    servicio_data["cliente_nombre"] = cliente_nombre
-    
-    db_servicio = models.Servicio(**servicio_data)
-    db.add(db_servicio)
-    db.commit()
-    db.refresh(db_servicio)
-    return db_servicio
-
-@app.put("/servicios/{servicio_id}", response_model=schemas.Servicio)
-def update_servicio(
-    servicio_id: int, 
-    servicio: schemas.ServicioUpdate, 
-    db: Session = Depends(get_db), 
-    current_user: models.User = Depends(require_permission("servicios.editar"))
-):
-    db_servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
-    if not db_servicio:
-        raise HTTPException(status_code=404, detail="Servicio not found")
-    
-    update_data = servicio.model_dump(exclude_unset=True)
-    
-    # Update cliente_nombre if cliente_id changed
-    if "cliente_id" in update_data and update_data["cliente_id"]:
-        cliente = db.query(models.Cliente).filter(models.Cliente.id == update_data["cliente_id"]).first()
-        if cliente:
-            update_data["cliente_nombre"] = cliente.nombre
-    
-    for key, value in update_data.items():
-        if value is not None:
-            setattr(db_servicio, key, value)
-    
-    db_servicio.fecha_modificacion = datetime.utcnow()
-    db.commit()
-    db.refresh(db_servicio)
-    return db_servicio
-
-@app.delete("/servicios/{servicio_id}")
-def delete_servicio(
-    servicio_id: int, 
-    db: Session = Depends(get_db), 
-    current_user: models.User = Depends(require_permission("servicios.eliminar"))
-):
-    db_servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
-    if not db_servicio:
-        raise HTTPException(status_code=404, detail="Servicio not found")
-    
-    db.delete(db_servicio)
-    db.commit()
-    return {"message": "Servicio deleted successfully"}
-
-# ============================================
-# DASHBOARD ENDPOINTS
-# ============================================
-
-@app.get("/dashboard/stats")
-def get_dashboard_stats(
-    db: Session = Depends(get_db), 
-    current_user: models.User = Depends(require_permission("dashboard.ver"))
-):
-    # Servicios activos
-    servicios_activos = db.query(models.Servicio).filter(
-        models.Servicio.estado.in_(['en_curso', 'asignado'])
-    ).count()
-    
-    # Servicios de hoy
-    hoy_inicio = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    hoy_fin = datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)
-    
-    servicios_hoy = db.query(models.Servicio).filter(
-        models.Servicio.fecha_inicio >= hoy_inicio,
-        models.Servicio.fecha_inicio <= hoy_fin
-    ).count()
-    
-    # Servicios del mes
-    mes_inicio = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    servicios_mes = db.query(models.Servicio).filter(
-        models.Servicio.fecha_creacion >= mes_inicio
-    ).count()
-    
-    # Conductores
-    conductores_disponibles = db.query(models.Conductor).filter(
-        models.Conductor.estado == models.EstadoConductor.ACTIVO
-    ).count()
-    
-    conductores_ocupados = db.query(models.Conductor).filter(
-        models.Conductor.estado == models.EstadoConductor.EN_RUTA
-    ).count()
-    
-    # Vehículos
-    vehiculos_operativos = db.query(models.Vehiculo).filter(
-        models.Vehiculo.estado == models.EstadoVehiculo.OPERATIVO
-    ).count()
-    
-    vehiculos_taller = db.query(models.Vehiculo).filter(
-        models.Vehiculo.estado == models.EstadoVehiculo.TALLER
-    ).count()
-    
-    # Facturación
-    facturacion_mes = db.query(models.Servicio).filter(
-        models.Servicio.estado == 'facturado',
-        models.Servicio.fecha_creacion >= mes_inicio
-    ).all()
-    
-    total_facturado = sum([s.precio or 0 for s in facturacion_mes])
-    
-    pendientes_facturar = db.query(models.Servicio).filter(
-        models.Servicio.estado == 'completado',
-        models.Servicio.facturado == False
-    ).count()
-    
-    return {
-        "serviciosActivos": servicios_activos,
-        "serviciosHoy": servicios_hoy,
-        "serviciosMes": servicios_mes,
-        "conductoresDisponibles": conductores_disponibles,
-        "conductoresOcupados": conductores_ocupados,
-        "vehiculosOperativos": vehiculos_operativos,
-        "vehiculosTaller": vehiculos_taller,
-        "facturacionMes": float(total_facturado),
-        "facturacionPendiente": 0,
-        "serviciosPendientesFacturar": pendientes_facturar
-    }
-
-@app.get("/dashboard/servicios-recientes")
-def get_servicios_recientes(
-    limit: int = 5,
-    db: Session = Depends(get_db), 
-    current_user: models.User = Depends(require_permission("dashboard.ver"))
-):
-    servicios = db.query(models.Servicio).order_by(
-        models.Servicio.fecha_creacion.desc()
-    ).limit(limit).all()
-    
-    return servicios
-
-# ============================================
-# ROLES Y PERMISOS ENDPOINTS (CONFIGURACIÓN)
-# ============================================
-
-@app.get("/permissions", response_model=List[schemas.Permission])
-def get_permissions(
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
-):
-    """Lista todos los permisos disponibles (para crear roles)"""
-    permisos = db.query(models.Permission).filter(
-        models.Permission.activo == True
-    ).order_by(models.Permission.categoria, models.Permission.nombre).all()
-    return permisos
-
-@app.get("/roles", response_model=List[schemas.Role])
-def get_roles(
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
-):
-    """Lista todos los roles (sistema + custom de la empresa del usuario)"""
-    # TODO: Filtrar por empresa_id cuando implementemos multi-tenant
-    roles = db.query(models.Role).options(
-        joinedload(models.Role.permissions).joinedload(models.RolePermission.permission)
-    ).all()
-    return roles
-
-@app.get("/roles/{role_id}", response_model=schemas.Role)
-def get_role(
-    role_id: int,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
-):
-    """Obtener un rol específico con sus permisos"""
-    rol = db.query(models.Role).options(
-        joinedload(models.Role.permissions).joinedload(models.RolePermission.permission)
-    ).filter(models.Role.id == role_id).first()
-    
-    if not rol:
-        raise HTTPException(status_code=404, detail="Rol no encontrado")
-    
-    return rol
-
-@app.post("/roles", response_model=schemas.Role)
-def create_role(
-    role_data: schemas.RoleCreate,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(require_permission("configuracion.roles"))
-):
-    """Crear un nuevo rol custom"""
-    # Verificar código único
-    existing = db.query(models.Role).filter(
-        models.Role.codigo == role_data.codigo,
-        models.Role.empresa_id == current_user.empresa_id  # o None si no hay multi-tenant
-    ).first()
-    
-    if existing:
-        raise HTTPException(status_code=400, detail="Código de rol ya existe")
-    
-    # Crear rol
-    rol = models.Role(
-        codigo=role_data.codigo,
-        nombre=role_data.nombre,
-        descripcion=role_data.descripcion,
-        es_sistema=False,
-        empresa_id=current_user.empresa_id,  # Asociar a empresa del creador
-        activo=True
-    )
-    db.add(rol)
-    db.flush()  # Obtener ID
-    
-    # Asignar permisos
-    for permiso_id in role_data.permisos_ids:
-        rp = models.RolePermission(role_id=rol.id, permission_id=permiso_id)
-        db.add(rp)
-    
-    db.commit()
-    db.refresh(rol)
-    return rol
-
-@app.put("/roles/{role_id}", response_model=schemas.Role)
-def update_role(
-    role_id: int,
-    role_data: schemas.RoleUpdate,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(require_permission("configuracion.roles"))
-):
-    """Actualizar un rol custom (no se pueden editar roles del sistema)"""
-    rol = db.query(models.Role).filter(models.Role.id == role_id).first()
-    
-    if not rol:
-        raise HTTPException(status_code=404, detail="Rol no encontrado")
-    
-    if rol.es_sistema:
-        raise HTTPException(status_code=403, detail="No se pueden editar roles del sistema")
-    
-    # Actualizar datos básicos
-    rol.nombre = role_data.nombre
-    rol.descripcion = role_data.descripcion
-    
-    # Eliminar permisos actuales y agregar nuevos (más simple que diff)
-    db.query(models.RolePermission).filter(
-        models.RolePermission.role_id == role_id
-    ).delete()
-    
-    for permiso_id in role_data.permisos_ids:
-        rp = models.RolePermission(role_id=rol.id, permission_id=permiso_id)
-        db.add(rp)
-    
-    db.commit()
-    db.refresh(rol)
-    return rol
-
-@app.delete("/roles/{role_id}")
-def delete_role(
-    role_id: int,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(require_permission("configuracion.roles"))
-):
-    """Eliminar un rol custom"""
-    rol = db.query(models.Role).filter(models.Role.id == role_id).first()
-    
-    if not rol:
-        raise HTTPException(status_code=404, detail="Rol no encontrado")
-    
-    if rol.es_sistema:
-        raise HTTPException(status_code=403, detail="No se pueden eliminar roles del sistema")
-    
-    # Verificar si hay usuarios con este rol
-    usuarios_con_rol = db.query(models.User).filter(
-        models.User.rol_custom_id == role_id
-    ).count()
-    
-    if usuarios_con_rol > 0:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"No se puede eliminar: {usuarios_con_rol} usuarios tienen este rol"
-        )
-    
-    db.delete(rol)
-    db.commit()
-    return {"message": "Rol eliminado"}
-
-# ============================================
-# VEHICULO TAREAS (mantenimiento, averias, documentacion)
+# VEHICULO TAREAS ENDPOINTS
 # ============================================
 
 @app.get("/vehiculos/{vehiculo_id}/tareas", response_model=List[schemas.VehiculoTarea])
@@ -1491,39 +1332,376 @@ def delete_vehiculo_tarea(
     db.commit()
     return {"message": "Tarea eliminada"}
 
-@app.put("/vehiculos/{vehiculo_id}/estado")
-def update_vehiculo_estado(
-    vehiculo_id: int,
-    estado: str,
-    motivo: Optional[str] = None,
-    fecha_inicio: Optional[datetime] = None,
-    fecha_fin: Optional[datetime] = None,
+# ============================================
+# NOTIFICACIONES ENDPOINTS (NUEVO)
+# ============================================
+
+@app.get("/notificaciones", response_model=List[schemas.Notificacion])
+def get_notificaciones(
+    solo_no_leidas: bool = False,
+    tipo: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(require_permission("vehiculos.editar"))
+    current_user: models.User = Depends(get_current_user)
 ):
-    vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
-    if not vehiculo:
-        raise HTTPException(status_code=404, detail="Vehiculo no encontrado")
+    """Obtener notificaciones del usuario actual (o globales)"""
+    query = db.query(models.Notificacion).filter(
+        (models.Notificacion.user_id == current_user.id) | (models.Notificacion.user_id == None)
+    )
     
-    vehiculo.estado = estado
+    if solo_no_leidas:
+        query = query.filter(models.Notificacion.leida == False)
+    if tipo:
+        query = query.filter(models.Notificacion.tipo == tipo)
     
-    if estado == "taller":
-        vehiculo.taller_fecha_inicio = fecha_inicio or datetime.utcnow()
-        vehiculo.taller_fecha_fin = fecha_fin
-        vehiculo.taller_motivo = motivo
-        # TODO: Verificar servicios reservados y alertar
-    elif estado == "baja":
-        vehiculo.baja_fecha = datetime.utcnow()
-        vehiculo.baja_motivo = motivo
-    elif estado == "operativo":
-        vehiculo.taller_fecha_inicio = None
-        vehiculo.taller_fecha_fin = None
-        vehiculo.taller_motivo = None
-        vehiculo.baja_fecha = None
-        vehiculo.baja_motivo = None
+    return query.order_by(models.Notificacion.fecha_creacion.desc()).limit(50).all()
+
+@app.get("/notificaciones/resumen", response_model=schemas.NotificacionResumen)
+def get_notificaciones_resumen(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Resumen de notificaciones pendientes"""
+    query = db.query(models.Notificacion).filter(
+        (models.Notificacion.user_id == current_user.id) | (models.Notificacion.user_id == None)
+    )
+    
+    total = query.count()
+    no_leidas = query.filter(models.Notificacion.leida == False).count()
+    
+    # Contar críticas (taller, averia, documentación vencida)
+    alertas_criticas = query.filter(
+        models.Notificacion.leida == False,
+        models.Notificacion.tipo.in_(["taller", "averia"])
+    ).count()
+    
+    alertas_aviso = query.filter(
+        models.Notificacion.leida == False,
+        models.Notificacion.tipo == "documentacion"
+    ).count()
+    
+    return {
+        "total": total,
+        "no_leidas": no_leidas,
+        "alertas_criticas": alertas_criticas,
+        "alertas_aviso": alertas_aviso
+    }
+
+@app.patch("/notificaciones/{notificacion_id}/leida")
+def marcar_notificacion_leida(
+    notificacion_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    notif = db.query(models.Notificacion).filter(models.Notificacion.id == notificacion_id).first()
+    if not notif:
+        raise HTTPException(status_code=404, detail="Notificación no encontrada")
+    
+    notif.leida = True
+    notif.fecha_leida = datetime.utcnow()
+    db.commit()
+    
+    return {"message": "Notificación marcada como leída"}
+
+# ============================================
+# SERVICIO ENDPOINTS
+# ============================================
+
+@app.get("/servicios", response_model=List[schemas.Servicio])
+def get_servicios(
+    skip: int = 0, 
+    limit: int = 100, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    servicios = db.query(models.Servicio).offset(skip).limit(limit).all()
+    return servicios
+
+@app.get("/servicios/{servicio_id}", response_model=schemas.Servicio)
+def get_servicio(
+    servicio_id: int, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
+    if not servicio:
+        raise HTTPException(status_code=404, detail="Servicio not found")
+    return servicio
+
+@app.post("/servicios", response_model=schemas.Servicio)
+def create_servicio(
+    servicio: schemas.ServicioCreate, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(require_permission("servicios.crear"))
+):
+    if servicio.codigo:
+        existing = db.query(models.Servicio).filter(models.Servicio.codigo == servicio.codigo).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Codigo already exists")
+    
+    cliente_nombre = None
+    if servicio.cliente_id:
+        cliente = db.query(models.Cliente).filter(models.Cliente.id == servicio.cliente_id).first()
+        if cliente:
+            cliente_nombre = cliente.nombre
+    
+    servicio_data = servicio.model_dump()
+    servicio_data["cliente_nombre"] = cliente_nombre
+    
+    db_servicio = models.Servicio(**servicio_data)
+    db.add(db_servicio)
+    db.commit()
+    db.refresh(db_servicio)
+    return db_servicio
+
+@app.put("/servicios/{servicio_id}", response_model=schemas.Servicio)
+def update_servicio(
+    servicio_id: int, 
+    servicio: schemas.ServicioUpdate, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(require_permission("servicios.editar"))
+):
+    db_servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
+    if not db_servicio:
+        raise HTTPException(status_code=404, detail="Servicio not found")
+    
+    update_data = servicio.model_dump(exclude_unset=True)
+    
+    if "cliente_id" in update_data and update_data["cliente_id"]:
+        cliente = db.query(models.Cliente).filter(models.Cliente.id == update_data["cliente_id"]).first()
+        if cliente:
+            update_data["cliente_nombre"] = cliente.nombre
+    
+    for key, value in update_data.items():
+        if value is not None:
+            setattr(db_servicio, key, value)
+    
+    db_servicio.fecha_modificacion = datetime.utcnow()
+    db.commit()
+    db.refresh(db_servicio)
+    return db_servicio
+
+@app.delete("/servicios/{servicio_id}")
+def delete_servicio(
+    servicio_id: int, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(require_permission("servicios.eliminar"))
+):
+    db_servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
+    if not db_servicio:
+        raise HTTPException(status_code=404, detail="Servicio not found")
+    
+    db.delete(db_servicio)
+    db.commit()
+    return {"message": "Servicio deleted successfully"}
+
+# ============================================
+# DASHBOARD ENDPOINTS
+# ============================================
+
+@app.get("/dashboard/stats")
+def get_dashboard_stats(
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(require_permission("dashboard.ver"))
+):
+    servicios_activos = db.query(models.Servicio).filter(
+        models.Servicio.estado.in_(['en_curso', 'asignado'])
+    ).count()
+    
+    hoy_inicio = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    hoy_fin = datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)
+    
+    servicios_hoy = db.query(models.Servicio).filter(
+        models.Servicio.fecha_inicio >= hoy_inicio,
+        models.Servicio.fecha_inicio <= hoy_fin
+    ).count()
+    
+    mes_inicio = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    servicios_mes = db.query(models.Servicio).filter(
+        models.Servicio.fecha_creacion >= mes_inicio
+    ).count()
+    
+    conductores_disponibles = db.query(models.Conductor).filter(
+        models.Conductor.estado == models.EstadoConductor.ACTIVO
+    ).count()
+    
+    conductores_ocupados = db.query(models.Conductor).filter(
+        models.Conductor.estado == models.EstadoConductor.EN_RUTA
+    ).count()
+    
+    vehiculos_operativos = db.query(models.Vehiculo).filter(
+        models.Vehiculo.estado == models.EstadoVehiculo.OPERATIVO
+    ).count()
+    
+    vehiculos_taller = db.query(models.Vehiculo).filter(
+        models.Vehiculo.estado == models.EstadoVehiculo.TALLER
+    ).count()
+    
+    facturacion_mes = db.query(models.Servicio).filter(
+        models.Servicio.estado == 'facturado',
+        models.Servicio.fecha_creacion >= mes_inicio
+    ).all()
+    
+    total_facturado = sum([s.precio or 0 for s in facturacion_mes])
+    
+    pendientes_facturar = db.query(models.Servicio).filter(
+        models.Servicio.estado == 'completado',
+        models.Servicio.facturado == False
+    ).count()
+    
+    return {
+        "serviciosActivos": servicios_activos,
+        "serviciosHoy": servicios_hoy,
+        "serviciosMes": servicios_mes,
+        "conductoresDisponibles": conductores_disponibles,
+        "conductoresOcupados": conductores_ocupados,
+        "vehiculosOperativos": vehiculos_operativos,
+        "vehiculosTaller": vehiculos_taller,
+        "facturacionMes": float(total_facturado),
+        "facturacionPendiente": 0,
+        "serviciosPendientesFacturar": pendientes_facturar
+    }
+
+@app.get("/dashboard/servicios-recientes")
+def get_servicios_recientes(
+    limit: int = 5,
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(require_permission("dashboard.ver"))
+):
+    servicios = db.query(models.Servicio).order_by(
+        models.Servicio.fecha_creacion.desc()
+    ).limit(limit).all()
+    
+    return servicios
+
+# ============================================
+# ROLES Y PERMISOS ENDPOINTS
+# ============================================
+
+@app.get("/permissions", response_model=List[schemas.Permission])
+def get_permissions(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    permisos = db.query(models.Permission).filter(
+        models.Permission.activo == True
+    ).order_by(models.Permission.categoria, models.Permission.nombre).all()
+    return permisos
+
+@app.get("/roles", response_model=List[schemas.Role])
+def get_roles(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    roles = db.query(models.Role).options(
+        joinedload(models.Role.permissions).joinedload(models.RolePermission.permission)
+    ).all()
+    return roles
+
+@app.get("/roles/{role_id}", response_model=schemas.Role)
+def get_role(
+    role_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    rol = db.query(models.Role).options(
+        joinedload(models.Role.permissions).joinedload(models.RolePermission.permission)
+    ).filter(models.Role.id == role_id).first()
+    
+    if not rol:
+        raise HTTPException(status_code=404, detail="Rol no encontrado")
+    
+    return rol
+
+@app.post("/roles", response_model=schemas.Role)
+def create_role(
+    role_data: schemas.RoleCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("configuracion.roles"))
+):
+    existing = db.query(models.Role).filter(
+        models.Role.codigo == role_data.codigo,
+        models.Role.empresa_id == current_user.empresa_id
+    ).first()
+    
+    if existing:
+        raise HTTPException(status_code=400, detail="Código de rol ya existe")
+    
+    rol = models.Role(
+        codigo=role_data.codigo,
+        nombre=role_data.nombre,
+        descripcion=role_data.descripcion,
+        es_sistema=False,
+        empresa_id=current_user.empresa_id,
+        activo=True
+    )
+    db.add(rol)
+    db.flush()
+    
+    for permiso_id in role_data.permisos_ids:
+        rp = models.RolePermission(role_id=rol.id, permission_id=permiso_id)
+        db.add(rp)
     
     db.commit()
-    return {"message": f"Estado actualizado a {estado}"}
+    db.refresh(rol)
+    return rol
+
+@app.put("/roles/{role_id}", response_model=schemas.Role)
+def update_role(
+    role_id: int,
+    role_data: schemas.RoleUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("configuracion.roles"))
+):
+    rol = db.query(models.Role).filter(models.Role.id == role_id).first()
+    
+    if not rol:
+        raise HTTPException(status_code=404, detail="Rol no encontrado")
+    
+    if rol.es_sistema:
+        raise HTTPException(status_code=403, detail="No se pueden editar roles del sistema")
+    
+    rol.nombre = role_data.nombre
+    rol.descripcion = role_data.descripcion
+    
+    db.query(models.RolePermission).filter(
+        models.RolePermission.role_id == role_id
+    ).delete()
+    
+    for permiso_id in role_data.permisos_ids:
+        rp = models.RolePermission(role_id=rol.id, permission_id=permiso_id)
+        db.add(rp)
+    
+    db.commit()
+    db.refresh(rol)
+    return rol
+
+@app.delete("/roles/{role_id}")
+def delete_role(
+    role_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("configuracion.roles"))
+):
+    rol = db.query(models.Role).filter(models.Role.id == role_id).first()
+    
+    if not rol:
+        raise HTTPException(status_code=404, detail="Rol no encontrado")
+    
+    if rol.es_sistema:
+        raise HTTPException(status_code=403, detail="No se pueden eliminar roles del sistema")
+    
+    usuarios_con_rol = db.query(models.User).filter(
+        models.User.rol_custom_id == role_id
+    ).count()
+    
+    if usuarios_con_rol > 0:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"No se puede eliminar: {usuarios_con_rol} usuarios tienen este rol"
+        )
+    
+    db.delete(rol)
+    db.commit()
+    return {"message": "Rol eliminado"}
 
 # ============================================
 # MENSAJES (Chat por servicio)
@@ -1535,7 +1713,6 @@ def get_mensajes(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_permission("servicios.ver"))
 ):
-    """Obtener todos los mensajes de un servicio"""
     mensajes = db.query(models.Mensaje).filter(
         models.Mensaje.servicio_id == servicio_id
     ).order_by(models.Mensaje.created_at.asc()).all()
@@ -1548,7 +1725,6 @@ def create_mensaje(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_permission("servicios.ver"))
 ):
-    """Crear un mensaje en el chat del servicio"""
     db_mensaje = models.Mensaje(
         servicio_id=servicio_id,
         autor_id=current_user.id,
@@ -1567,7 +1743,6 @@ def marcar_mensaje_leido(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_permission("servicios.ver"))
 ):
-    """Marcar un mensaje como leido"""
     db_mensaje = db.query(models.Mensaje).filter(models.Mensaje.id == mensaje_id).first()
     if not db_mensaje:
         raise HTTPException(status_code=404, detail="Mensaje no encontrado")
@@ -1586,7 +1761,6 @@ def get_rutas(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_permission("servicios.ver"))
 ):
-    """Listar rutas, opcionalmente filtradas por servicio o estado"""
     query = db.query(models.Ruta)
     if servicio_id:
         query = query.filter(models.Ruta.servicio_id == servicio_id)
@@ -1600,7 +1774,6 @@ def get_ruta(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_permission("servicios.ver"))
 ):
-    """Obtener una ruta por ID"""
     db_ruta = db.query(models.Ruta).filter(models.Ruta.id == ruta_id).first()
     if not db_ruta:
         raise HTTPException(status_code=404, detail="Ruta no encontrada")
@@ -1612,7 +1785,6 @@ def get_ruta_by_servicio(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_permission("servicios.ver"))
 ):
-    """Obtener la ruta de un servicio"""
     db_ruta = db.query(models.Ruta).filter(models.Ruta.servicio_id == servicio_id).first()
     return db_ruta
 
@@ -1622,7 +1794,6 @@ def create_ruta(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_permission("servicios.editar"))
 ):
-    """Crear una nueva ruta"""
     codigo = f"RT-{datetime.utcnow().strftime('%Y%m%d')}-{str(ruta.servicio_id).zfill(4)}"
     db_ruta = models.Ruta(
         servicio_id=ruta.servicio_id,
@@ -1658,7 +1829,6 @@ def update_ruta(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_permission("servicios.editar"))
 ):
-    """Actualizar una ruta"""
     db_ruta = db.query(models.Ruta).filter(models.Ruta.id == ruta_id).first()
     if not db_ruta:
         raise HTTPException(status_code=404, detail="Ruta no encontrada")
@@ -1681,7 +1851,6 @@ def delete_ruta(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_permission("servicios.eliminar"))
 ):
-    """Eliminar una ruta"""
     db_ruta = db.query(models.Ruta).filter(models.Ruta.id == ruta_id).first()
     if not db_ruta:
         raise HTTPException(status_code=404, detail="Ruta no encontrada")
@@ -1700,15 +1869,15 @@ def health_check():
         "status": "healthy" if db_status else "unhealthy",
         "database": "connected" if db_status else "disconnected",
         "timestamp": datetime.utcnow(),
-        "version": "1.3.0"
+        "version": "1.4.0"
     }
 
 @app.get("/")
 def root():
     return {
         "message": "MILANO Transport Management API",
-        "version": "1.3.0",
-        "features": ["JWT robusto (access + refresh tokens)", "Permisos granulares", "Roles custom"],
+        "version": "1.4.0",
+        "features": ["JWT robusto (access + refresh tokens)", "Permisos granulares", "Roles custom", "Notificaciones", "Auto-tareas documentación"],
         "docs": "/docs",
         "health": "/health"
     }

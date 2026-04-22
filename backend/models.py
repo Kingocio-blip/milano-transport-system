@@ -109,6 +109,13 @@ class EstadoGeneral(str, enum.Enum):
     REGULAR = "regular"
     MALO = "malo"
 
+class TipoNotificacion(str, enum.Enum):
+    DOCUMENTACION = "documentacion"
+    TALLER = "taller"
+    AVERIA = "averia"
+    SERVICIO = "servicio"
+    SISTEMA = "sistema"
+
 # ============================================
 # USER MODEL (MODIFICADO CON PERMISOS Y SaaS)
 # ============================================
@@ -223,11 +230,11 @@ class Conductor(Base):
     disponibilidad_observaciones = Column(Text, nullable=True)
     
     # Sistema de nomina (3 opciones: tarifa_hora, convenio, bloques)
-    nomina_tipo = Column(String(20), default="tarifa_hora")  # tarifa_hora | convenio | bloques
+    nomina_tipo = Column(String(20), default="tarifa_hora") # tarifa_hora | convenio | bloques
     nomina_tarifa_hora = Column(Numeric(8, 2), nullable=True)
     nomina_horas_contratadas = Column(Integer, nullable=True)
     nomina_horas_extras = Column(Boolean, default=True)
-    nomina_bloques = Column(JSON, nullable=True)  # [{"horas": 4, "precio": 40}, ...]
+    nomina_bloques = Column(JSON, nullable=True) # [{"horas": 4, "precio": 40}, ...]
     
     # DEPRECATED: credenciales se migra al sistema de usuarios/roles
     credenciales = Column(JSON, nullable=True)
@@ -304,7 +311,6 @@ class Vehiculo(Base):
     extintores_fecha_vencimiento = Column(Date, nullable=True)
     extintores_documento_url = Column(String(500), nullable=True)
     
-    itv_fecha_proxima = Column(Date, nullable=True)
     itv_documento_url = Column(String(500), nullable=True)
     seguro_documento_url = Column(String(500), nullable=True)
     
@@ -484,6 +490,41 @@ class VehiculoTarea(Base):
     )
 
 # ============================================
+# NOTIFICACIONES MODEL (NUEVO)
+# ============================================
+
+class Notificacion(Base):
+    __tablename__ = "notificaciones"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    tipo = Column(SQLEnum(TipoNotificacion), nullable=False, default=TipoNotificacion.DOCUMENTACION)
+    titulo = Column(String(200), nullable=False)
+    mensaje = Column(Text, nullable=False)
+    
+    # Referencia opcional a vehiculo o servicio
+    vehiculo_id = Column(Integer, ForeignKey("vehiculos.id"), nullable=True, index=True)
+    servicio_id = Column(Integer, ForeignKey("servicios.id"), nullable=True, index=True)
+    
+    # Usuario que recibe la notificacion (null = todos los de flota)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    
+    leida = Column(Boolean, default=False)
+    fecha_leida = Column(DateTime, nullable=True)
+    
+    # Fecha relevante (ej: fecha de vencimiento)
+    fecha_referencia = Column(DateTime, nullable=True)
+    dias_antelacion = Column(Integer, nullable=True)
+    
+    fecha_creacion = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    __table_args__ = (
+        Index('idx_notificacion_user_leida', 'user_id', 'leida'),
+        Index('idx_notificacion_tipo', 'tipo'),
+        Index('idx_notificacion_vehiculo', 'vehiculo_id'),
+        Index('idx_notificacion_fecha', 'fecha_creacion'),
+    )
+
+# ============================================
 # SERVICIO MODEL
 # ============================================
 
@@ -609,7 +650,7 @@ class Mensaje(Base):
     servicio_id = Column(Integer, ForeignKey("servicios.id"), nullable=False, index=True)
     autor_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     autor_nombre = Column(String(100), nullable=False)
-    autor_tipo = Column(String(20), default="sistema")  # sistema, operador, conductor, cliente
+    autor_tipo = Column(String(20), default="sistema") # sistema, operador, conductor, cliente
     texto = Column(Text, nullable=False)
     leido = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
@@ -635,7 +676,7 @@ class Ruta(Base):
     # Info general
     titulo = Column(String(200), nullable=False)
     descripcion = Column(Text, nullable=True)
-    estado = Column(String(20), default="planificada")  # planificada, activa, completada, cancelada
+    estado = Column(String(20), default="planificada") # planificada, activa, completada, cancelada
     
     # Origen y destino
     origen = Column(String(200), nullable=True)
@@ -799,9 +840,9 @@ class RefreshToken(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     expires_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    revoked_at = Column(DateTime, nullable=True)  # NULL = activo
-    device_info = Column(String(255), nullable=True)  # Opcional: info del dispositivo
-    ip_address = Column(String(50), nullable=True)  # Opcional: IP origen
+    revoked_at = Column(DateTime, nullable=True) # NULL = activo
+    device_info = Column(String(255), nullable=True) # Opcional: info del dispositivo
+    ip_address = Column(String(50), nullable=True) # Opcional: IP origen
     
     user = relationship("User", backref="refresh_tokens")
     
