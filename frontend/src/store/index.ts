@@ -352,32 +352,23 @@ export const useVehiculosStore = create<VehiculosState>((set, get) => ({
         notas: vehiculo.notas,
         imagen_url: vehiculo.imagenUrl,
         
-        // ITV
-        itv_fecha_ultima: vehiculo.itv?.fechaUltima || null,
-        itv_fecha_proxima: vehiculo.itv?.fechaProxima || null,
-        itv_resultado: vehiculo.itv?.resultado || null,
-        itv_observaciones: vehiculo.itv?.observaciones || null,
-        
-        // Seguro
-        seguro_compania: vehiculo.seguro?.compania || '',
-        seguro_poliza: vehiculo.seguro?.poliza || '',
+        // Seguro legacy (campos no duplicados en doc obligatoria)
         seguro_tipo_cobertura: vehiculo.seguro?.tipoCobertura || null,
         seguro_fecha_inicio: vehiculo.seguro?.fechaInicio || null,
-        seguro_fecha_vencimiento: vehiculo.seguro?.fechaVencimiento || null,
         seguro_prima: vehiculo.seguro?.prima || null,
         
         // Mantenimientos como array vacío inicialmente
-         mantenimientos: vehiculo.mantenimientos || [],
-         
-         // Documentación obligatoria
-         tarjeta_transportes_numero: vehiculo.tarjetaTransportesNumero || null,
-         tarjeta_transportes_fecha_renovacion: vehiculo.tarjetaTransportesFechaRenovacion || null,
-         itv_fecha_proxima: vehiculo.itvFechaProxima || null,
-         seguro_compania: vehiculo.seguroCompania || '',
-         seguro_poliza: vehiculo.seguroPoliza || '',
-         seguro_fecha_vencimiento: vehiculo.seguroFechaVencimiento || null,
-         tacografo_fecha_calibracion: vehiculo.tacografoFechaCalibracion || null,
-         extintores_fecha_vencimiento: vehiculo.extintoresFechaVencimiento || null,
+        mantenimientos: vehiculo.mantenimientos || [],
+        
+        // Documentación obligatoria
+        tarjeta_transportes_numero: vehiculo.tarjetaTransportesNumero || null,
+        tarjeta_transportes_fecha_renovacion: vehiculo.tarjetaTransportesFechaRenovacion || null,
+        itv_fecha_proxima: vehiculo.itvFechaProxima || null,
+        seguro_compania: vehiculo.seguroCompania || (vehiculo.seguro?.compania || ''),
+        seguro_poliza: vehiculo.seguroPoliza || (vehiculo.seguro?.poliza || ''),
+        seguro_fecha_vencimiento: vehiculo.seguroFechaVencimiento || vehiculo.seguro?.fechaVencimiento || null,
+        tacografo_fecha_calibracion: vehiculo.tacografoFechaCalibracion || null,
+        extintores_fecha_vencimiento: vehiculo.extintoresFechaVencimiento || null,
          
          // Taller/Baja
          taller_fecha_inicio: vehiculo.tallerFechaInicio || null,
