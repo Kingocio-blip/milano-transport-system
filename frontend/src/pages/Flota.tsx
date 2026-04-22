@@ -1,9 +1,10 @@
 // ============================================
-// MILANO - Flota v2.1
+// MILANO - Flota v2.2
 // Estado directo, Documentacion obligatoria, Tareas/Mantenimiento
+// Mejoras: Estado fix, Ventana ampliada, Editar tareas, Adjuntos, Multi-gastos
 // ============================================
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useVehiculosStore, useUIStore } from '../store';
 import { vehiculoTareasApi, vehiculoEstadoApi } from '@/lib/api';
 import { Button } from '../components/ui/button';
@@ -21,7 +22,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import {
   Bus, Search, Plus, Edit3, Trash2, Eye, Calendar, AlertTriangle, CheckCircle2,
   Wrench, Fuel, Loader2, X, LayoutGrid, List, Gauge, Shield, FileText,
-  AlertCircle, Upload, ChevronDown, Clock, Save
+  AlertCircle, Upload, ChevronDown, Clock, Save, Download, FileUp,
+  Pencil, XCircle
 } from 'lucide-react';
 import { SkeletonPage } from '../components/LoadingScreen';
 import { format, parseISO, isValid, differenceInDays, compareAsc, isFuture, isPast } from 'date-fns';
@@ -74,11 +76,21 @@ const diasRestantes = (d: string | Date | undefined): number | null => {
   try { return differenceInDays(parseISO(d as string), new Date()); } catch { return null; }
 };
 
-// Helper: convertir fecha YYYY-MM-DD a datetime ISO para el backend
+// Helper: convertir fecha YYYY-MM-DD a datetime ISO para el backend (compatible con Pydantic)
 const toDateTime = (dateStr: string | null | undefined): string | null => {
   if (!dateStr) return null;
   if (dateStr.includes('T')) return dateStr;
   return dateStr + 'T00:00:00';
+};
+
+// Helper: convertir File a Base64 para preview
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 };
 
 // Verificar si documentacion obligatoria esta completa (usa camelCase del store)
@@ -139,7 +151,11 @@ export default function Flota() {
   // Tareas
   const [tareas, setTareas] = useState<any[]>([]);
   const [isTareaOpen, setIsTareaOpen] = useState(false);
-  const [nuevaTarea, setNuevaTarea] = useState<Record<string, any>>({ tipo: 'mantenimiento', fecha: format(new Date(), 'yyyy-MM-dd'), concepto: '', gasto: '', anotaciones: '' });
+  const [isEditarTareaOpen, setIsEditarTareaOpen] = useState(false);
+  const [tareaEditando, setTareaEditando] = useState<any>(null);
+  const [nuevaTarea, setNuevaTarea] = useState<Record<string, any>>({
+    tipo: 'mantenimiento', fecha: format(new Date(), 'yyyy-MM-dd'), concepto: '', anotaciones: '', gastos: []
+  });
 
   // Modal Taller
   const [isTallerOpen, setIsTallerOpen] = useState(false);
@@ -149,8 +165,13 @@ export default function Flota() {
   const [isBajaOpen, setIsBajaOpen] = useState(false);
   const [bajaForm, setBajaForm] = useState({ motivo: '' });
 
-  // Documentación editable en detalle
+  // Documentacion editable en detalle
   const [docEdits, setDocEdits] = useState<Record<string, any>>({});
+  const [docFiles, setDocFiles] = useState<Record<string, { file?: File; preview?: string; name?: string }>>({});
+
+  // Filtro de fechas para exportar ficha
+  const [fichaFechaDesde, setFichaFechaDesde] = useState('');
+  const [fichaFechaHasta, setFichaFechaHasta] = useState('');
 
   useEffect(() => { fetchVehiculos(); }, [fetchVehiculos]);
 
@@ -168,7 +189,7 @@ export default function Flota() {
     }
   }, [isEditarOpen, vehSeleccionado]);
 
-  // Inicializar docEdites cuando cambia vehículo
+  // Inicializar docEdits cuando cambia vehiculo
   useEffect(() => {
     if (vehSeleccionado) {
       setDocEdits({
@@ -181,15 +202,14 @@ export default function Flota() {
         tacografo_fecha_calibracion: toDateInput(vehSeleccionado.tacografoFechaCalibracion),
         extintores_fecha_vencimiento: toDateInput(vehSeleccionado.extintoresFechaVencimiento),
       });
+      setDocFiles({});
     }
   }, [vehSeleccionado]);
 
   const cargarTareas = async (vehiculoId: string) => {
     try {
       const res = await vehiculoTareasApi.getByVehiculo(vehiculoId);
-      // La API puede devolver el array directamente o envuelto en {data: [...]}
       const lista = Array.isArray(res) ? res : (res.data || []);
-      // Normalizar snake_case a camelCase
       const normalizadas = lista.map((t: any) => ({
         id: t.id,
         vehiculoId: t.vehiculo_id || t.vehiculoId,
@@ -199,9 +219,12 @@ export default function Flota() {
         fechaCompletada: t.fecha_completada || t.fechaCompletada,
         concepto: t.concepto || t.descripcion || '',
         gasto: t.gasto || t.coste || 0,
+        gastos: t.gastos || [],
         anotaciones: t.anotaciones || t.observaciones || '',
         facturaUrl: t.factura_url || t.facturaUrl,
+        facturaFile: t.factura_file || t.facturaFile,
         documentoUrl: t.documento_url || t.documentoUrl,
+        documentoFile: t.documento_file || t.documentoFile,
         autoGenerada: t.auto_generada || t.autoGenerada,
         creadoPor: t.creado_por || t.creadoPor,
       }));
@@ -222,20 +245,34 @@ export default function Flota() {
     return ms && (estadoFiltro === 'todos' || v.estado === estadoFiltro);
   }), [vehiculos, searchQuery, estadoFiltro]);
 
-  // Ordenar tareas: futuras primero (asc), pasadas después (desc)
+  // Tareas filtradas por rango de fechas
+  const tareasFiltradas = useMemo(() => {
+    let filtradas = [...tareas];
+    if (fichaFechaDesde) {
+      const d = new Date(fichaFechaDesde).getTime();
+      filtradas = filtradas.filter(t => new Date(t.fecha).getTime() >= d);
+    }
+    if (fichaFechaHasta) {
+      const d = new Date(fichaFechaHasta).getTime();
+      filtradas = filtradas.filter(t => new Date(t.fecha).getTime() <= d);
+    }
+    return filtradas;
+  }, [tareas, fichaFechaDesde, fichaFechaHasta]);
+
+  // Ordenar tareas: futuras primero (asc), pasadas despues (desc)
   const tareasOrdenadas = useMemo(() => {
     const ahora = new Date().getTime();
-    return [...tareas].sort((a, b) => {
+    return [...tareasFiltradas].sort((a, b) => {
       const ta = new Date(a.fecha).getTime();
       const tb = new Date(b.fecha).getTime();
       const aFutura = ta >= ahora;
       const bFutura = tb >= ahora;
       if (aFutura && !bFutura) return -1;
       if (!aFutura && bFutura) return 1;
-      if (aFutura && bFutura) return ta - tb; // más cercana primero
-      return tb - ta; // pasadas: más reciente primero
+      if (aFutura && bFutura) return ta - tb;
+      return tb - ta;
     });
-  }, [tareas]);
+  }, [tareasFiltradas]);
 
   const handleCrear = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -243,12 +280,10 @@ export default function Flota() {
     setIsSubmitting(true);
     try {
       const tipoFinal = (nuevoVeh.tipo === '__otro__') ? (tipoPersonalizado.trim() || 'autobus') : nuevoVeh.tipo;
-      // Construir payload con fechas convertidas a datetime ISO (el backend Pydantic lo requiere)
       const payload = {
         ...nuevoVeh,
         tipo: tipoFinal,
         estado: documentacionCompleta(nuevoVeh) ? 'operativo' : 'baja',
-        // Convertir fechas de documentación de YYYY-MM-DD a YYYY-MM-DDTHH:mm:ss
         tarjetaTransportesNumero: nuevoVeh.tarjeta_transportes_numero || null,
         tarjetaTransportesFechaRenovacion: toDateTime(nuevoVeh.tarjeta_transportes_fecha_renovacion),
         itvFechaProxima: toDateTime(nuevoVeh.itv_fecha_proxima),
@@ -258,7 +293,6 @@ export default function Flota() {
         tacografoFechaCalibracion: toDateTime(nuevoVeh.tacografo_fecha_calibracion),
         extintoresFechaVencimiento: toDateTime(nuevoVeh.extintores_fecha_vencimiento),
       };
-      // Limpiar snake_case del form (el store espera camelCase)
       delete (payload as any).tarjeta_transportes_numero;
       delete (payload as any).tarjeta_transportes_fecha_renovacion;
       delete (payload as any).itv_fecha_proxima;
@@ -274,7 +308,7 @@ export default function Flota() {
     finally { setIsSubmitting(false); }
   };
 
-  // Cambiar estado con flujo según tipo
+  // Cambiar estado con flujo segun tipo
   const handleCambiarEstado = async (estado: string) => {
     if (!vehSeleccionado) return;
     const id = String(vehSeleccionado.id);
@@ -299,19 +333,40 @@ export default function Flota() {
       await vehiculoEstadoApi.update(id, payload);
       showToast(`Estado cambiado a ${payload.estado}`, 'success');
       fetchVehiculos();
-      // Actualizar vehSeleccionado local
       setVehSeleccionado((prev: any) => prev ? { ...prev, ...payload, estado: payload.estado } : null);
-    } catch (err: any) { showToast(`Error: ${err.message}`, 'error'); }
+    } catch (err: any) {
+      // Fallback: si el endpoint especifico falla, intentar via updateVehiculo
+      console.warn('Endpoint /estado fallo, intentando fallback via updateVehiculo:', err);
+      try {
+        const v = vehiculos.find(ve => String(ve.id) === id);
+        if (v) {
+          await updateVehiculo(id, {
+            matricula: v.matricula,
+            plazas: v.plazas || 0,
+            estado: payload.estado,
+          });
+          showToast(`Estado cambiado a ${payload.estado}`, 'success');
+          fetchVehiculos();
+          setVehSeleccionado((prev: any) => prev ? { ...prev, estado: payload.estado } : null);
+          return;
+        }
+      } catch (err2: any) {
+        showToast(`Error: ${err2.message}`, 'error');
+        return;
+      }
+      showToast(`Error: ${err.message}`, 'error');
+    }
   };
 
   const confirmarTaller = async () => {
     if (!vehSeleccionado) return;
     if (!tallerForm.motivo.trim()) { showToast('El motivo es obligatorio', 'error'); return; }
+    // FIX: Usar formato compatible con Pydantic (sin 'Z' de ISO)
     const payload = {
       estado: 'taller',
       motivo: tallerForm.motivo,
-      taller_fecha_inicio: new Date(tallerForm.fechaInicio).toISOString(),
-      taller_fecha_fin: tallerForm.fechaFin ? new Date(tallerForm.fechaFin).toISOString() : null,
+      taller_fecha_inicio: toDateTime(tallerForm.fechaInicio),
+      taller_fecha_fin: toDateTime(tallerForm.fechaFin),
     };
     await ejecutarCambioEstado(String(vehSeleccionado.id), payload);
     setIsTallerOpen(false);
@@ -321,6 +376,7 @@ export default function Flota() {
     if (!vehSeleccionado) return;
     const payload = {
       estado: 'baja',
+      motivo: bajaForm.motivo || 'Baja temporal',
       baja_motivo: bajaForm.motivo || 'Baja temporal',
     };
     await ejecutarCambioEstado(String(vehSeleccionado.id), payload);
@@ -333,17 +389,14 @@ export default function Flota() {
     catch (err: any) { showToast(`Error: ${err.message}`, 'error'); }
   };
 
-  // GUARDAR EDICIÓN DE VEHÍCULO
+  // GUARDAR EDICION DE VEHICULO
   const handleGuardarEditar = async () => {
     if (!vehSeleccionado) return;
     setIsSubmitting(true);
     try {
-      // El backend VehiculoUpdate requiere matricula y fechas en formato ISO datetime
       const payload: Record<string, any> = {
-        // Campos obligatorios para el backend
         matricula: editForm.matricula || vehSeleccionado.matricula,
         plazas: editForm.plazas !== undefined ? editForm.plazas : (vehSeleccionado.plazas || 0),
-        // Campos básicos
         bastidor: editForm.bastidor || vehSeleccionado.bastidor || '',
         marca: editForm.marca || vehSeleccionado.marca || '',
         modelo: editForm.modelo || vehSeleccionado.modelo || '',
@@ -351,7 +404,6 @@ export default function Flota() {
         combustible: editForm.combustible || vehSeleccionado.combustible || 'diesel',
         kilometraje: editForm.kilometraje !== undefined ? editForm.kilometraje : (vehSeleccionado.kilometraje || 0),
         notas: editForm.notas || vehSeleccionado.notas || null,
-        // Documentación con fechas convertidas a datetime ISO
         tarjetaTransportesNumero: editForm.tarjeta_transportes_numero || editForm.tarjetaTransportesNumero || vehSeleccionado.tarjetaTransportesNumero || null,
         tarjetaTransportesFechaRenovacion: toDateTime(editForm.tarjeta_transportes_fecha_renovacion || editForm.tarjetaTransportesFechaRenovacion || vehSeleccionado.tarjetaTransportesFechaRenovacion),
         itvFechaProxima: toDateTime(editForm.itv_fecha_proxima || editForm.itvFechaProxima || vehSeleccionado.itvFechaProxima),
@@ -361,37 +413,25 @@ export default function Flota() {
         tacografoFechaCalibracion: toDateTime(editForm.tacografo_fecha_calibracion || editForm.tacografoFechaCalibracion || vehSeleccionado.tacografoFechaCalibracion),
         extintoresFechaVencimiento: toDateTime(editForm.extintores_fecha_vencimiento || editForm.extintoresFechaVencimiento || vehSeleccionado.extintoresFechaVencimiento),
       };
-
-      // Si la documentacion está incompleta, forzar estado baja
-      const docCompleta = !!(
-        payload.tarjetaTransportesNumero && payload.tarjetaTransportesFechaRenovacion &&
-        payload.itvFechaProxima && payload.seguroCompania && payload.seguroPoliza &&
-        payload.seguroFechaVencimiento && payload.tacografoFechaCalibracion && payload.extintoresFechaVencimiento
-      );
-      if (!docCompleta && vehSeleccionado.estado === 'operativo') {
-        payload.estado = 'baja';
-      }
-
+      const docCompleta = !!(payload.tarjetaTransportesNumero && payload.tarjetaTransportesFechaRenovacion && payload.itvFechaProxima && payload.seguroCompania && payload.seguroPoliza && payload.seguroFechaVencimiento && payload.tacografoFechaCalibracion && payload.extintoresFechaVencimiento);
+      if (!docCompleta && vehSeleccionado.estado === 'operativo') payload.estado = 'baja';
       await updateVehiculo(String(vehSeleccionado.id), payload);
       showToast('Vehiculo actualizado', 'success');
       setIsEditarOpen(false);
       fetchVehiculos();
       setVehSeleccionado((prev: any) => ({ ...prev, ...payload }));
-    } catch (err: any) {
-      showToast(`Error: ${err.message}`, 'error');
-    } finally {
-      setIsSubmitting(false);
-    }
+    } catch (err: any) { showToast(`Error: ${err.message}`, 'error'); }
+    finally { setIsSubmitting(false); }
   };
 
-  // GUARDAR DOCUMENTACIÓN DESDE EL DETALLE
+  // GUARDAR DOCUMENTACION DESDE EL DETALLE
   const handleGuardarDocumentacion = async () => {
     if (!vehSeleccionado) return;
     setIsSubmitting(true);
     try {
       const payload = {
-        matricula: vehSeleccionado.matricula, // requerido por backend
-        plazas: vehSeleccionado.plazas || 0,  // requerido por backend
+        matricula: vehSeleccionado.matricula,
+        plazas: vehSeleccionado.plazas || 0,
         tarjetaTransportesNumero: docEdits.tarjeta_transportes_numero || null,
         tarjetaTransportesFechaRenovacion: toDateTime(docEdits.tarjeta_transportes_fecha_renovacion),
         itvFechaProxima: toDateTime(docEdits.itv_fecha_proxima),
@@ -405,30 +445,116 @@ export default function Flota() {
       showToast('Documentacion actualizada', 'success');
       fetchVehiculos();
       setVehSeleccionado((prev: any) => ({ ...prev, ...payload }));
-    } catch (err: any) {
-      showToast(`Error: ${err.message}`, 'error');
-    } finally {
-      setIsSubmitting(false);
-    }
+    } catch (err: any) { showToast(`Error: ${err.message}`, 'error'); }
+    finally { setIsSubmitting(false); }
   };
 
+  // Manejar archivo seleccionado para documentacion
+  const handleDocFileChange = async (docLabel: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const base64 = await fileToBase64(file);
+      setDocFiles(prev => ({ ...prev, [docLabel]: { file, preview: base64, name: file.name } }));
+      showToast(`Archivo ${file.name} seleccionado`, 'success');
+    } catch { showToast('Error al leer archivo', 'error'); }
+  };
+
+  // CREAR TAREA
   const handleCrearTarea = async () => {
     if (!vehSeleccionado) return;
     if (!nuevaTarea.concepto?.trim()) { showToast('El concepto es obligatorio', 'error'); return; }
     try {
+      const gastos = (nuevaTarea.gastos || []).filter((g: any) => g.concepto && g.importe);
+      const totalGasto = gastos.reduce((sum: number, g: any) => sum + (parseFloat(g.importe) || 0), 0);
       await vehiculoTareasApi.create(String(vehSeleccionado.id), {
         vehiculo_id: vehSeleccionado.id,
         tipo: nuevaTarea.tipo,
         fecha: new Date(nuevaTarea.fecha).toISOString(),
         concepto: nuevaTarea.concepto,
-        gasto: parseFloat(nuevaTarea.gasto) || 0,
+        gasto: totalGasto || (parseFloat(nuevaTarea.gasto) || 0),
+        gastos: gastos,
         anotaciones: nuevaTarea.anotaciones,
+        factura_url: nuevaTarea.factura_url || null,
+        factura_file: nuevaTarea.factura_file || null,
       });
       showToast('Tarea creada', 'success');
       setIsTareaOpen(false);
-      setNuevaTarea({ tipo: 'mantenimiento', fecha: format(new Date(), 'yyyy-MM-dd'), concepto: '', gasto: '', anotaciones: '' });
+      setNuevaTarea({ tipo: 'mantenimiento', fecha: format(new Date(), 'yyyy-MM-dd'), concepto: '', anotaciones: '', gastos: [] });
       cargarTareas(String(vehSeleccionado.id));
     } catch (err: any) { showToast(`Error: ${err.message}`, 'error'); }
+  };
+
+  // EDITAR TAREA
+  const handleActualizarTarea = async () => {
+    if (!vehSeleccionado || !tareaEditando) return;
+    try {
+      await vehiculoTareasApi.update(String(tareaEditando.id), {
+        tipo: tareaEditando.tipo,
+        fecha: new Date(tareaEditando.fecha).toISOString(),
+        concepto: tareaEditando.concepto,
+        gasto: tareaEditando.gasto || 0,
+        gastos: tareaEditando.gastos || [],
+        anotaciones: tareaEditando.anotaciones,
+        estado: tareaEditando.estado,
+      });
+      showToast('Tarea actualizada', 'success');
+      setIsEditarTareaOpen(false);
+      setTareaEditando(null);
+      cargarTareas(String(vehSeleccionado.id));
+    } catch (err: any) { showToast(`Error: ${err.message}`, 'error'); }
+  };
+
+  // ELIMINAR TAREA
+  const handleEliminarTarea = async (tareaId: string) => {
+    if (!window.confirm('Eliminar esta tarea?')) return;
+    try {
+      await vehiculoTareasApi.delete(tareaId);
+      showToast('Tarea eliminada', 'success');
+      if (vehSeleccionado) cargarTareas(String(vehSeleccionado.id));
+    } catch (err: any) { showToast(`Error: ${err.message}`, 'error'); }
+  };
+
+  // Exportar ficha a PDF (simulacion con impresion)
+  const exportarFichaPDF = () => {
+    const ventana = window.open('', '_blank');
+    if (!ventana) return;
+    const veh = vehSeleccionado;
+    const filtradas = tareasOrdenadas;
+    const desde = fichaFechaDesde ? fmtDate(fichaFechaDesde) : 'Inicio';
+    const hasta = fichaFechaHasta ? fmtDate(fichaFechaHasta) : 'Hoy';
+    const totalGastos = filtradas.reduce((s: number, t: any) => s + (parseFloat(t.gasto) || 0), 0);
+
+    const html = `
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Ficha ${veh.matricula}</title>
+<style>
+body{font-family:Arial,sans-serif;margin:40px;color:#333}
+h1{font-size:22px;border-bottom:2px solid #1e3a5f;padding-bottom:10px}
+.info{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;margin:15px 0}
+table{width:100%;border-collapse:collapse;margin-top:20px;font-size:12px}
+th{background:#1e3a5f;color:#fff;padding:8px;text-align:left}
+td{padding:6px;border-bottom:1px solid #ddd}
+.footer{text-align:right;margin-top:20px;font-weight:bold}
+</style></head><body>
+<h1>Ficha de Vehiculo - ${veh.matricula}</h1>
+<div class="info">
+<div><strong>Marca/Modelo:</strong> ${veh.marca || '-'} ${veh.modelo || '-'}</div>
+<div><strong>Tipo:</strong> ${veh.tipo || '-'}</div>
+<div><strong>Plazas:</strong> ${veh.plazas || '-'}</div>
+<div><strong>Kilometraje:</strong> ${(veh.kilometraje || 0).toLocaleString()} km</div>
+<div><strong>Combustible:</strong> ${veh.combustible || '-'}</div>
+<div><strong>Estado:</strong> ${veh.estado || '-'}</div>
+</div>
+<h3>Historial de tareas (${desde} - ${hasta})</h3>
+<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Gasto (EUR)</th><th>Estado</th></tr></thead><tbody>
+${filtradas.length === 0 ? '<tr><td colspan="5" style="text-align:center">Sin tareas</td></tr>' :
+  filtradas.map((t: any) => `<tr><td>${fmtDate(t.fecha)}</td><td>${t.tipo}</td><td>${t.concepto || '-'}</td><td>${t.gasto ? t.gasto + ' EUR' : '-'}</td><td>${t.estado || '-'}</td></tr>`).join('')}
+</tbody></table>
+<div class="footer">Total gastos: ${totalGastos.toFixed(2)} EUR | ${filtradas.length} tareas</div>
+</body></html>`;
+    ventana.document.write(html);
+    ventana.document.close();
+    setTimeout(() => ventana.print(), 300);
   };
 
   if (isLoading && vehiculos.length === 0) return <SkeletonPage type="mixed" tableCols={6} vistaMode={vistaMode} />;
@@ -638,213 +764,263 @@ export default function Flota() {
         </DialogContent>
       </Dialog>
 
-      {/* ============ DIALOG: DETALLE VEHICULO ============ */}
+      {/* ============ DIALOG: DETALLE VEHICULO (PANTALLA COMPLETA) ============ */}
       <Dialog open={isDetalleOpen} onOpenChange={setIsDetalleOpen}>
-        <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
+        <DialogContent className="w-[95vw] max-w-[1400px] h-[95vh] max-h-[900px] overflow-hidden p-0 dark:border-slate-700 dark:bg-slate-800">
           {vehSeleccionado && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2 dark:text-slate-100">
-                  <Bus className="h-5 w-5" />{vehSeleccionado.matricula} - {vehSeleccionado.marca} {vehSeleccionado.modelo}
-                </DialogTitle>
-              </DialogHeader>
+            <div className="flex flex-col h-full">
+              {/* Header fijo */}
+              <div className="shrink-0 px-6 pt-6 pb-4 border-b border-slate-200 dark:border-slate-700">
+                <DialogHeader className="mb-3">
+                  <DialogTitle className="flex items-center gap-2 dark:text-slate-100 text-xl">
+                    <Bus className="h-5 w-5" />{vehSeleccionado.matricula} - {vehSeleccionado.marca} {vehSeleccionado.modelo}
+                  </DialogTitle>
+                </DialogHeader>
 
-              {/* Estado modificable directamente */}
-              <div className="flex items-center gap-3 mb-2">
-                <span className="text-sm text-slate-500 dark:text-slate-400">Estado:</span>
-                {ESTADOS_VEHICULO.map(e => (
-                  <button key={e.value} onClick={() => handleCambiarEstado(e.value)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                      vehSeleccionado.estado === e.value ? e.color + ' ring-2 ring-offset-1' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200'
-                    }`}
-                  >{e.label}</button>
-                ))}
+                {/* Estado modificable directamente */}
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-sm text-slate-500 dark:text-slate-400">Estado:</span>
+                  {ESTADOS_VEHICULO.map(e => (
+                    <button key={e.value} onClick={() => handleCambiarEstado(e.value)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                        vehSeleccionado.estado === e.value ? e.color + ' ring-2 ring-offset-1' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200'
+                      }`}
+                    >{e.label}</button>
+                  ))}
+                </div>
+
+                {/* Alertas documentacion */}
+                {(() => {
+                  const alertas = getAlertasDoc(vehSeleccionado);
+                  return alertas.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {alertas.map((a, i) => (
+                        <div key={i} className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full ${a.tipo === 'critica' ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700'}`}>
+                          <AlertCircle className="h-3 w-3" />{a.texto}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null;
+                })()}
+
+                {!documentacionCompleta(vehSeleccionado) && (
+                  <div className="mt-2 p-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-xs text-red-700 dark:text-red-300">
+                    <AlertTriangle className="h-3.5 w-3.5 inline mr-1" />
+                    Documentacion incompleta. El vehiculo no puede estar operativo.
+                  </div>
+                )}
               </div>
 
-              {/* Alertas documentacion */}
-              {(() => {
-                const alertas = getAlertasDoc(vehSeleccionado);
-                return alertas.length > 0 ? (
-                  <div className="space-y-1 mb-3">
-                    {alertas.map((a, i) => (
-                      <div key={i} className={`flex items-center gap-2 text-xs p-2 rounded ${a.tipo === 'critica' ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'}`}>
-                        <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />{a.texto}
+              {/* Tabs con scroll */}
+              <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+                <Tabs value={detalleTab} onValueChange={setDetalleTab} className="flex flex-col h-full">
+                  <TabsList className="dark:bg-slate-900 mx-6 mt-3 shrink-0">
+                    <TabsTrigger value="info">Informacion</TabsTrigger>
+                    <TabsTrigger value="documentacion">Documentacion</TabsTrigger>
+                    <TabsTrigger value="tareas">Ficha ({tareas.length})</TabsTrigger>
+                  </TabsList>
+
+                  <div className="flex-1 overflow-y-auto min-h-0 px-6 py-4">
+                    {/* Tab Info */}
+                    <TabsContent value="info" className="mt-0 space-y-4">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="space-y-1"><p className="text-xs text-slate-500 dark:text-slate-400">Marca/Modelo</p><p className="text-sm font-medium dark:text-slate-200">{vehSeleccionado.marca} {vehSeleccionado.modelo}</p></div>
+                        <div className="space-y-1"><p className="text-xs text-slate-500 dark:text-slate-400">Bastidor</p><p className="text-sm font-medium dark:text-slate-200">{vehSeleccionado.bastidor || '-'}</p></div>
+                        <div className="space-y-1"><p className="text-xs text-slate-500 dark:text-slate-400">Tipo</p><p className="text-sm font-medium dark:text-slate-200 capitalize">{vehSeleccionado.tipo}</p></div>
+                        <div className="space-y-1"><p className="text-xs text-slate-500 dark:text-slate-400">Combustible</p><p className="text-sm font-medium dark:text-slate-200 capitalize">{vehSeleccionado.combustible}</p></div>
+                        <div className="space-y-1"><p className="text-xs text-slate-500 dark:text-slate-400">Plazas</p><p className="text-sm font-medium dark:text-slate-200">{vehSeleccionado.plazas || '-'}</p></div>
+                        <div className="space-y-1"><p className="text-xs text-slate-500 dark:text-slate-400">Ano fabricacion</p><p className="text-sm font-medium dark:text-slate-200">{vehSeleccionado.añoFabricacion || '-'}</p></div>
+                        <div className="space-y-1"><p className="text-xs text-slate-500 dark:text-slate-400">Kilometraje actual</p><p className="text-sm font-bold text-[#1e3a5f] dark:text-blue-400">{vehSeleccionado.kilometraje?.toLocaleString() || 0} km</p></div>
+                        <div className="space-y-1"><p className="text-xs text-slate-500 dark:text-slate-400">Creado</p><p className="text-sm dark:text-slate-200">{fmtDate(vehSeleccionado.fecha_creacion)}</p></div>
                       </div>
-                    ))}
-                  </div>
-                ) : null;
-              })()}
+                      {vehSeleccionado.notas && <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3"><p className="text-sm dark:text-slate-300">{vehSeleccionado.notas}</p></div>}
 
-              {!documentacionCompleta(vehSeleccionado) && (
-                <div className="p-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-xs text-red-700 dark:text-red-300 mb-3">
-                  <AlertTriangle className="h-3.5 w-3.5 inline mr-1" />
-                  Documentacion incompleta. El vehiculo no puede estar operativo.
-                </div>
-              )}
-
-              <Tabs value={detalleTab} onValueChange={setDetalleTab}>
-                <TabsList className="dark:bg-slate-900">
-                  <TabsTrigger value="info">Informacion</TabsTrigger>
-                  <TabsTrigger value="documentacion">Documentacion</TabsTrigger>
-                  <TabsTrigger value="tareas">Ficha ({tareas.length})</TabsTrigger>
-                </TabsList>
-
-                {/* Tab Info */}
-                <TabsContent value="info" className="pt-4 space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Marca/Modelo</p><p className="text-sm font-medium dark:text-slate-200">{vehSeleccionado.marca} {vehSeleccionado.modelo}</p></div>
-                    <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Bastidor</p><p className="text-sm font-medium dark:text-slate-200">{vehSeleccionado.bastidor || '-'}</p></div>
-                    <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Tipo</p><p className="text-sm font-medium dark:text-slate-200 capitalize">{vehSeleccionado.tipo}</p></div>
-                    <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Combustible</p><p className="text-sm font-medium dark:text-slate-200 capitalize">{vehSeleccionado.combustible}</p></div>
-                    <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Plazas</p><p className="text-sm font-medium dark:text-slate-200">{vehSeleccionado.plazas || '-'}</p></div>
-                    <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Ano fabricacion</p><p className="text-sm font-medium dark:text-slate-200">{vehSeleccionado.añoFabricacion || '-'}</p></div>
-                    <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Kilometraje actual</p><p className="text-sm font-bold text-[#1e3a5f] dark:text-blue-400">{vehSeleccionado.kilometraje?.toLocaleString() || 0} km</p></div>
-                    <div className="space-y-2"><p className="text-xs text-slate-500 dark:text-slate-400">Creado</p><p className="text-sm dark:text-slate-200">{fmtDate(vehSeleccionado.fecha_creacion)}</p></div>
-                  </div>
-                  {vehSeleccionado.notas && <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3"><p className="text-sm dark:text-slate-300">{vehSeleccionado.notas}</p></div>}
-
-                  {/* Info taller/baja */}
-                  {vehSeleccionado.estado === 'taller' && (
-                    <div className="rounded-lg border border-amber-200 dark:border-amber-700 p-3 bg-amber-50 dark:bg-amber-900/20">
-                      <h4 className="text-sm font-medium text-amber-800 dark:text-amber-300 flex items-center gap-1"><Wrench className="h-4 w-4" />En taller</h4>
-                      <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">Desde: {fmtDateTime(vehSeleccionado.taller_fecha_inicio)} {vehSeleccionado.taller_fecha_fin && `hasta: ${fmtDateTime(vehSeleccionado.taller_fecha_fin)}`}</p>
-                      {vehSeleccionado.taller_motivo && <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">Motivo: {vehSeleccionado.taller_motivo}</p>}
-                    </div>
-                  )}
-                  {vehSeleccionado.estado === 'baja' && (
-                    <div className="rounded-lg border border-red-200 dark:border-red-700 p-3 bg-red-50 dark:bg-red-900/20">
-                      <h4 className="text-sm font-medium text-red-800 dark:text-red-300 flex items-center gap-1"><AlertTriangle className="h-4 w-4" />Baja temporal</h4>
-                      {vehSeleccionado.baja_motivo && <p className="text-xs text-red-700 dark:text-red-400 mt-1">Motivo: {vehSeleccionado.baja_motivo}</p>}
-                      {vehSeleccionado.baja_fecha && <p className="text-xs text-red-700 dark:text-red-400 mt-1">Desde: {fmtDateTime(vehSeleccionado.baja_fecha)}</p>}
-                    </div>
-                  )}
-                </TabsContent>
-
-                {/* Tab Documentacion - EDITABLE */}
-                <TabsContent value="documentacion" className="pt-4 space-y-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <h4 className="text-sm font-medium dark:text-slate-300">Documentacion del vehiculo</h4>
-                    <Button size="sm" onClick={handleGuardarDocumentacion} disabled={isSubmitting} className="bg-[#1e3a5f] dark:bg-blue-600">
-                      {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Save className="h-3.5 w-3.5 mr-1" />Guardar</>}
-                    </Button>
-                  </div>
-
-                  {[
-                    { label: 'Tarjeta transportes', numKey: 'tarjeta_transportes_numero', fechaKey: 'tarjeta_transportes_fecha_renovacion', alerta: 30 },
-                    { label: 'ITV', numKey: null, fechaKey: 'itv_fecha_proxima', alerta: 20 },
-                    { label: 'Seguro', numKey: 'seguro_poliza', fechaKey: 'seguro_fecha_vencimiento', alerta: 20 },
-                    { label: 'Tacografo', numKey: null, fechaKey: 'tacografo_fecha_calibracion', alerta: 10 },
-                    { label: 'Extintores', numKey: null, fechaKey: 'extintores_fecha_vencimiento', alerta: 10 },
-                  ].map(doc => {
-                    const fechaVal = docEdits[doc.fechaKey];
-                    const d = diasRestantes(fechaVal);
-                    const vencido = d !== null && d < 0;
-                    const proximo = d !== null && d >= 0 && d <= doc.alerta;
-                    return (
-                      <div key={doc.label} className={`rounded-lg border p-3 ${vencido ? 'border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20' : proximo ? 'border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20' : 'border-slate-200 dark:border-slate-700'}`}>
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="text-sm font-medium dark:text-slate-200">{doc.label}</h4>
-                          {vencido && <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 text-xs">Vencido</Badge>}
-                          {proximo && <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 text-xs">Vence en {d} dias</Badge>}
-                          {d !== null && d > doc.alerta && <CheckCircle2 className="h-4 w-4 text-green-500" />}
-                          {!fechaVal && <AlertTriangle className="h-4 w-4 text-red-500" />}
+                      {vehSeleccionado.estado === 'taller' && (
+                        <div className="rounded-lg border border-amber-200 dark:border-amber-700 p-3 bg-amber-50 dark:bg-amber-900/20">
+                          <h4 className="text-sm font-medium text-amber-800 dark:text-amber-300 flex items-center gap-1"><Wrench className="h-4 w-4" />En taller</h4>
+                          <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">Desde: {fmtDateTime(vehSeleccionado.taller_fecha_inicio)} {vehSeleccionado.taller_fecha_fin && `hasta: ${fmtDateTime(vehSeleccionado.taller_fecha_fin)}`}</p>
+                          {vehSeleccionado.taller_motivo && <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">Motivo: {vehSeleccionado.taller_motivo}</p>}
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          {doc.numKey && (
-                            <div>
-                              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Numero</p>
-                              <Input value={docEdits[doc.numKey] || ''} onChange={e => setDocEdits(p => ({ ...p, [doc.numKey!]: e.target.value }))} className="h-8 text-sm dark:bg-slate-900 dark:border-slate-600" />
+                      )}
+                      {vehSeleccionado.estado === 'baja' && (
+                        <div className="rounded-lg border border-red-200 dark:border-red-700 p-3 bg-red-50 dark:bg-red-900/20">
+                          <h4 className="text-sm font-medium text-red-800 dark:text-red-300 flex items-center gap-1"><AlertTriangle className="h-4 w-4" />Baja temporal</h4>
+                          {vehSeleccionado.baja_motivo && <p className="text-xs text-red-700 dark:text-red-400 mt-1">Motivo: {vehSeleccionado.baja_motivo}</p>}
+                          {vehSeleccionado.baja_fecha && <p className="text-xs text-red-700 dark:text-red-400 mt-1">Desde: {fmtDateTime(vehSeleccionado.baja_fecha)}</p>}
+                        </div>
+                      )}
+                    </TabsContent>
+
+                    {/* Tab Documentacion - EDITABLE */}
+                    <TabsContent value="documentacion" className="mt-0 space-y-4">
+                      <div className="flex justify-between items-center mb-2">
+                        <h4 className="text-sm font-medium dark:text-slate-300">Documentacion del vehiculo</h4>
+                        <Button size="sm" onClick={handleGuardarDocumentacion} disabled={isSubmitting} className="bg-[#1e3a5f] dark:bg-blue-600">
+                          {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Save className="h-3.5 w-3.5 mr-1" />Guardar</>}
+                        </Button>
+                      </div>
+
+                      {[
+                        { label: 'Tarjeta transportes', numKey: 'tarjeta_transportes_numero', fechaKey: 'tarjeta_transportes_fecha_renovacion', alerta: 30 },
+                        { label: 'ITV', numKey: null, fechaKey: 'itv_fecha_proxima', alerta: 20 },
+                        { label: 'Seguro', numKey: 'seguro_poliza', fechaKey: 'seguro_fecha_vencimiento', alerta: 20 },
+                        { label: 'Tacografo', numKey: null, fechaKey: 'tacografo_fecha_calibracion', alerta: 10 },
+                        { label: 'Extintores', numKey: null, fechaKey: 'extintores_fecha_vencimiento', alerta: 10 },
+                      ].map(doc => {
+                        const fechaVal = docEdits[doc.fechaKey];
+                        const d = diasRestantes(fechaVal);
+                        const vencido = d !== null && d < 0;
+                        const proximo = d !== null && d >= 0 && d <= doc.alerta;
+                        const fileInfo = docFiles[doc.label];
+                        return (
+                          <div key={doc.label} className={`rounded-lg border p-3 ${vencido ? 'border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20' : proximo ? 'border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20' : 'border-slate-200 dark:border-slate-700'}`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="text-sm font-medium dark:text-slate-200">{doc.label}</h4>
+                              <div className="flex items-center gap-2">
+                                {vencido && <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 text-xs">Vencido</Badge>}
+                                {proximo && <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 text-xs">Vence en {d} dias</Badge>}
+                                {d !== null && d > doc.alerta && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+                                {!fechaVal && <AlertTriangle className="h-4 w-4 text-red-500" />}
+                              </div>
                             </div>
-                          )}
-                          <div>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Fecha</p>
-                            <Input type="date" value={fechaVal || ''} onChange={e => setDocEdits(p => ({ ...p, [doc.fechaKey]: e.target.value }))} className="h-8 text-sm dark:bg-slate-900 dark:border-slate-600" />
+                            <div className="grid grid-cols-2 gap-3">
+                              {doc.numKey && (
+                                <div>
+                                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Numero</p>
+                                  <Input value={docEdits[doc.numKey] || ''} onChange={e => setDocEdits(p => ({ ...p, [doc.numKey!]: e.target.value }))} className="h-8 text-sm dark:bg-slate-900 dark:border-slate-600" />
+                                </div>
+                              )}
+                              <div>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Fecha</p>
+                                <Input type="date" value={fechaVal || ''} onChange={e => setDocEdits(p => ({ ...p, [doc.fechaKey]: e.target.value }))} className="h-8 text-sm dark:bg-slate-900 dark:border-slate-600" />
+                              </div>
+                            </div>
+                            {/* Adjuntar documento */}
+                            <div className="mt-2">
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Documento adjunto (PDF o imagen)</p>
+                              <div className="flex items-center gap-2">
+                                <label className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                                  <Upload className="h-3.5 w-3.5" />
+                                  <span>Seleccionar archivo</span>
+                                  <input type="file" accept=".pdf,image/*" className="hidden" onChange={e => handleDocFileChange(doc.label, e)} />
+                                </label>
+                                {fileInfo && (
+                                  <span className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                                    <FileUp className="h-3.5 w-3.5" />{fileInfo.name}
+                                  </span>
+                                )}
+                              </div>
+                              {fileInfo?.preview && fileInfo.preview.startsWith('data:image') && (
+                                <img src={fileInfo.preview} alt="Preview" className="mt-2 max-h-32 rounded border border-slate-200 dark:border-slate-600" />
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </TabsContent>
+
+                    {/* Tab Ficha - Tareas con scroll, filtros y export */}
+                    <TabsContent value="tareas" className="mt-0 space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <h4 className="text-sm font-medium dark:text-slate-300">Historial de tareas y mantenimiento</h4>
+                        <div className="flex items-center gap-2">
+                          {/* Filtro fechas */}
+                          <div className="flex items-center gap-1">
+                            <Input type="date" value={fichaFechaDesde} onChange={e => setFichaFechaDesde(e.target.value)} className="h-7 w-32 text-xs dark:bg-slate-900 dark:border-slate-600" placeholder="Desde" />
+                            <span className="text-xs text-slate-400">-</span>
+                            <Input type="date" value={fichaFechaHasta} onChange={e => setFichaFechaHasta(e.target.value)} className="h-7 w-32 text-xs dark:bg-slate-900 dark:border-slate-600" placeholder="Hasta" />
+                          </div>
+                          <Button size="sm" variant="outline" onClick={() => { setFichaFechaDesde(''); setFichaFechaHasta(''); }} className="h-7 text-xs dark:border-slate-600">
+                            <X className="h-3 w-3 mr-1" />Limpiar
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={exportarFichaPDF} className="h-7 text-xs dark:border-slate-600">
+                            <Download className="h-3 w-3 mr-1" />PDF
+                          </Button>
+                          <Button size="sm" onClick={() => setIsTareaOpen(true)} className="h-7 text-xs bg-[#1e3a5f] dark:bg-blue-600"><Plus className="mr-1 h-3 w-3" />Anadir</Button>
+                        </div>
+                      </div>
+
+                      {tareasOrdenadas.length === 0 ? (
+                        <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-6">Sin tareas registradas</p>
+                      ) : (
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead className="bg-slate-50 dark:bg-slate-900/50 text-left">
+                                <tr>
+                                  <th className="px-3 py-2 text-xs font-medium text-slate-500 whitespace-nowrap">Fecha</th>
+                                  <th className="px-3 py-2 text-xs font-medium text-slate-500">Tipo</th>
+                                  <th className="px-3 py-2 text-xs font-medium text-slate-500">Concepto</th>
+                                  <th className="px-3 py-2 text-xs font-medium text-slate-500 whitespace-nowrap">Gasto total</th>
+                                  <th className="px-3 py-2 text-xs font-medium text-slate-500">Factura</th>
+                                  <th className="px-3 py-2 text-xs font-medium text-slate-500">Anotaciones</th>
+                                  <th className="px-3 py-2 text-xs font-medium text-slate-500">Estado</th>
+                                  <th className="px-3 py-2 text-xs font-medium text-slate-500 w-16"></th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                {tareasOrdenadas.map(t => {
+                                  const esFutura = t.fecha && isFuture(parseISO(t.fecha));
+                                  return (
+                                    <tr key={t.id} className={`${esFutura ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''} hover:bg-slate-50 dark:hover:bg-slate-700/30 group`}>
+                                      <td className="px-3 py-2 whitespace-nowrap">
+                                        <span className="text-xs font-medium dark:text-slate-200">{fmtDate(t.fecha)}</span>
+                                        {esFutura && <span className="ml-1 text-[10px] text-blue-600 dark:text-blue-400">(prox.)</span>}
+                                      </td>
+                                      <td className="px-3 py-2">
+                                        <Badge className={
+                                          t.tipo === 'averia' ? 'bg-red-100 text-red-700 text-[10px]' :
+                                          t.tipo === 'mantenimiento' ? 'bg-blue-100 text-blue-700 text-[10px]' :
+                                          'bg-slate-100 text-slate-700 text-[10px]'
+                                        }>{t.tipo}</Badge>
+                                      </td>
+                                      <td className="px-3 py-2 text-xs dark:text-slate-300 max-w-[200px] truncate" title={t.concepto}>{t.concepto || '-'}</td>
+                                      <td className="px-3 py-2 text-xs dark:text-slate-400 whitespace-nowrap">{t.gasto ? `${t.gasto} EUR` : '-'}</td>
+                                      <td className="px-3 py-2 text-xs">
+                                        {t.facturaFile ? (
+                                          <a href={t.facturaFile} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1"><FileUp className="h-3 w-3" />Ver</a>
+                                        ) : t.facturaUrl ? (
+                                          <a href={t.facturaUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Ver</a>
+                                        ) : '-'}
+                                      </td>
+                                      <td className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400 max-w-[200px] truncate" title={t.anotaciones}>{t.anotaciones || '-'}</td>
+                                      <td className="px-3 py-2 whitespace-nowrap">
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                                          t.estado === 'pendiente' ? 'bg-amber-100 text-amber-700' :
+                                          t.estado === 'completada' ? 'bg-green-100 text-green-700' :
+                                          'bg-slate-100 text-slate-600'
+                                        }`}>{t.estado}</span>
+                                      </td>
+                                      <td className="px-3 py-2">
+                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => { setTareaEditando(t); setIsEditarTareaOpen(true); }}><Pencil className="h-3 w-3" /></Button>
+                                          <Button size="icon" variant="ghost" className="h-6 w-6 text-red-500" onClick={() => handleEliminarTarea(String(t.id))}><Trash2 className="h-3 w-3" /></Button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
                           </div>
                         </div>
-                        {/* Documento adjunto */}
-                        <div className="mt-2">
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Documento PDF (URL)</p>
-                          <Input placeholder="https://... .pdf" className="h-8 text-sm dark:bg-slate-900 dark:border-slate-600" />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </TabsContent>
-
-                {/* Tab Ficha - Tareas cronológicas */}
-                <TabsContent value="tareas" className="pt-4 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h4 className="text-sm font-medium dark:text-slate-300">Historial de tareas y mantenimiento</h4>
-                    <Button size="sm" onClick={() => setIsTareaOpen(true)} className="bg-[#1e3a5f] dark:bg-blue-600"><Plus className="mr-1 h-3.5 w-3.5" />Anadir</Button>
+                      )}
+                    </TabsContent>
                   </div>
-
-                  {tareasOrdenadas.length === 0 ? (
-                    <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-6">Sin tareas registradas</p>
-                  ) : (
-                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="bg-slate-50 dark:bg-slate-900/50 text-left">
-                            <tr>
-                              <th className="px-3 py-2 text-xs font-medium text-slate-500">Fecha</th>
-                              <th className="px-3 py-2 text-xs font-medium text-slate-500">Tipo</th>
-                              <th className="px-3 py-2 text-xs font-medium text-slate-500">Concepto</th>
-                              <th className="px-3 py-2 text-xs font-medium text-slate-500">Gasto</th>
-                              <th className="px-3 py-2 text-xs font-medium text-slate-500">Factura</th>
-                              <th className="px-3 py-2 text-xs font-medium text-slate-500">Anotaciones</th>
-                              <th className="px-3 py-2 text-xs font-medium text-slate-500">Estado</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                            {tareasOrdenadas.map(t => {
-                              const esFutura = t.fecha && isFuture(parseISO(t.fecha));
-                              return (
-                                <tr key={t.id} className={`${esFutura ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''} hover:bg-slate-50 dark:hover:bg-slate-700/30`}>
-                                  <td className="px-3 py-2 whitespace-nowrap">
-                                    <span className="text-xs font-medium dark:text-slate-200">{fmtDate(t.fecha)}</span>
-                                    {esFutura && <span className="ml-1 text-[10px] text-blue-600 dark:text-blue-400">(prox.)</span>}
-                                  </td>
-                                  <td className="px-3 py-2">
-                                    <Badge className={
-                                      t.tipo === 'averia' ? 'bg-red-100 text-red-700 text-[10px]' :
-                                      t.tipo === 'mantenimiento' ? 'bg-blue-100 text-blue-700 text-[10px]' :
-                                      'bg-slate-100 text-slate-700 text-[10px]'
-                                    }>{t.tipo}</Badge>
-                                  </td>
-                                  <td className="px-3 py-2 text-xs dark:text-slate-300 max-w-[200px] truncate">{t.concepto || '-'}</td>
-                                  <td className="px-3 py-2 text-xs dark:text-slate-400">{t.gasto ? `${t.gasto} EUR` : '-'}</td>
-                                  <td className="px-3 py-2 text-xs">
-                                    {t.factura_url ? <a href={t.factura_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Ver</a> : '-'}
-                                  </td>
-                                  <td className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400 max-w-[200px] truncate">{t.anotaciones || '-'}</td>
-                                  <td className="px-3 py-2">
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                                      t.estado === 'pendiente' ? 'bg-amber-100 text-amber-700' :
-                                      t.estado === 'completada' ? 'bg-green-100 text-green-700' :
-                                      'bg-slate-100 text-slate-600'
-                                    }`}>{t.estado}</span>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </TabsContent>
-              </Tabs>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" onClick={() => { setIsDetalleOpen(false); setIsEditarOpen(true); }} className="dark:border-slate-600 dark:text-slate-300">Editar</Button>
-                <Button variant="destructive" onClick={() => handleEliminar(String(vehSeleccionado.id))}>Eliminar</Button>
+                </Tabs>
               </div>
-            </>
+
+              {/* Footer fijo */}
+              <div className="shrink-0 border-t border-slate-200 dark:border-slate-700 px-6 py-4 flex justify-end gap-2">
+                <Button variant="outline" onClick={() => { setIsDetalleOpen(false); setIsEditarOpen(true); }} className="dark:border-slate-600 dark:text-slate-300">Editar vehiculo</Button>
+                <Button variant="destructive" size="sm" onClick={() => handleEliminar(String(vehSeleccionado.id))}>Eliminar</Button>
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>
 
-      {/* ============ DIALOG: EDITAR VEHICULO (CONTROLADO) ============ */}
+      {/* ============ DIALOG: EDITAR VEHICULO ============ */}
       <Dialog open={isEditarOpen} onOpenChange={setIsEditarOpen}>
         <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
           <DialogHeader><DialogTitle className="dark:text-slate-100">Editar Vehiculo</DialogTitle></DialogHeader>
@@ -859,9 +1035,25 @@ export default function Flota() {
                 <div className="space-y-2"><Label>Modelo</Label><Input value={editForm.modelo || ''} onChange={e => setEditForm(p => ({ ...p, modelo: e.target.value }))} className="dark:bg-slate-900 dark:border-slate-600" /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><Label>Kilometraje</Label><Input type="number" value={editForm.kilometraje || 0} onChange={e => setEditForm(p => ({ ...p, kilometraje: parseInt(e.target.value) || 0 }))} className="dark:bg-slate-900 dark:border-slate-600" /></div>
-                <div className="space-y-2"><Label>Notas</Label><Textarea value={editForm.notas || ''} onChange={e => setEditForm(p => ({ ...p, notas: e.target.value }))} rows={2} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+                <div className="space-y-2"><Label>Tipo</Label>
+                  <Select value={editForm.tipo || ''} onValueChange={v => setEditForm(p => ({ ...p, tipo: v }))}>
+                    <SelectTrigger className="dark:bg-slate-900 dark:border-slate-600"><SelectValue /></SelectTrigger>
+                    <SelectContent>{TIPOS_VEHICULO.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2"><Label>Combustible</Label>
+                  <Select value={editForm.combustible || ''} onValueChange={v => setEditForm(p => ({ ...p, combustible: v }))}>
+                    <SelectTrigger className="dark:bg-slate-900 dark:border-slate-600"><SelectValue /></SelectTrigger>
+                    <SelectContent>{COMBUSTIBLES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
               </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2"><Label>Plazas</Label><Input type="number" value={editForm.plazas || ''} onChange={e => setEditForm(p => ({ ...p, plazas: parseInt(e.target.value) || 0 }))} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+                <div className="space-y-2"><Label>Kilometraje</Label><Input type="number" value={editForm.kilometraje || 0} onChange={e => setEditForm(p => ({ ...p, kilometraje: parseInt(e.target.value) || 0 }))} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+                <div className="space-y-2"><Label>Ano fabricacion</Label><Input type="number" value={editForm.añoFabricacion || ''} onChange={e => setEditForm(p => ({ ...p, añoFabricacion: parseInt(e.target.value) || new Date().getFullYear() }))} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+              </div>
+              <div className="space-y-2"><Label>Notas</Label><Textarea value={editForm.notas || ''} onChange={e => setEditForm(p => ({ ...p, notas: e.target.value }))} rows={2} className="dark:bg-slate-900 dark:border-slate-600" /></div>
 
               {/* Documentacion editable */}
               <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 space-y-3">
@@ -898,24 +1090,81 @@ export default function Flota() {
         </DialogContent>
       </Dialog>
 
-      {/* ============ DIALOG: NUEVA TAREA ============ */}
+      {/* ============ DIALOG: NUEVA TAREA (con multi-gastos y adjuntos) ============ */}
       <Dialog open={isTareaOpen} onOpenChange={setIsTareaOpen}>
-        <DialogContent className="max-w-lg dark:border-slate-700 dark:bg-slate-800">
+        <DialogContent className="max-w-2xl max-h-[95vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
           <DialogHeader><DialogTitle className="dark:text-slate-100">Nueva tarea</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>Tipo</Label>
-              <Select value={nuevaTarea.tipo} onValueChange={v => setNuevaTarea(p => ({ ...p, tipo: v }))}>
-                <SelectTrigger className="dark:bg-slate-900 dark:border-slate-600"><SelectValue /></SelectTrigger>
-                <SelectContent>{TIPOS_TAREA.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2"><Label>Fecha</Label><Input type="date" value={nuevaTarea.fecha} onChange={e => setNuevaTarea(p => ({ ...p, fecha: e.target.value }))} className="dark:bg-slate-900 dark:border-slate-600" /></div>
-            <div className="space-y-2"><Label>Concepto</Label><Input value={nuevaTarea.concepto} onChange={e => setNuevaTarea(p => ({ ...p, concepto: e.target.value }))} placeholder="Descripcion de la tarea" className="dark:bg-slate-900 dark:border-slate-600" /></div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label>Gasto (EUR)</Label><Input type="number" value={nuevaTarea.gasto} onChange={e => setNuevaTarea(p => ({ ...p, gasto: e.target.value }))} className="dark:bg-slate-900 dark:border-slate-600" /></div>
-              <div className="space-y-2"><Label>Factura URL</Label><Input value={nuevaTarea.factura_url || ''} onChange={e => setNuevaTarea(p => ({ ...p, factura_url: e.target.value }))} placeholder="https://..." className="dark:bg-slate-900 dark:border-slate-600" /></div>
+              <div className="space-y-2">
+                <Label>Tipo</Label>
+                <Select value={nuevaTarea.tipo} onValueChange={v => setNuevaTarea(p => ({ ...p, tipo: v }))}>
+                  <SelectTrigger className="dark:bg-slate-900 dark:border-slate-600"><SelectValue /></SelectTrigger>
+                  <SelectContent>{TIPOS_TAREA.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2"><Label>Fecha</Label><Input type="date" value={nuevaTarea.fecha} onChange={e => setNuevaTarea(p => ({ ...p, fecha: e.target.value }))} className="dark:bg-slate-900 dark:border-slate-600" /></div>
             </div>
+            <div className="space-y-2"><Label>Concepto general</Label><Input value={nuevaTarea.concepto} onChange={e => setNuevaTarea(p => ({ ...p, concepto: e.target.value }))} placeholder="Ej: Revision mensual" className="dark:bg-slate-900 dark:border-slate-600" /></div>
+
+            {/* Multi-gastos */}
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-medium dark:text-slate-300">Gastos desglosados</h4>
+                <Button type="button" size="sm" variant="outline" className="h-6 text-xs dark:border-slate-600" onClick={() => setNuevaTarea(p => ({ ...p, gastos: [...(p.gastos || []), { concepto: '', importe: '' }] }))}>
+                  <Plus className="h-3 w-3 mr-1" />Anadir gasto
+                </Button>
+              </div>
+              {(nuevaTarea.gastos || []).length === 0 && (
+                <p className="text-xs text-slate-400">Sin gastos. Añade conceptos como aceite, mecanico, gasoil...</p>
+              )}
+              {(nuevaTarea.gastos || []).map((g: any, i: number) => (
+                <div key={i} className="flex items-center gap-2">
+                  <Input placeholder="Concepto (ej: Aceite)" value={g.concepto} onChange={e => {
+                    const ng = [...(nuevaTarea.gastos || [])]; ng[i] = { ...ng[i], concepto: e.target.value };
+                    setNuevaTarea(p => ({ ...p, gastos: ng }));
+                  }} className="flex-1 h-8 text-sm dark:bg-slate-900 dark:border-slate-600" />
+                  <Input type="number" placeholder="EUR" value={g.importe} onChange={e => {
+                    const ng = [...(nuevaTarea.gastos || [])]; ng[i] = { ...ng[i], importe: e.target.value };
+                    setNuevaTarea(p => ({ ...p, gastos: ng }));
+                  }} className="w-24 h-8 text-sm dark:bg-slate-900 dark:border-slate-600" />
+                  <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" onClick={() => {
+                    const ng = (nuevaTarea.gastos || []).filter((_: any, idx: number) => idx !== i);
+                    setNuevaTarea(p => ({ ...p, gastos: ng }));
+                  }}><XCircle className="h-3.5 w-3.5" /></Button>
+                </div>
+              ))}
+              {(nuevaTarea.gastos || []).length > 0 && (
+                <p className="text-xs text-right text-slate-500 dark:text-slate-400">
+                  Total: {(nuevaTarea.gastos || []).reduce((s: number, g: any) => s + (parseFloat(g.importe) || 0), 0).toFixed(2)} EUR
+                </p>
+              )}
+            </div>
+
+            {/* Factura adjunta */}
+            <div className="space-y-2">
+              <Label>Factura / Documento adjunto</Label>
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                  <Upload className="h-3.5 w-3.5" />
+                  <span>Seleccionar archivo</span>
+                  <input type="file" accept=".pdf,image/*" className="hidden" onChange={async e => {
+                    const file = e.target.files?.[0]; if (!file) return;
+                    try { const b64 = await fileToBase64(file); setNuevaTarea(p => ({ ...p, factura_file: b64, factura_name: file.name })); showToast(`${file.name} seleccionado`, 'success'); }
+                    catch { showToast('Error al leer archivo', 'error'); }
+                  }} />
+                </label>
+                {nuevaTarea.factura_name && (
+                  <span className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                    <FileUp className="h-3.5 w-3.5" />{nuevaTarea.factura_name}
+                  </span>
+                )}
+              </div>
+              {nuevaTarea.factura_file && nuevaTarea.factura_file.startsWith('data:image') && (
+                <img src={nuevaTarea.factura_file} alt="Preview" className="max-h-32 rounded border border-slate-200 dark:border-slate-600" />
+              )}
+            </div>
+
             <div className="space-y-2"><Label>Anotaciones</Label><Textarea value={nuevaTarea.anotaciones} onChange={e => setNuevaTarea(p => ({ ...p, anotaciones: e.target.value }))} rows={2} className="dark:bg-slate-900 dark:border-slate-600" /></div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setIsTareaOpen(false)} className="dark:border-slate-600 dark:text-slate-300">Cancelar</Button>
@@ -925,7 +1174,80 @@ export default function Flota() {
         </DialogContent>
       </Dialog>
 
-      {/* ============ DIALOG: TALLER (fechas) ============ */}
+      {/* ============ DIALOG: EDITAR TAREA ============ */}
+      <Dialog open={isEditarTareaOpen} onOpenChange={setIsEditarTareaOpen}>
+        <DialogContent className="max-w-2xl max-h-[95vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
+          <DialogHeader><DialogTitle className="dark:text-slate-100">Editar tarea</DialogTitle></DialogHeader>
+          {tareaEditando && (
+            <div className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Tipo</Label>
+                  <Select value={tareaEditando.tipo} onValueChange={v => setTareaEditando((p: any) => ({ ...p, tipo: v }))}>
+                    <SelectTrigger className="dark:bg-slate-900 dark:border-slate-600"><SelectValue /></SelectTrigger>
+                    <SelectContent>{TIPOS_TAREA.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Estado</Label>
+                  <Select value={tareaEditando.estado} onValueChange={v => setTareaEditando((p: any) => ({ ...p, estado: v }))}>
+                    <SelectTrigger className="dark:bg-slate-900 dark:border-slate-600"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pendiente">Pendiente</SelectItem>
+                      <SelectItem value="completada">Completada</SelectItem>
+                      <SelectItem value="cancelada">Cancelada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2"><Label>Fecha</Label><Input type="date" value={toDateInput(tareaEditando.fecha)} onChange={e => setTareaEditando((p: any) => ({ ...p, fecha: e.target.value }))} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+              <div className="space-y-2"><Label>Concepto</Label><Input value={tareaEditando.concepto || ''} onChange={e => setTareaEditando((p: any) => ({ ...p, concepto: e.target.value }))} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+
+              {/* Gastos editables */}
+              <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium dark:text-slate-300">Gastos desglosados</h4>
+                  <Button type="button" size="sm" variant="outline" className="h-6 text-xs dark:border-slate-600" onClick={() => setTareaEditando((p: any) => ({ ...p, gastos: [...(p.gastos || []), { concepto: '', importe: '' }] }))}>
+                    <Plus className="h-3 w-3 mr-1" />Anadir gasto
+                  </Button>
+                </div>
+                {(tareaEditando.gastos || []).length === 0 && (
+                  <p className="text-xs text-slate-400">Sin gastos desglosados.</p>
+                )}
+                {(tareaEditando.gastos || []).map((g: any, i: number) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <Input placeholder="Concepto" value={g.concepto} onChange={e => {
+                      const ng = [...(tareaEditando.gastos || [])]; ng[i] = { ...ng[i], concepto: e.target.value };
+                      setTareaEditando((p: any) => ({ ...p, gastos: ng }));
+                    }} className="flex-1 h-8 text-sm dark:bg-slate-900 dark:border-slate-600" />
+                    <Input type="number" placeholder="EUR" value={g.importe} onChange={e => {
+                      const ng = [...(tareaEditando.gastos || [])]; ng[i] = { ...ng[i], importe: e.target.value };
+                      setTareaEditando((p: any) => ({ ...p, gastos: ng }));
+                    }} className="w-24 h-8 text-sm dark:bg-slate-900 dark:border-slate-600" />
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" onClick={() => {
+                      const ng = (tareaEditando.gastos || []).filter((_: any, idx: number) => idx !== i);
+                      setTareaEditando((p: any) => ({ ...p, gastos: ng }));
+                    }}><XCircle className="h-3.5 w-3.5" /></Button>
+                  </div>
+                ))}
+                {(tareaEditando.gastos || []).length > 0 && (
+                  <p className="text-xs text-right text-slate-500 dark:text-slate-400">
+                    Total: {(tareaEditando.gastos || []).reduce((s: number, g: any) => s + (parseFloat(g.importe) || 0), 0).toFixed(2)} EUR
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2"><Label>Anotaciones</Label><Textarea value={tareaEditando.anotaciones || ''} onChange={e => setTareaEditando((p: any) => ({ ...p, anotaciones: e.target.value }))} rows={2} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => { setIsEditarTareaOpen(false); setTareaEditando(null); }} className="dark:border-slate-600 dark:text-slate-300">Cancelar</Button>
+                <Button onClick={handleActualizarTarea} className="bg-[#1e3a5f] dark:bg-blue-600">Guardar cambios</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ============ DIALOG: TALLER ============ */}
       <Dialog open={isTallerOpen} onOpenChange={setIsTallerOpen}>
         <DialogContent className="max-w-md dark:border-slate-700 dark:bg-slate-800">
           <DialogHeader><DialogTitle className="dark:text-slate-100">Marcar vehiculo en Taller</DialogTitle></DialogHeader>
@@ -950,7 +1272,7 @@ export default function Flota() {
         </DialogContent>
       </Dialog>
 
-      {/* ============ DIALOG: BAJA (motivo) ============ */}
+      {/* ============ DIALOG: BAJA ============ */}
       <Dialog open={isBajaOpen} onOpenChange={setIsBajaOpen}>
         <DialogContent className="max-w-md dark:border-slate-700 dark:bg-slate-800">
           <DialogHeader><DialogTitle className="dark:text-slate-100 text-red-600">Dar de baja temporal</DialogTitle></DialogHeader>
