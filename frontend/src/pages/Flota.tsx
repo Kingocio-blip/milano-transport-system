@@ -171,7 +171,7 @@ export default function Flota() {
       const success = await addVehiculo({
         ...nuevoVeh, tipo: tipoFinal,
         estado: documentacionCompleta(nuevoVeh) ? 'operativo' : 'baja',
-      });
+      } as any);
       if (success) { setIsNuevoOpen(false); setNuevoVeh({ tipo: 'autobus', combustible: 'diesel', numero_plazas: 50, ano_fabricacion: new Date().getFullYear() }); setTipoPersonalizado(''); showToast('Vehiculo creado', 'success'); fetchVehiculos(); }
     } catch (err: any) { showToast(`Error: ${err.message}`, 'error'); }
     finally { setIsSubmitting(false); }
