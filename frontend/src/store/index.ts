@@ -301,6 +301,21 @@ export const useVehiculosStore = create<VehiculosState>((set, get) => ({
         ubicacion: v.ubicacion,
         notas: v.notas,
         imagenUrl: v.imagen_url,
+         // Documentación
+         tarjetaTransportesNumero: v.tarjeta_transportes_numero,
+         tarjetaTransportesFechaRenovacion: v.tarjeta_transportes_fecha_renovacion,
+         itvFechaProxima: v.itv_fecha_proxima,
+         seguroCompania: v.seguro_compania,
+         seguroPoliza: v.seguro_poliza,
+         seguroFechaVencimiento: v.seguro_fecha_vencimiento,
+         tacografoFechaCalibracion: v.tacografo_fecha_calibracion,
+         extintoresFechaVencimiento: v.extintores_fecha_vencimiento,
+         // Taller/Baja
+         tallerFechaInicio: v.taller_fecha_inicio,
+         tallerFechaFin: v.taller_fecha_fin,
+         tallerMotivo: v.taller_motivo,
+         bajaMotivo: v.baja_motivo,
+         bajaFecha: v.baja_fecha,
       }));
       set({ vehiculos: vehiculosFormateados, isLoading: false });
     } catch (error: any) {
@@ -352,8 +367,25 @@ export const useVehiculosStore = create<VehiculosState>((set, get) => ({
         seguro_prima: vehiculo.seguro?.prima || null,
         
         // Mantenimientos como array vacío inicialmente
-        mantenimientos: vehiculo.mantenimientos || [],
-      };
+         mantenimientos: vehiculo.mantenimientos || [],
+         
+         // Documentación obligatoria
+         tarjeta_transportes_numero: vehiculo.tarjetaTransportesNumero || null,
+         tarjeta_transportes_fecha_renovacion: vehiculo.tarjetaTransportesFechaRenovacion || null,
+         itv_fecha_proxima: vehiculo.itvFechaProxima || null,
+         seguro_compania: vehiculo.seguroCompania || '',
+         seguro_poliza: vehiculo.seguroPoliza || '',
+         seguro_fecha_vencimiento: vehiculo.seguroFechaVencimiento || null,
+         tacografo_fecha_calibracion: vehiculo.tacografoFechaCalibracion || null,
+         extintores_fecha_vencimiento: vehiculo.extintoresFechaVencimiento || null,
+         
+         // Taller/Baja
+         taller_fecha_inicio: vehiculo.tallerFechaInicio || null,
+         taller_fecha_fin: vehiculo.tallerFechaFin || null,
+         taller_motivo: vehiculo.tallerMotivo || null,
+         baja_motivo: vehiculo.bajaMotivo || null,
+         baja_fecha: vehiculo.bajaFecha || null,
+       };
 
       console.log('📤 Enviando vehículo:', vehiculoParaBackend);
       
@@ -393,7 +425,22 @@ export const useVehiculosStore = create<VehiculosState>((set, get) => ({
         ubicacion: nuevo.ubicacion,
         notas: nuevo.notas,
         imagenUrl: nuevo.imagen_url,
-      };
+         // Documentación
+         tarjetaTransportesNumero: nuevo.tarjeta_transportes_numero,
+         tarjetaTransportesFechaRenovacion: nuevo.tarjeta_transportes_fecha_renovacion,
+         itvFechaProxima: nuevo.itv_fecha_proxima,
+         seguroCompania: nuevo.seguro_compania,
+         seguroPoliza: nuevo.seguro_poliza,
+         seguroFechaVencimiento: nuevo.seguro_fecha_vencimiento,
+         tacografoFechaCalibracion: nuevo.tacografo_fecha_calibracion,
+         extintoresFechaVencimiento: nuevo.extintores_fecha_vencimiento,
+         // Taller/Baja
+         tallerFechaInicio: nuevo.taller_fecha_inicio,
+         tallerFechaFin: nuevo.taller_fecha_fin,
+         tallerMotivo: nuevo.taller_motivo,
+         bajaMotivo: nuevo.baja_motivo,
+         bajaFecha: nuevo.baja_fecha,
+       };
 
       set((state) => ({ vehiculos: [...state.vehiculos, vehiculoFormateado], isLoading: false }));
       return true;
@@ -433,13 +480,54 @@ export const useVehiculosStore = create<VehiculosState>((set, get) => ({
       }
 
       if (data.seguro) {
-        dataParaBackend.seguro_compania = data.seguro.compania;
-        dataParaBackend.seguro_poliza = data.seguro.poliza;
-        dataParaBackend.seguro_tipo_cobertura = data.seguro.tipoCobertura;
-        dataParaBackend.seguro_fecha_inicio = data.seguro.fechaInicio;
-        dataParaBackend.seguro_fecha_vencimiento = data.seguro.fechaVencimiento;
-        dataParaBackend.seguro_prima = data.seguro.prima;
-      }
+         dataParaBackend.seguro_compania = data.seguro.compania;
+         dataParaBackend.seguro_poliza = data.seguro.poliza;
+         dataParaBackend.seguro_tipo_cobertura = data.seguro.tipoCobertura;
+         dataParaBackend.seguro_fecha_inicio = data.seguro.fechaInicio;
+         dataParaBackend.seguro_fecha_vencimiento = data.seguro.fechaVencimiento;
+         dataParaBackend.seguro_prima = data.seguro.prima;
+       }
+
+         // Documentación (acepta camelCase o snake_case)
+         if (data.tarjetaTransportesNumero !== undefined) dataParaBackend.tarjeta_transportes_numero = data.tarjetaTransportesNumero;
+         if ((data as any).tarjeta_transportes_numero !== undefined) dataParaBackend.tarjeta_transportes_numero = (data as any).tarjeta_transportes_numero;
+
+         if (data.tarjetaTransportesFechaRenovacion !== undefined) dataParaBackend.tarjeta_transportes_fecha_renovacion = data.tarjetaTransportesFechaRenovacion;
+         if ((data as any).tarjeta_transportes_fecha_renovacion !== undefined) dataParaBackend.tarjeta_transportes_fecha_renovacion = (data as any).tarjeta_transportes_fecha_renovacion;
+
+         if (data.itvFechaProxima !== undefined) dataParaBackend.itv_fecha_proxima = data.itvFechaProxima;
+         if ((data as any).itv_fecha_proxima !== undefined) dataParaBackend.itv_fecha_proxima = (data as any).itv_fecha_proxima;
+
+         if (data.seguroCompania !== undefined) dataParaBackend.seguro_compania = data.seguroCompania;
+         if ((data as any).seguro_compania !== undefined) dataParaBackend.seguro_compania = (data as any).seguro_compania;
+
+         if (data.seguroPoliza !== undefined) dataParaBackend.seguro_poliza = data.seguroPoliza;
+         if ((data as any).seguro_poliza !== undefined) dataParaBackend.seguro_poliza = (data as any).seguro_poliza;
+
+         if (data.seguroFechaVencimiento !== undefined) dataParaBackend.seguro_fecha_vencimiento = data.seguroFechaVencimiento;
+         if ((data as any).seguro_fecha_vencimiento !== undefined) dataParaBackend.seguro_fecha_vencimiento = (data as any).seguro_fecha_vencimiento;
+
+         if (data.tacografoFechaCalibracion !== undefined) dataParaBackend.tacografo_fecha_calibracion = data.tacografoFechaCalibracion;
+         if ((data as any).tacografo_fecha_calibracion !== undefined) dataParaBackend.tacografo_fecha_calibracion = (data as any).tacografo_fecha_calibracion;
+
+         if (data.extintoresFechaVencimiento !== undefined) dataParaBackend.extintores_fecha_vencimiento = data.extintoresFechaVencimiento;
+         if ((data as any).extintores_fecha_vencimiento !== undefined) dataParaBackend.extintores_fecha_vencimiento = (data as any).extintores_fecha_vencimiento;
+
+         // Taller/Baja
+         if (data.tallerFechaInicio !== undefined) dataParaBackend.taller_fecha_inicio = data.tallerFechaInicio;
+         if ((data as any).taller_fecha_inicio !== undefined) dataParaBackend.taller_fecha_inicio = (data as any).taller_fecha_inicio;
+
+         if (data.tallerFechaFin !== undefined) dataParaBackend.taller_fecha_fin = data.tallerFechaFin;
+         if ((data as any).taller_fecha_fin !== undefined) dataParaBackend.taller_fecha_fin = (data as any).taller_fecha_fin;
+
+         if (data.tallerMotivo !== undefined) dataParaBackend.taller_motivo = data.tallerMotivo;
+         if ((data as any).taller_motivo !== undefined) dataParaBackend.taller_motivo = (data as any).taller_motivo;
+
+         if (data.bajaMotivo !== undefined) dataParaBackend.baja_motivo = data.bajaMotivo;
+         if ((data as any).baja_motivo !== undefined) dataParaBackend.baja_motivo = (data as any).baja_motivo;
+
+         if (data.bajaFecha !== undefined) dataParaBackend.baja_fecha = data.bajaFecha;
+         if ((data as any).baja_fecha !== undefined) dataParaBackend.baja_fecha = (data as any).baja_fecha;
 
       const actualizado = await vehiculosApi.update(id, dataParaBackend);
       if (actualizado) {
@@ -474,8 +562,23 @@ export const useVehiculosStore = create<VehiculosState>((set, get) => ({
           estado: actualizado.estado || 'operativo',
           ubicacion: actualizado.ubicacion,
           notas: actualizado.notas,
-          imagenUrl: actualizado.imagen_url,
-        };
+                   imagenUrl: actualizado.imagen_url,
+         // Documentación
+         tarjetaTransportesNumero: actualizado.tarjeta_transportes_numero,
+         tarjetaTransportesFechaRenovacion: actualizado.tarjeta_transportes_fecha_renovacion,
+         itvFechaProxima: actualizado.itv_fecha_proxima,
+         seguroCompania: actualizado.seguro_compania,
+         seguroPoliza: actualizado.seguro_poliza,
+         seguroFechaVencimiento: actualizado.seguro_fecha_vencimiento,
+         tacografoFechaCalibracion: actualizado.tacografo_fecha_calibracion,
+         extintoresFechaVencimiento: actualizado.extintores_fecha_vencimiento,
+         // Taller/Baja
+         tallerFechaInicio: actualizado.taller_fecha_inicio,
+         tallerFechaFin: actualizado.taller_fecha_fin,
+         tallerMotivo: actualizado.taller_motivo,
+         bajaMotivo: actualizado.baja_motivo,
+         bajaFecha: actualizado.baja_fecha,
+      };
         set((state) => ({
           vehiculos: state.vehiculos.map(v => v.id === id ? vehiculoFormateado : v),
           isLoading: false,

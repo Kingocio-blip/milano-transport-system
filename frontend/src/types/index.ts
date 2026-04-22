@@ -10,7 +10,7 @@
 export type TipoCliente = 'festival' | 'promotor' | 'colegio' | 'empresa' | 'particular';
 export type TipoServicio = 'lanzadera' | 'discrecional' | 'staff' | 'ruta_programada';
 export type EstadoServicio = 'solicitud' | 'presupuesto' | 'negociacion' | 'confirmado' | 'planificando' | 'asignado' | 'en_curso' | 'completado' | 'facturado' | 'cancelado';
-export type TipoVehiculo = 'autobus' | 'minibus' | 'furgoneta' | 'coche';
+export type TipoVehiculo = 'autobus' | 'minibus' | 'microbus' | 'furgoneta' | 'coche' | 'monovolumen';
 export type EstadoVehiculo = 'operativo' | 'taller' | 'baja' | 'reservado';
 export type EstadoConductor = 'activo' | 'baja' | 'vacaciones' | 'descanso' | 'inactivo' | 'en_ruta';
 export type EstadoFactura = 'pendiente' | 'enviada' | 'pagada' | 'vencida' | 'anulada';
@@ -145,26 +145,93 @@ export interface Mantenimiento {
 
 // FIX: codigo opcional, campos ITV/Seguro opcionales
 export interface Vehiculo {
-  id: string;
-  codigo?: string;  // FIX: Opcional para generación automática
-  matricula: string;
-  bastidor?: string;  // FIX: Opcional
-  marca?: string;  // FIX: Opcional
-  modelo?: string;  // FIX: Opcional
-  tipo: TipoVehiculo;
-  plazas: number;
-  añoFabricacion?: number;
-  kilometraje?: number;  // FIX: Opcional
-  kilometrajeUltimaRevision?: number;
-  consumoMedio?: number;
-  combustible?: 'diesel' | 'gasolina' | 'electric' | 'hibrido';
-  itv?: ITV;  // FIX: Opcional
-  seguro?: Seguro;  // FIX: Opcional
-  mantenimientos?: Mantenimiento[];  // FIX: Opcional
-  estado: EstadoVehiculo;
-  ubicacion?: string;
-  notas?: string;
-  imagenUrl?: string;
+ id: string;
+ codigo?: string;
+ matricula: string;
+ bastidor?: string;
+ marca?: string;
+ modelo?: string;
+ tipo: TipoVehiculo;
+ plazas: number;
+ añoFabricacion?: number;
+ kilometraje?: number;
+ kilometrajeUltimaRevision?: number;
+ consumoMedio?: number;
+ combustible?: 'diesel' | 'gasolina' | 'electric' | 'hibrido' | 'gnc';
+ itv?: ITV;
+ seguro?: Seguro;
+ mantenimientos?: Mantenimiento[];
+ estado: EstadoVehiculo;
+ ubicacion?: string;
+ notas?: string;
+ imagenUrl?: string;
+ 
+ // Documentación obligatoria (campos planos para edición y persistencia)
+ tarjetaTransportesNumero?: string;
+ tarjetaTransportesFechaRenovacion?: Date | string;
+ itvFechaProxima?: Date | string;
+ seguroCompania?: string;
+ seguroPoliza?: string;
+ seguroFechaVencimiento?: Date | string;
+ tacografoFechaCalibracion?: Date | string;
+ extintoresFechaVencimiento?: Date | string;
+ 
+ // Taller
+ tallerFechaInicio?: Date | string;
+ tallerFechaFin?: Date | string;
+ tallerMotivo?: string;
+ 
+ // Baja temporal
+ bajaFecha?: Date | string;
+ bajaMotivo?: string;
+ 
+ // Metadata
+ fechaCreacion?: Date | string;
+ fechaActualizacion?: Date | string;
+}
+
+// ============================================
+// TAREAS DE VEHÍCULO (NUEVO)
+// ============================================
+
+export type TipoTareaVehiculo = 'mantenimiento' | 'averia' | 'itv' | 'tarjeta_transportes' | 'seguro' | 'calibracion' | 'extintores' | 'otro';
+export type EstadoTareaVehiculo = 'pendiente' | 'en_proceso' | 'completada' | 'cancelada';
+
+export interface VehiculoTarea {
+ id: string;
+ vehiculoId: string;
+ tipo: TipoTareaVehiculo;
+ estado: EstadoTareaVehiculo;
+ fecha: Date | string;
+ fechaCompletada?: Date | string;
+ concepto: string;
+ gasto?: number;
+ anotaciones?: string;
+ facturaUrl?: string;
+ documentoUrl?: string;
+ autoGenerada?: boolean;
+ creadoPor?: string;
+}
+
+// ============================================
+// NOTIFICACIONES (NUEVO)
+// ============================================
+
+export type TipoNotificacion = 'documentacion' | 'taller' | 'averia' | 'servicio' | 'sistema';
+
+export interface Notificacion {
+ id: string;
+ tipo: TipoNotificacion;
+ titulo: string;
+ mensaje: string;
+ vehiculoId?: string;
+ servicioId?: string;
+ userId?: string;
+ leida: boolean;
+ fechaCreacion: Date | string;
+ fechaLeida?: Date | string;
+ fechaReferencia?: Date | string;
+ diasAntelacion?: number;
 }
 
 // ============================================
