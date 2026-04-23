@@ -322,12 +322,12 @@ export default function Comunicacion() {
           {/* Toolbar */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <Select value={tareaEstadoFiltro} onValueChange={setTareaEstadoFiltro}>
+              <Select value={tareaEstadoFiltro || 'todos'} onValueChange={(v) => setTareaEstadoFiltro(v === 'todos' ? '' : v)}>
                 <SelectTrigger className="h-8 w-36 text-xs dark:bg-slate-900 dark:border-slate-600">
                   <Filter className="h-3 w-3 mr-1" />{tareaEstadoFiltro || 'Todos'}
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
+                  <SelectItem value="todos">Todos</SelectItem>
                   {ESTADOS_TAREA.map(e => <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>)}
                 </SelectContent>
               </Select>
