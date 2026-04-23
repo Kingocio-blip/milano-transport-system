@@ -250,6 +250,26 @@ export interface Notificacion {
 }
 
 // ============================================
+// USER TASKS - Gestor de tareas (NUEVO)
+// ============================================
+
+export interface UserTask {
+  id: number;
+  titulo: string;
+  descripcion?: string;
+  estado: 'pendiente' | 'en_progreso' | 'completada' | 'cancelada';
+  prioridad: 'baja' | 'media' | 'alta' | 'urgente';
+  fechaLimite?: Date | string;
+  fechaCreacion?: Date | string;
+  fechaCompletada?: Date | string;
+  categoria?: string;
+  referenciaId?: number;
+  referenciaTipo?: string;
+  userId?: number;
+  creadoPor?: number;
+}
+
+// ============================================
 // CONDUCTOR / RRHH
 // ============================================
 
