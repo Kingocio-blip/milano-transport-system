@@ -68,6 +68,18 @@ class EstadoTareaVehiculo(str, enum.Enum):
     PENDIENTE = "pendiente"
     EN_PROCESO = "en_proceso"
     COMPLETADA = "completada"
+
+class EstadoUserTask(str, enum.Enum):
+    PENDIENTE = "pendiente"
+    EN_PROGRESO = "en_progreso"
+    COMPLETADA = "completada"
+    CANCELADA = "cancelada"
+
+class PrioridadUserTask(str, enum.Enum):
+    BAJA = "baja"
+    MEDIA = "media"
+    ALTA = "alta"
+    URGENTE = "urgente"
     CANCELADA = "cancelada"
 
 # Enums legacy (mantener compatibilidad)
@@ -532,6 +544,41 @@ class Notificacion(Base):
         Index('idx_notificacion_tipo', 'tipo'),
         Index('idx_notificacion_vehiculo', 'vehiculo_id'),
         Index('idx_notificacion_fecha', 'fecha_creacion'),
+    )
+
+# ============================================
+# USER TASKS - Gestor de tareas por usuario
+# ============================================
+
+class UserTask(Base):
+    __tablename__ = "user_tasks"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    titulo = Column(String(200), nullable=False)
+    descripcion = Column(Text, nullable=True)
+    
+    estado = Column(SQLEnum(EstadoUserTask), nullable=False, default=EstadoUserTask.PENDIENTE)
+    prioridad = Column(SQLEnum(PrioridadUserTask), nullable=False, default=PrioridadUserTask.MEDIA)
+    
+    # Usuario asignado
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    creado_por = Column(Integer, ForeignKey("users.id"), nullable=True)
+    
+    # Fechas
+    fecha_limite = Column(DateTime, nullable=True)
+    fecha_completada = Column(DateTime, nullable=True)
+    fecha_creacion = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    # Categoria/contexto
+    categoria = Column(String(50), nullable=True)  # flota, servicios, conductores, general
+    referencia_id = Column(Integer, nullable=True)  # ID del vehiculo/servicio/conductor relacionado
+    referencia_tipo = Column(String(30), nullable=True)  # vehiculo, servicio, conductor
+    
+    __table_args__ = (
+        Index('idx_usertask_user_estado', 'user_id', 'estado'),
+        Index('idx_usertask_prioridad', 'prioridad'),
+        Index('idx_usertask_fecha_limite', 'fecha_limite'),
+        Index('idx_usertask_categoria', 'categoria'),
     )
 
 # ============================================

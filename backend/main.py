@@ -1405,6 +1405,138 @@ def marcar_notificacion_leida(
     return {"message": "Notificación marcada como leída"}
 
 # ============================================
+# USER TASKS ENDPOINTS
+# ============================================
+
+@app.post("/user-tasks", response_model=schemas.UserTask)
+def create_user_task(
+    task: schemas.UserTaskCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    db_task = models.UserTask(
+        titulo=task.titulo,
+        descripcion=task.descripcion,
+        estado=models.EstadoUserTask(task.estado) if task.estado else models.EstadoUserTask.PENDIENTE,
+        prioridad=models.PrioridadUserTask(task.prioridad) if task.prioridad else models.PrioridadUserTask.MEDIA,
+        fecha_limite=task.fecha_limite,
+        categoria=task.categoria,
+        referencia_id=task.referencia_id,
+        referencia_tipo=task.referencia_tipo,
+        user_id=current_user.id,
+        creado_por=current_user.id,
+    )
+    db.add(db_task)
+    db.commit()
+    db.refresh(db_task)
+    return db_task
+
+@app.get("/user-tasks", response_model=List[schemas.UserTask])
+def get_user_tasks(
+    estado: Optional[str] = None,
+    prioridad: Optional[str] = None,
+    categoria: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    query = db.query(models.UserTask).filter(models.UserTask.user_id == current_user.id)
+    if estado:
+        query = query.filter(models.UserTask.estado == estado)
+    if prioridad:
+        query = query.filter(models.UserTask.prioridad == prioridad)
+    if categoria:
+        query = query.filter(models.UserTask.categoria == categoria)
+    return query.order_by(models.UserTask.fecha_limite.asc().nullslast(), models.UserTask.fecha_creacion.desc()).all()
+
+@app.get("/user-tasks/resumen", response_model=schemas.UserTaskResumen)
+def get_user_tasks_resumen(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    query = db.query(models.UserTask).filter(models.UserTask.user_id == current_user.id)
+    total = query.count()
+    pendientes = query.filter(models.UserTask.estado == models.EstadoUserTask.PENDIENTE).count()
+    en_progreso = query.filter(models.UserTask.estado == models.EstadoUserTask.EN_PROGRESO).count()
+    completadas = query.filter(models.UserTask.estado == models.EstadoUserTask.COMPLETADA).count()
+    urgentes = query.filter(
+        models.UserTask.prioridad == models.PrioridadUserTask.URGENTE,
+        models.UserTask.estado != models.EstadoUserTask.COMPLETADA
+    ).count()
+    ahora = datetime.utcnow()
+    vencidas = query.filter(
+        models.UserTask.fecha_limite < ahora,
+        models.UserTask.estado.notin_([models.EstadoUserTask.COMPLETADA, models.EstadoUserTask.CANCELADA])
+    ).count()
+    return {
+        "total": total,
+        "pendientes": pendientes,
+        "en_progreso": en_progreso,
+        "completadas": completadas,
+        "urgentes": urgentes,
+        "vencidas": vencidas
+    }
+
+@app.get("/user-tasks/{task_id}", response_model=schemas.UserTask)
+def get_user_task(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    task = db.query(models.UserTask).filter(
+        models.UserTask.id == task_id,
+        models.UserTask.user_id == current_user.id
+    ).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Tarea no encontrada")
+    return task
+
+@app.patch("/user-tasks/{task_id}", response_model=schemas.UserTask)
+def update_user_task(
+    task_id: int,
+    task_update: schemas.UserTaskUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    task = db.query(models.UserTask).filter(
+        models.UserTask.id == task_id,
+        models.UserTask.user_id == current_user.id
+    ).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Tarea no encontrada")
+    
+    update_data = task_update.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        if field == "estado" and value:
+            setattr(task, field, models.EstadoUserTask(value))
+        elif field == "prioridad" and value:
+            setattr(task, field, models.PrioridadUserTask(value))
+        else:
+            setattr(task, field, value)
+    
+    if update_data.get("estado") == "completada" and not task.fecha_completada:
+        task.fecha_completada = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(task)
+    return task
+
+@app.delete("/user-tasks/{task_id}")
+def delete_user_task(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    task = db.query(models.UserTask).filter(
+        models.UserTask.id == task_id,
+        models.UserTask.user_id == current_user.id
+    ).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Tarea no encontrada")
+    db.delete(task)
+    db.commit()
+    return {"message": "Tarea eliminada"}
+
+# ============================================
 # SERVICIO ENDPOINTS
 # ============================================
 

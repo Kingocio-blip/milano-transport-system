@@ -17,7 +17,7 @@ import Rutas from './pages/Rutas';
 import Conductores from './pages/Conductores';
 import Facturacion from './pages/Facturacion';
 import Costes from './pages/Costes';
-import Documentacion from './pages/Documentacion';
+import Comunicacion from './pages/Comunicacion';
 import Configuracion from './pages/Configuracion';
 import Login from './pages/Login';
 import PanelConductor from './pages/PanelConductor';
@@ -107,7 +107,7 @@ const ROUTE_PERMISSIONS: Record<string, string> = {
   '/conductores': 'conductores.ver',
   '/facturacion': 'facturacion.ver',
   '/costes': 'configuracion.ver',
-  '/documentacion': 'configuracion.ver',
+  '/comunicacion': 'dashboard.ver',
   '/usuarios': 'usuarios.ver',
   '/configuracion': 'configuracion.ver',
 };
@@ -145,7 +145,7 @@ function App() {
           <Route path="conductores" element={<PermissionRoute permiso="conductores.ver"><Conductores /></PermissionRoute>} />
           <Route path="facturacion" element={<PermissionRoute permiso="facturacion.ver"><Facturacion /></PermissionRoute>} />
           <Route path="costes" element={<PermissionRoute permiso="configuracion.ver"><Costes /></PermissionRoute>} />
-          <Route path="documentacion" element={<PermissionRoute permiso="configuracion.ver"><Documentacion /></PermissionRoute>} />
+          <Route path="comunicacion" element={<PermissionRoute permiso="dashboard.ver"><Comunicacion /></PermissionRoute>} />
           <Route path="usuarios" element={<PermissionRoute permiso="usuarios.ver"><Usuarios /></PermissionRoute>} />
           <Route path="usuarios/nuevo" element={<PermissionRoute permiso="usuarios.crear"><UsuarioForm /></PermissionRoute>} />
           <Route path="usuarios/:id/editar" element={<PermissionRoute permiso="usuarios.editar"><UsuarioForm /></PermissionRoute>} />

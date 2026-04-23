@@ -427,3 +427,29 @@ export const rutasApi = {
   update: (id: string, data: any) => api.put(`/rutas/${id}`, data),
   delete: (id: string) => api.delete(`/rutas/${id}`),
 };
+
+export const notificacionesApi = {
+  getAll: (params?: { soloNoLeidas?: boolean; tipo?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.soloNoLeidas) qs.append('solo_no_leidas', 'true');
+    if (params?.tipo) qs.append('tipo', params.tipo);
+    return api.get(`/notificaciones${qs.toString() ? '?' + qs.toString() : ''}`);
+  },
+  getResumen: () => api.get('/notificaciones/resumen'),
+  marcarLeida: (id: number) => api.patch(`/notificaciones/${id}/leida`, {}),
+};
+
+export const userTasksApi = {
+  getAll: (params?: { estado?: string; prioridad?: string; categoria?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.estado) qs.append('estado', params.estado);
+    if (params?.prioridad) qs.append('prioridad', params.prioridad);
+    if (params?.categoria) qs.append('categoria', params.categoria);
+    return api.get(`/user-tasks${qs.toString() ? '?' + qs.toString() : ''}`);
+  },
+  getResumen: () => api.get('/user-tasks/resumen'),
+  getById: (id: string) => api.get(`/user-tasks/${id}`),
+  create: (data: any) => api.post('/user-tasks', data),
+  update: (id: string, data: any) => api.patch(`/user-tasks/${id}`, data),
+  delete: (id: string) => api.delete(`/user-tasks/${id}`),
+};

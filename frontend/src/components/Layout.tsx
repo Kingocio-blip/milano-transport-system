@@ -3,14 +3,15 @@
 // ============================================
 
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store';
 import { usePermisos } from '../hooks/usePermisos';
 import { ThemeToggle } from './ThemeToggle';
+import { notificacionesApi } from '../lib/api';
 import {
   Bus, Users, Briefcase, MapPin, UserCircle, Euro,
   FileText, Settings, LogOut, Menu, X, Bell,
-  UsersRound, Shield,
+  UsersRound, Shield, MessageSquare,
 } from 'lucide-react';
 
 // Items del menu con permiso requerido
@@ -30,7 +31,7 @@ const menuItems: MenuItem[] = [
   { path: '/conductores', label: 'Conductores', icon: UserCircle, permiso: 'conductores.ver' },
   { path: '/facturacion', label: 'Facturacion', icon: Euro, permiso: 'facturacion.ver' },
   { path: '/costes', label: 'Costes', icon: FileText, permiso: 'configuracion.ver' },
-  { path: '/documentacion', label: 'Documentacion', icon: FileText, permiso: 'configuracion.ver' },
+  { path: '/comunicacion', label: 'Comunicacion', icon: MessageSquare, permiso: 'dashboard.ver' },
 ];
 
 const adminItems: MenuItem[] = [
@@ -40,10 +41,24 @@ const adminItems: MenuItem[] = [
 
 export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [notifCount, setNotifCount] = useState(0);
   const location = useLocation();
   const navigate = useNavigate();
   const { usuario, logout } = useAuthStore();
   const { tienePermiso, loading: permisosLoading } = usePermisos();
+
+  // Cargar contador de notificaciones no leidas
+  useEffect(() => {
+    const cargarNotificaciones = async () => {
+      try {
+        const res = await notificacionesApi.getResumen();
+        setNotifCount(res.no_leidas || 0);
+      } catch { /* ignorar */ }
+    };
+    cargarNotificaciones();
+    const interval = setInterval(cargarNotificaciones, 60000); // cada 60s
+    return () => clearInterval(interval);
+  }, []);
 
   const handleLogout = async () => {
     await logout();
@@ -171,9 +186,16 @@ export function Layout() {
 
           <div className="flex items-center gap-4">
             <ThemeToggle />
-            <button className="relative p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors">
+            <button 
+              onClick={() => navigate('/comunicacion?tab=notificaciones')}
+              className="relative p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
+            >
               <Bell className="h-5 w-5" />
-              <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full" />
+              {notifCount > 0 && (
+                <span className="absolute top-1 right-1 h-4 w-4 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center font-medium">
+                  {notifCount > 9 ? '9+' : notifCount}
+                </span>
+              )}
             </button>
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">

@@ -633,6 +633,50 @@ class NotificacionResumen(BaseModel):
     alertas_aviso: int
 
 # ============================================
+# USER TASK SCHEMAS
+# ============================================
+
+class UserTaskBase(BaseModel):
+    titulo: str
+    descripcion: Optional[str] = None
+    estado: str = "pendiente"
+    prioridad: str = "media"
+    fecha_limite: Optional[datetime] = None
+    categoria: Optional[str] = None
+    referencia_id: Optional[int] = None
+    referencia_tipo: Optional[str] = None
+
+class UserTaskCreate(UserTaskBase):
+    pass
+
+class UserTaskUpdate(BaseModel):
+    titulo: Optional[str] = None
+    descripcion: Optional[str] = None
+    estado: Optional[str] = None
+    prioridad: Optional[str] = None
+    fecha_limite: Optional[datetime] = None
+    categoria: Optional[str] = None
+    referencia_id: Optional[int] = None
+    referencia_tipo: Optional[str] = None
+
+class UserTask(UserTaskBase):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    user_id: int
+    creado_por: Optional[int] = None
+    fecha_completada: Optional[datetime] = None
+    fecha_creacion: datetime
+
+class UserTaskResumen(BaseModel):
+    total: int
+    pendientes: int
+    en_progreso: int
+    completadas: int
+    urgentes: int
+    vencidas: int
+
+# ============================================
 # MENSAJE SCHEMAS
 # ============================================
 
