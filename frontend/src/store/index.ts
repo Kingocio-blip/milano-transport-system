@@ -316,6 +316,12 @@ export const useVehiculosStore = create<VehiculosState>((set, get) => ({
          tallerMotivo: v.taller_motivo,
          bajaMotivo: v.baja_motivo,
          bajaFecha: v.baja_fecha,
+         // Archivos adjuntos de documentacion
+         tarjetaTransportesFile: v.tarjeta_transportes_file,
+         itvFile: v.itv_file,
+         seguroFile: v.seguro_file,
+         tacografoFile: v.tacografo_file,
+         extintoresFile: v.extintores_file,
       }));
       set({ vehiculos: vehiculosFormateados, isLoading: false });
     } catch (error: any) {
@@ -431,6 +437,12 @@ export const useVehiculosStore = create<VehiculosState>((set, get) => ({
          tallerMotivo: nuevo.taller_motivo,
          bajaMotivo: nuevo.baja_motivo,
          bajaFecha: nuevo.baja_fecha,
+         // Archivos adjuntos de documentacion
+         tarjetaTransportesFile: nuevo.tarjeta_transportes_file,
+         itvFile: nuevo.itv_file,
+         seguroFile: nuevo.seguro_file,
+         tacografoFile: nuevo.tacografo_file,
+         extintoresFile: nuevo.extintores_file,
        };
 
       set((state) => ({ vehiculos: [...state.vehiculos, vehiculoFormateado], isLoading: false }));
@@ -505,7 +517,12 @@ export const useVehiculosStore = create<VehiculosState>((set, get) => ({
          if ((data as any).extintores_fecha_vencimiento !== undefined) dataParaBackend.extintores_fecha_vencimiento = (data as any).extintores_fecha_vencimiento;
 
          // Taller/Baja
-         if (data.tallerFechaInicio !== undefined) dataParaBackend.taller_fecha_inicio = data.tallerFechaInicio;
+         if (data.tarjetaTransportesFile !== undefined) dataParaBackend.tarjeta_transportes_file = data.tarjetaTransportesFile;
+      if (data.itvFile !== undefined) dataParaBackend.itv_file = data.itvFile;
+      if (data.seguroFile !== undefined) dataParaBackend.seguro_file = data.seguroFile;
+      if (data.tacografoFile !== undefined) dataParaBackend.tacografo_file = data.tacografoFile;
+      if (data.extintoresFile !== undefined) dataParaBackend.extintores_file = data.extintoresFile;
+      if (data.tallerFechaInicio !== undefined) dataParaBackend.taller_fecha_inicio = data.tallerFechaInicio;
          if ((data as any).taller_fecha_inicio !== undefined) dataParaBackend.taller_fecha_inicio = (data as any).taller_fecha_inicio;
 
          if (data.tallerFechaFin !== undefined) dataParaBackend.taller_fecha_fin = data.tallerFechaFin;
@@ -569,6 +586,12 @@ export const useVehiculosStore = create<VehiculosState>((set, get) => ({
          tallerMotivo: actualizado.taller_motivo,
          bajaMotivo: actualizado.baja_motivo,
          bajaFecha: actualizado.baja_fecha,
+         // Archivos adjuntos de documentacion
+         tarjetaTransportesFile: actualizado.tarjeta_transportes_file,
+         itvFile: actualizado.itv_file,
+         seguroFile: actualizado.seguro_file,
+         tacografoFile: actualizado.tacografo_file,
+         extintoresFile: actualizado.extintores_file,
       };
         set((state) => ({
           vehiculos: state.vehiculos.map(v => v.id === id ? vehiculoFormateado : v),

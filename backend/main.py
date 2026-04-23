@@ -1291,7 +1291,9 @@ def create_vehiculo_tarea(
         gasto=tarea.gasto,
         anotaciones=tarea.anotaciones,
         factura_url=tarea.factura_url,
+        factura_file=tarea.factura_file,
         documento_url=tarea.documento_url,
+        documento_file=tarea.documento_file,
         auto_generada=tarea.auto_generada or False,
         creado_por=current_user.id
     )

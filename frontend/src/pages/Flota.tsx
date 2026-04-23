@@ -393,7 +393,13 @@ const cargarAdjuntoTarea = (tareaId: string): { preview: string; name: string } 
       await vehiculoEstadoApi.update(id, payload);
       showToast(`Estado cambiado a ${payload.estado}`, 'success');
       fetchVehiculos();
-      setVehSeleccionado((prev: any) => prev ? { ...prev, ...payload, estado: payload.estado } : null);
+      // Actualizar estado local con camelCase para que la UI lo muestre inmediatamente
+      const localUpdate: Record<string, any> = { estado: payload.estado };
+      if (payload.taller_fecha_inicio !== undefined) localUpdate.tallerFechaInicio = payload.taller_fecha_inicio;
+      if (payload.taller_fecha_fin !== undefined) localUpdate.tallerFechaFin = payload.taller_fecha_fin;
+      if (payload.motivo !== undefined) localUpdate.tallerMotivo = payload.motivo;
+      if (payload.baja_motivo !== undefined) localUpdate.bajaMotivo = payload.baja_motivo;
+      setVehSeleccionado((prev: any) => prev ? { ...prev, ...localUpdate } : null);
     } catch (err: any) {
       // Fallback: si el endpoint /estado falla, intentar via updateVehiculo con TODOS los campos
       console.warn('Endpoint /estado fallo, intentando fallback via updateVehiculo:', err);
@@ -405,7 +411,6 @@ const cargarAdjuntoTarea = (tareaId: string): { preview: string; name: string } 
             plazas: v.plazas || 0,
             estado: payload.estado,
           };
-          // Incluir campos de taller si existen en el payload original
           if (payload.taller_fecha_inicio !== undefined) {
             fallbackPayload.tallerFechaInicio = payload.taller_fecha_inicio;
           }
@@ -421,7 +426,12 @@ const cargarAdjuntoTarea = (tareaId: string): { preview: string; name: string } 
           await updateVehiculo(id, fallbackPayload);
           showToast(`Estado cambiado a ${payload.estado}`, 'success');
           fetchVehiculos();
-          setVehSeleccionado((prev: any) => prev ? { ...prev, ...fallbackPayload, estado: payload.estado } : null);
+          const localUpdate2: Record<string, any> = { estado: payload.estado };
+          if (fallbackPayload.tallerFechaInicio !== undefined) localUpdate2.tallerFechaInicio = fallbackPayload.tallerFechaInicio;
+          if (fallbackPayload.tallerFechaFin !== undefined) localUpdate2.tallerFechaFin = fallbackPayload.tallerFechaFin;
+          if (fallbackPayload.tallerMotivo !== undefined) localUpdate2.tallerMotivo = fallbackPayload.tallerMotivo;
+          if (fallbackPayload.bajaMotivo !== undefined) localUpdate2.bajaMotivo = fallbackPayload.bajaMotivo;
+          setVehSeleccionado((prev: any) => prev ? { ...prev, ...localUpdate2 } : null);
           return;
         }
       } catch (err2: any) {
@@ -514,6 +524,12 @@ const cargarAdjuntoTarea = (tareaId: string): { preview: string; name: string } 
         seguroFechaVencimiento: toDateTime(docEdits.seguro_fecha_vencimiento),
         tacografoFechaCalibracion: toDateTime(docEdits.tacografo_fecha_calibracion),
         extintoresFechaVencimiento: toDateTime(docEdits.extintores_fecha_vencimiento),
+        // Archivos adjuntos de documentacion
+        tarjetaTransportesFile: docFiles['Tarjeta transportes']?.preview || null,
+        itvFile: docFiles['ITV']?.preview || null,
+        seguroFile: docFiles['Seguro']?.preview || null,
+        tacografoFile: docFiles['Tacografo']?.preview || null,
+        extintoresFile: docFiles['Extintores']?.preview || null,
       };
       await updateVehiculo(String(vehSeleccionado.id), payload as any);
       showToast('Documentacion actualizada', 'success');
@@ -554,12 +570,11 @@ const cargarAdjuntoTarea = (tareaId: string): { preview: string; name: string } 
         gastos: gastos,
         anotaciones: nuevaTarea.anotaciones,
         factura_url: nuevaTarea.factura_url || null,
+        factura_file: nuevaTarea.factura_file || null,
+        documento_url: nuevaTarea.documento_url || null,
+        documento_file: nuevaTarea.documento_file || null,
       });
       showToast('Tarea creada', 'success');
-      // Guardar adjunto en localStorage si existe
-      if (nuevaTarea.factura_file && res?.id) {
-        guardarAdjuntoTarea(String(res.id), { preview: nuevaTarea.factura_file, name: nuevaTarea.factura_name || 'factura' });
-      }
       setIsTareaOpen(false);
       setNuevaTarea({ tipo: 'mantenimiento', fecha: format(new Date(), 'yyyy-MM-dd'), concepto: '', anotaciones: '', gastos: [] });
       cargarTareas(String(vehSeleccionado.id));
@@ -578,11 +593,11 @@ const cargarAdjuntoTarea = (tareaId: string): { preview: string; name: string } 
         gastos: tareaEditando.gastos || [],
         anotaciones: tareaEditando.anotaciones,
         estado: tareaEditando.estado,
+        factura_url: tareaEditando.facturaUrl || null,
+        factura_file: tareaEditando.facturaFile || null,
+        documento_url: tareaEditando.documentoUrl || null,
+        documento_file: tareaEditando.documentoFile || null,
       });
-      // Guardar adjunto en localStorage si existe
-      if (tareaEditando.facturaFile) {
-        guardarAdjuntoTarea(String(tareaEditando.id), { preview: tareaEditando.facturaFile, name: tareaEditando.facturaName || 'factura' });
-      }
       showToast('Tarea actualizada', 'success');
       setIsEditarTareaOpen(false);
       setTareaEditando(null);
@@ -917,15 +932,18 @@ ${filtradas.length === 0 ? '<tr><td colspan="5" style="text-align:center">Sin ta
                       {vehSeleccionado.estado === 'taller' && (
                         <div className="rounded-lg border border-amber-200 dark:border-amber-700 p-3 bg-amber-50 dark:bg-amber-900/20">
                           <h4 className="text-sm font-medium text-amber-800 dark:text-amber-300 flex items-center gap-1"><Wrench className="h-4 w-4" />En taller</h4>
-                          <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">Desde: {fmtDateTime(vehSeleccionado.taller_fecha_inicio)} {vehSeleccionado.taller_fecha_fin && `hasta: ${fmtDateTime(vehSeleccionado.taller_fecha_fin)}`}</p>
-                          {vehSeleccionado.taller_motivo && <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">Motivo: {vehSeleccionado.taller_motivo}</p>}
+                          <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                            Desde: {fmtDateTime(vehSeleccionado.tallerFechaInicio)} 
+                            {vehSeleccionado.tallerFechaFin && `hasta: ${fmtDateTime(vehSeleccionado.tallerFechaFin)}`}
+                          </p>
+                          {vehSeleccionado.tallerMotivo && <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">Motivo: {vehSeleccionado.tallerMotivo}</p>}
                         </div>
                       )}
                       {vehSeleccionado.estado === 'baja' && (
                         <div className="rounded-lg border border-red-200 dark:border-red-700 p-3 bg-red-50 dark:bg-red-900/20">
                           <h4 className="text-sm font-medium text-red-800 dark:text-red-300 flex items-center gap-1"><AlertTriangle className="h-4 w-4" />Baja temporal</h4>
-                          {vehSeleccionado.baja_motivo && <p className="text-xs text-red-700 dark:text-red-400 mt-1">Motivo: {vehSeleccionado.baja_motivo}</p>}
-                          {vehSeleccionado.baja_fecha && <p className="text-xs text-red-700 dark:text-red-400 mt-1">Desde: {fmtDateTime(vehSeleccionado.baja_fecha)}</p>}
+                          {vehSeleccionado.bajaMotivo && <p className="text-xs text-red-700 dark:text-red-400 mt-1">Motivo: {vehSeleccionado.bajaMotivo}</p>}
+                          {vehSeleccionado.bajaFecha && <p className="text-xs text-red-700 dark:text-red-400 mt-1">Desde: {fmtDateTime(vehSeleccionado.bajaFecha)}</p>}
                         </div>
                       )}
                     </TabsContent>
@@ -974,15 +992,33 @@ ${filtradas.length === 0 ? '<tr><td colspan="5" style="text-align:center">Sin ta
                                 <Input type="date" value={fechaVal || ''} onChange={e => setDocEdits(p => ({ ...p, [doc.fechaKey]: e.target.value }))} className="h-8 text-sm dark:bg-slate-900 dark:border-slate-600" />
                               </div>
                             </div>
-                            {/* Adjuntar documento */}
+                            {/* Adjuntar documento - muestra archivo existente del backend o local */}
                             <div className="mt-2">
                               <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Documento adjunto (PDF o imagen)</p>
-                              <div className="flex items-center gap-2">
-                                <label className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <label className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shrink-0">
                                   <Upload className="h-3.5 w-3.5" />
                                   <span>Seleccionar archivo</span>
                                   <input type="file" accept=".pdf,image/*" className="hidden" onChange={e => handleDocFileChange(doc.label, e)} />
                                 </label>
+                                {/* Archivo existente del backend */}
+                                {(() => {
+                                  const backendFile = 
+                                    doc.label === 'Tarjeta transportes' ? vehSeleccionado.tarjetaTransportesFile :
+                                    doc.label === 'ITV' ? vehSeleccionado.itvFile :
+                                    doc.label === 'Seguro' ? vehSeleccionado.seguroFile :
+                                    doc.label === 'Tacografo' ? vehSeleccionado.tacografoFile :
+                                    doc.label === 'Extintores' ? vehSeleccionado.extintoresFile :
+                                    null;
+                                  if (backendFile) {
+                                    return (
+                                      <a href={backendFile} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                                        <FileUp className="h-3.5 w-3.5" />Ver guardado
+                                      </a>
+                                    );
+                                  }
+                                  return null;
+                                })()}
                                 {fileInfo && (
                                   <span className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1">
                                     <FileUp className="h-3.5 w-3.5" />{fileInfo.name}

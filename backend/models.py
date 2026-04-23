@@ -304,15 +304,21 @@ class Vehiculo(Base):
     tarjeta_transportes_numero = Column(String(50), nullable=True)
     tarjeta_transportes_fecha_renovacion = Column(Date, nullable=True)
     tarjeta_transportes_documento_url = Column(String(500), nullable=True)
+    tarjeta_transportes_file = Column(Text, nullable=True)
     
     tacografo_fecha_calibracion = Column(Date, nullable=True)
     tacografo_documento_url = Column(String(500), nullable=True)
+    tacografo_file = Column(Text, nullable=True)
     
     extintores_fecha_vencimiento = Column(Date, nullable=True)
     extintores_documento_url = Column(String(500), nullable=True)
+    extintores_file = Column(Text, nullable=True)
     
     itv_documento_url = Column(String(500), nullable=True)
+    itv_file = Column(Text, nullable=True)
+    
     seguro_documento_url = Column(String(500), nullable=True)
+    seguro_file = Column(Text, nullable=True)
     
     estado = Column(SQLEnum(EstadoVehiculo), default=EstadoVehiculo.OPERATIVO)
     
@@ -473,6 +479,10 @@ class VehiculoTarea(Base):
     
     factura_url = Column(String(500), nullable=True)
     documento_url = Column(String(500), nullable=True)
+    
+    # Archivos adjuntos en Base64 (para facturas y documentos)
+    factura_file = Column(Text, nullable=True)
+    documento_file = Column(Text, nullable=True)
     
     creado_por = Column(Integer, ForeignKey("users.id"), nullable=True)
     completado_por = Column(Integer, ForeignKey("users.id"), nullable=True)

@@ -166,20 +166,32 @@ export interface Vehiculo {
  notas?: string;
  imagenUrl?: string;
  
- // Documentación obligatoria (campos planos para edición y persistencia)
+ // Documentación obligatoria (camelCase para alinearse con el store)
  tarjetaTransportesNumero?: string;
  tarjetaTransportesFechaRenovacion?: Date | string;
+ tarjetaTransportesDocumentoUrl?: string;
  itvFechaProxima?: Date | string;
+ itvDocumentoUrl?: string;
  seguroCompania?: string;
  seguroPoliza?: string;
  seguroFechaVencimiento?: Date | string;
+ seguroDocumentoUrl?: string;
  tacografoFechaCalibracion?: Date | string;
+ tacografoDocumentoUrl?: string;
  extintoresFechaVencimiento?: Date | string;
+ extintoresDocumentoUrl?: string;
  
  // Taller
  tallerFechaInicio?: Date | string;
  tallerFechaFin?: Date | string;
  tallerMotivo?: string;
+
+ // Archivos adjuntos de documentacion (almacenados en Base64 en la BD)
+ tarjetaTransportesFile?: string;
+ itvFile?: string;
+ seguroFile?: string;
+ tacografoFile?: string;
+ extintoresFile?: string;
  
  // Baja temporal
  bajaFecha?: Date | string;
@@ -206,9 +218,12 @@ export interface VehiculoTarea {
  fechaCompletada?: Date | string;
  concepto: string;
  gasto?: number;
+ gastos?: any[];
  anotaciones?: string;
  facturaUrl?: string;
+ facturaFile?: string;
  documentoUrl?: string;
+ documentoFile?: string;
  autoGenerada?: boolean;
  creadoPor?: string;
 }
