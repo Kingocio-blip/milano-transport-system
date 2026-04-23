@@ -766,7 +766,7 @@ ${filtradas.length === 0 ? '<tr><td colspan="5" style="text-align:center">Sin ta
 
       {/* ============ DIALOG: DETALLE VEHICULO ============ */}
       <Dialog open={isDetalleOpen} onOpenChange={setIsDetalleOpen}>
-        <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-[95vw] max-h-[92vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
+        <DialogContent className="overflow-y-auto dark:border-slate-700 dark:bg-slate-800" style={{ width: '95vw', maxWidth: '1400px', maxHeight: '92vh' }}>
           {vehSeleccionado && (
             <>
               <DialogHeader>
