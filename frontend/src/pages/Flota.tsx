@@ -764,65 +764,59 @@ ${filtradas.length === 0 ? '<tr><td colspan="5" style="text-align:center">Sin ta
         </DialogContent>
       </Dialog>
 
-      {/* ============ DIALOG: DETALLE VEHICULO (PANTALLA COMPLETA) ============ */}
+      {/* ============ DIALOG: DETALLE VEHICULO ============ */}
       <Dialog open={isDetalleOpen} onOpenChange={setIsDetalleOpen}>
-        <DialogContent className="w-[95vw] max-w-[1400px] h-[95vh] max-h-[900px] overflow-hidden p-0 dark:border-slate-700 dark:bg-slate-800">
+        <DialogContent className="max-w-6xl w-[95vw] max-h-[92vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
           {vehSeleccionado && (
-            <div className="flex flex-col h-full">
-              {/* Header fijo */}
-              <div className="shrink-0 px-6 pt-6 pb-4 border-b border-slate-200 dark:border-slate-700">
-                <DialogHeader className="mb-3">
-                  <DialogTitle className="flex items-center gap-2 dark:text-slate-100 text-xl">
-                    <Bus className="h-5 w-5" />{vehSeleccionado.matricula} - {vehSeleccionado.marca} {vehSeleccionado.modelo}
-                  </DialogTitle>
-                </DialogHeader>
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 dark:text-slate-100 text-xl">
+                  <Bus className="h-5 w-5" />{vehSeleccionado.matricula} - {vehSeleccionado.marca} {vehSeleccionado.modelo}
+                </DialogTitle>
+              </DialogHeader>
 
-                {/* Estado modificable directamente */}
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="text-sm text-slate-500 dark:text-slate-400">Estado:</span>
-                  {ESTADOS_VEHICULO.map(e => (
-                    <button key={e.value} onClick={() => handleCambiarEstado(e.value)}
-                      className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                        vehSeleccionado.estado === e.value ? e.color + ' ring-2 ring-offset-1' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200'
-                      }`}
-                    >{e.label}</button>
-                  ))}
-                </div>
-
-                {/* Alertas documentacion */}
-                {(() => {
-                  const alertas = getAlertasDoc(vehSeleccionado);
-                  return alertas.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {alertas.map((a, i) => (
-                        <div key={i} className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full ${a.tipo === 'critica' ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700'}`}>
-                          <AlertCircle className="h-3 w-3" />{a.texto}
-                        </div>
-                      ))}
-                    </div>
-                  ) : null;
-                })()}
-
-                {!documentacionCompleta(vehSeleccionado) && (
-                  <div className="mt-2 p-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-xs text-red-700 dark:text-red-300">
-                    <AlertTriangle className="h-3.5 w-3.5 inline mr-1" />
-                    Documentacion incompleta. El vehiculo no puede estar operativo.
-                  </div>
-                )}
+              {/* Estado modificable directamente */}
+              <div className="flex flex-wrap items-center gap-3 mb-2">
+                <span className="text-sm text-slate-500 dark:text-slate-400">Estado:</span>
+                {ESTADOS_VEHICULO.map(e => (
+                  <button key={e.value} onClick={() => handleCambiarEstado(e.value)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                      vehSeleccionado.estado === e.value ? e.color + ' ring-2 ring-offset-1' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200'
+                    }`}
+                  >{e.label}</button>
+                ))}
               </div>
 
-              {/* Tabs con scroll */}
-              <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-                <Tabs value={detalleTab} onValueChange={setDetalleTab} className="flex flex-col h-full">
-                  <TabsList className="dark:bg-slate-900 mx-6 mt-3 shrink-0">
-                    <TabsTrigger value="info">Informacion</TabsTrigger>
-                    <TabsTrigger value="documentacion">Documentacion</TabsTrigger>
-                    <TabsTrigger value="tareas">Ficha ({tareas.length})</TabsTrigger>
-                  </TabsList>
+              {/* Alertas documentacion */}
+              {(() => {
+                const alertas = getAlertasDoc(vehSeleccionado);
+                return alertas.length > 0 ? (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {alertas.map((a, i) => (
+                      <div key={i} className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full ${a.tipo === 'critica' ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700'}`}>
+                        <AlertCircle className="h-3 w-3" />{a.texto}
+                      </div>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
 
-                  <div className="flex-1 overflow-y-auto min-h-0 px-6 py-4">
-                    {/* Tab Info */}
-                    <TabsContent value="info" className="mt-0 space-y-4">
+              {!documentacionCompleta(vehSeleccionado) && (
+                <div className="mb-3 p-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-xs text-red-700 dark:text-red-300">
+                  <AlertTriangle className="h-3.5 w-3.5 inline mr-1" />
+                  Documentacion incompleta. El vehiculo no puede estar operativo.
+                </div>
+              )}
+
+              <Tabs value={detalleTab} onValueChange={setDetalleTab}>
+                <TabsList className="dark:bg-slate-900">
+                  <TabsTrigger value="info">Informacion</TabsTrigger>
+                  <TabsTrigger value="documentacion">Documentacion</TabsTrigger>
+                  <TabsTrigger value="tareas">Ficha ({tareas.length})</TabsTrigger>
+                </TabsList>
+
+                {/* Tab Info */}
+                <TabsContent value="info" className="pt-4 space-y-4">
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="space-y-1"><p className="text-xs text-slate-500 dark:text-slate-400">Marca/Modelo</p><p className="text-sm font-medium dark:text-slate-200">{vehSeleccionado.marca} {vehSeleccionado.modelo}</p></div>
                         <div className="space-y-1"><p className="text-xs text-slate-500 dark:text-slate-400">Bastidor</p><p className="text-sm font-medium dark:text-slate-200">{vehSeleccionado.bastidor || '-'}</p></div>
@@ -852,7 +846,7 @@ ${filtradas.length === 0 ? '<tr><td colspan="5" style="text-align:center">Sin ta
                     </TabsContent>
 
                     {/* Tab Documentacion - EDITABLE */}
-                    <TabsContent value="documentacion" className="mt-0 space-y-4">
+                    <TabsContent value="documentacion" className="pt-4 space-y-4">
                       <div className="flex justify-between items-center mb-2">
                         <h4 className="text-sm font-medium dark:text-slate-300">Documentacion del vehiculo</h4>
                         <Button size="sm" onClick={handleGuardarDocumentacion} disabled={isSubmitting} className="bg-[#1e3a5f] dark:bg-blue-600">
@@ -1006,21 +1000,18 @@ ${filtradas.length === 0 ? '<tr><td colspan="5" style="text-align:center">Sin ta
                         </div>
                       )}
                     </TabsContent>
+                  </Tabs>
+
+                  <div className="flex justify-end gap-2 pt-4">
+                    <Button variant="outline" onClick={() => { setIsDetalleOpen(false); setIsEditarOpen(true); }} className="dark:border-slate-600 dark:text-slate-300">Editar vehiculo</Button>
+                    <Button variant="destructive" size="sm" onClick={() => handleEliminar(String(vehSeleccionado.id))}>Eliminar</Button>
                   </div>
-                </Tabs>
-              </div>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
 
-              {/* Footer fijo */}
-              <div className="shrink-0 border-t border-slate-200 dark:border-slate-700 px-6 py-4 flex justify-end gap-2">
-                <Button variant="outline" onClick={() => { setIsDetalleOpen(false); setIsEditarOpen(true); }} className="dark:border-slate-600 dark:text-slate-300">Editar vehiculo</Button>
-                <Button variant="destructive" size="sm" onClick={() => handleEliminar(String(vehSeleccionado.id))}>Eliminar</Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* ============ DIALOG: EDITAR VEHICULO ============ */}
+          {/* ============ DIALOG: EDITAR VEHICULO ============ */}
       <Dialog open={isEditarOpen} onOpenChange={setIsEditarOpen}>
         <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
           <DialogHeader><DialogTitle className="dark:text-slate-100">Editar Vehiculo</DialogTitle></DialogHeader>
