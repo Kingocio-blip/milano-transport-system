@@ -175,6 +175,29 @@ export default function Flota() {
 
   useEffect(() => { fetchVehiculos(); }, [fetchVehiculos]);
 
+  // Vuelta automatica a operativo: revisar cada vez que cargan vehiculos si hay taller con fecha_fin pasada
+  useEffect(() => {
+    const ahora = new Date();
+    vehiculos.forEach(async (v: any) => {
+      if (v.estado === 'taller' && v.taller_fecha_fin) {
+        const fin = new Date(v.taller_fecha_fin);
+        if (fin <= ahora && documentacionCompleta(v)) {
+          try {
+            await updateVehiculo(String(v.id), {
+              matricula: v.matricula,
+              plazas: v.plazas || 0,
+              estado: 'operativo',
+              taller_fecha_inicio: null,
+              taller_fecha_fin: null,
+              taller_motivo: null,
+            });
+            showToast(`Vehiculo ${v.matricula} vuelto a operativo (fin de taller)`, 'success');
+          } catch { /* ignorar errores individuales */ }
+        }
+      }
+    });
+  }, [vehiculos]);
+
   // Cargar tareas al ver detalle
   useEffect(() => {
     if (vehSeleccionado?.id && isDetalleOpen) {
@@ -202,32 +225,69 @@ export default function Flota() {
         tacografo_fecha_calibracion: toDateInput(vehSeleccionado.tacografoFechaCalibracion),
         extintores_fecha_vencimiento: toDateInput(vehSeleccionado.extintoresFechaVencimiento),
       });
-      setDocFiles({});
+      // Cargar adjuntos de localStorage
+      const adjuntos = cargarAdjuntosDoc(String(vehSeleccionado.id));
+      setDocFiles(adjuntos);
     }
   }, [vehSeleccionado]);
+
+// Helpers para adjuntos en localStorage (hasta que el backend tenga campos de archivo)
+const LS_DOC_KEY = (vehId: string) => `milano_doc_files_${vehId}`;
+const LS_TAREA_KEY = (tareaId: string) => `milano_tarea_files_${tareaId}`;
+
+const guardarAdjuntoDoc = (vehId: string, docLabel: string, data: { preview: string; name: string }) => {
+  try {
+    const key = LS_DOC_KEY(vehId);
+    const existentes = JSON.parse(localStorage.getItem(key) || '{}');
+    existentes[docLabel] = data;
+    localStorage.setItem(key, JSON.stringify(existentes));
+  } catch { /* localStorage lleno */ }
+};
+
+const cargarAdjuntosDoc = (vehId: string): Record<string, { preview: string; name: string }> => {
+  try {
+    return JSON.parse(localStorage.getItem(LS_DOC_KEY(vehId)) || '{}');
+  } catch { return {}; }
+};
+
+const guardarAdjuntoTarea = (tareaId: string, data: { preview: string; name: string }) => {
+  try {
+    localStorage.setItem(LS_TAREA_KEY(tareaId), JSON.stringify(data));
+  } catch { /* localStorage lleno */ }
+};
+
+const cargarAdjuntoTarea = (tareaId: string): { preview: string; name: string } | null => {
+  try {
+    return JSON.parse(localStorage.getItem(LS_TAREA_KEY(tareaId)) || 'null');
+  } catch { return null; }
+};
 
   const cargarTareas = async (vehiculoId: string) => {
     try {
       const res = await vehiculoTareasApi.getByVehiculo(vehiculoId);
       const lista = Array.isArray(res) ? res : (res.data || []);
-      const normalizadas = lista.map((t: any) => ({
-        id: t.id,
-        vehiculoId: t.vehiculo_id || t.vehiculoId,
-        tipo: t.tipo,
-        estado: t.estado,
-        fecha: t.fecha,
-        fechaCompletada: t.fecha_completada || t.fechaCompletada,
-        concepto: t.concepto || t.descripcion || '',
-        gasto: t.gasto || t.coste || 0,
-        gastos: t.gastos || [],
-        anotaciones: t.anotaciones || t.observaciones || '',
-        facturaUrl: t.factura_url || t.facturaUrl,
-        facturaFile: t.factura_file || t.facturaFile,
-        documentoUrl: t.documento_url || t.documentoUrl,
-        documentoFile: t.documento_file || t.documentoFile,
-        autoGenerada: t.auto_generada || t.autoGenerada,
-        creadoPor: t.creado_por || t.creadoPor,
-      }));
+      const normalizadas = lista.map((t: any) => {
+        const adj = cargarAdjuntoTarea(String(t.id));
+        return {
+          id: t.id,
+          vehiculoId: t.vehiculo_id || t.vehiculoId,
+          tipo: t.tipo,
+          estado: t.estado,
+          fecha: t.fecha,
+          fechaCompletada: t.fecha_completada || t.fechaCompletada,
+          concepto: t.concepto || t.descripcion || '',
+          gasto: t.gasto || t.coste || 0,
+          gastos: t.gastos || [],
+          anotaciones: t.anotaciones || t.observaciones || '',
+          facturaUrl: t.factura_url || t.facturaUrl,
+          facturaFile: adj?.preview || t.factura_file || t.facturaFile,
+          facturaName: adj?.name,
+          documentoUrl: t.documento_url || t.documentoUrl,
+          documentoFile: t.documento_file || t.documentoFile,
+          autoGenerada: t.auto_generada || t.autoGenerada,
+          creadoPor: t.creado_por || t.creadoPor,
+        };
+      });
       setTareas(normalizadas);
     } catch { setTareas([]); }
   };
@@ -335,19 +395,33 @@ export default function Flota() {
       fetchVehiculos();
       setVehSeleccionado((prev: any) => prev ? { ...prev, ...payload, estado: payload.estado } : null);
     } catch (err: any) {
-      // Fallback: si el endpoint especifico falla, intentar via updateVehiculo
+      // Fallback: si el endpoint /estado falla, intentar via updateVehiculo con TODOS los campos
       console.warn('Endpoint /estado fallo, intentando fallback via updateVehiculo:', err);
       try {
         const v = vehiculos.find(ve => String(ve.id) === id);
         if (v) {
-          await updateVehiculo(id, {
+          const fallbackPayload: Record<string, any> = {
             matricula: v.matricula,
             plazas: v.plazas || 0,
             estado: payload.estado,
-          });
+          };
+          // Incluir campos de taller si existen en el payload original
+          if (payload.taller_fecha_inicio !== undefined) {
+            fallbackPayload.tallerFechaInicio = payload.taller_fecha_inicio;
+          }
+          if (payload.taller_fecha_fin !== undefined) {
+            fallbackPayload.tallerFechaFin = payload.taller_fecha_fin || null;
+          }
+          if (payload.motivo !== undefined) {
+            fallbackPayload.tallerMotivo = payload.motivo;
+          }
+          if (payload.baja_motivo !== undefined) {
+            fallbackPayload.bajaMotivo = payload.baja_motivo;
+          }
+          await updateVehiculo(id, fallbackPayload);
           showToast(`Estado cambiado a ${payload.estado}`, 'success');
           fetchVehiculos();
-          setVehSeleccionado((prev: any) => prev ? { ...prev, estado: payload.estado } : null);
+          setVehSeleccionado((prev: any) => prev ? { ...prev, ...fallbackPayload, estado: payload.estado } : null);
           return;
         }
       } catch (err2: any) {
@@ -455,8 +529,12 @@ export default function Flota() {
     if (!file) return;
     try {
       const base64 = await fileToBase64(file);
-      setDocFiles(prev => ({ ...prev, [docLabel]: { file, preview: base64, name: file.name } }));
-      showToast(`Archivo ${file.name} seleccionado`, 'success');
+      const data = { preview: base64, name: file.name };
+      setDocFiles(prev => ({ ...prev, [docLabel]: data }));
+      if (vehSeleccionado) {
+        guardarAdjuntoDoc(String(vehSeleccionado.id), docLabel, data);
+      }
+      showToast(`Archivo ${file.name} guardado`, 'success');
     } catch { showToast('Error al leer archivo', 'error'); }
   };
 
@@ -467,7 +545,7 @@ export default function Flota() {
     try {
       const gastos = (nuevaTarea.gastos || []).filter((g: any) => g.concepto && g.importe);
       const totalGasto = gastos.reduce((sum: number, g: any) => sum + (parseFloat(g.importe) || 0), 0);
-      await vehiculoTareasApi.create(String(vehSeleccionado.id), {
+      const res = await vehiculoTareasApi.create(String(vehSeleccionado.id), {
         vehiculo_id: vehSeleccionado.id,
         tipo: nuevaTarea.tipo,
         fecha: new Date(nuevaTarea.fecha).toISOString(),
@@ -476,9 +554,12 @@ export default function Flota() {
         gastos: gastos,
         anotaciones: nuevaTarea.anotaciones,
         factura_url: nuevaTarea.factura_url || null,
-        factura_file: nuevaTarea.factura_file || null,
       });
       showToast('Tarea creada', 'success');
+      // Guardar adjunto en localStorage si existe
+      if (nuevaTarea.factura_file && res?.id) {
+        guardarAdjuntoTarea(String(res.id), { preview: nuevaTarea.factura_file, name: nuevaTarea.factura_name || 'factura' });
+      }
       setIsTareaOpen(false);
       setNuevaTarea({ tipo: 'mantenimiento', fecha: format(new Date(), 'yyyy-MM-dd'), concepto: '', anotaciones: '', gastos: [] });
       cargarTareas(String(vehSeleccionado.id));
@@ -498,6 +579,10 @@ export default function Flota() {
         anotaciones: tareaEditando.anotaciones,
         estado: tareaEditando.estado,
       });
+      // Guardar adjunto en localStorage si existe
+      if (tareaEditando.facturaFile) {
+        guardarAdjuntoTarea(String(tareaEditando.id), { preview: tareaEditando.facturaFile, name: tareaEditando.facturaName || 'factura' });
+      }
       showToast('Tarea actualizada', 'success');
       setIsEditarTareaOpen(false);
       setTareaEditando(null);
@@ -968,7 +1053,7 @@ ${filtradas.length === 0 ? '<tr><td colspan="5" style="text-align:center">Sin ta
                                           'bg-slate-100 text-slate-700 text-[10px]'
                                         }>{t.tipo}</Badge>
                                       </td>
-                                      <td className="px-3 py-2 text-xs dark:text-slate-300 max-w-[200px] truncate" title={t.concepto}>{t.concepto || '-'}</td>
+                                      <td className="px-3 py-2 text-xs dark:text-slate-300 min-w-[180px] truncate" title={t.concepto}>{t.concepto || '-'}</td>
                                       <td className="px-3 py-2 text-xs dark:text-slate-400 whitespace-nowrap">{t.gasto ? `${t.gasto} EUR` : '-'}</td>
                                       <td className="px-3 py-2 text-xs">
                                         {t.facturaFile ? (
@@ -977,7 +1062,7 @@ ${filtradas.length === 0 ? '<tr><td colspan="5" style="text-align:center">Sin ta
                                           <a href={t.facturaUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Ver</a>
                                         ) : '-'}
                                       </td>
-                                      <td className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400 max-w-[200px] truncate" title={t.anotaciones}>{t.anotaciones || '-'}</td>
+                                      <td className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400 min-w-[180px] truncate" title={t.anotaciones}>{t.anotaciones || '-'}</td>
                                       <td className="px-3 py-2 whitespace-nowrap">
                                         <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
                                           t.estado === 'pendiente' ? 'bg-amber-100 text-amber-700' :
