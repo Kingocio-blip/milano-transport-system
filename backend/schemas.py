@@ -254,15 +254,21 @@ class VehiculoBase(BaseModel):
     tarjeta_transportes_numero: Optional[str] = None
     tarjeta_transportes_fecha_renovacion: Optional[datetime] = None
     tarjeta_transportes_documento_url: Optional[str] = None
+    tarjeta_transportes_file: Optional[str] = None
     
     tacografo_fecha_calibracion: Optional[datetime] = None
     tacografo_documento_url: Optional[str] = None
+    tacografo_file: Optional[str] = None
     
     extintores_fecha_vencimiento: Optional[datetime] = None
     extintores_documento_url: Optional[str] = None
+    extintores_file: Optional[str] = None
     
     itv_documento_url: Optional[str] = None
+    itv_file: Optional[str] = None
+    
     seguro_documento_url: Optional[str] = None
+    seguro_file: Optional[str] = None
     
     # Estado taller
     taller_fecha_inicio: Optional[datetime] = None
@@ -562,7 +568,9 @@ class VehiculoTareaBase(BaseModel):
     gasto: Optional[float] = None
     anotaciones: Optional[str] = None
     factura_url: Optional[str] = None
+    factura_file: Optional[str] = None
     documento_url: Optional[str] = None
+    documento_file: Optional[str] = None
     auto_generada: Optional[bool] = False
 
 class VehiculoTareaCreate(VehiculoTareaBase):
@@ -575,7 +583,9 @@ class VehiculoTareaUpdate(BaseModel):
     gasto: Optional[float] = None
     anotaciones: Optional[str] = None
     factura_url: Optional[str] = None
+    factura_file: Optional[str] = None
     documento_url: Optional[str] = None
+    documento_file: Optional[str] = None
     completado_por: Optional[int] = None
 
 class VehiculoTarea(VehiculoTareaBase):
