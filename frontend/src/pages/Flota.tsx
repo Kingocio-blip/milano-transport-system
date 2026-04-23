@@ -187,10 +187,10 @@ export default function Flota() {
               matricula: v.matricula,
               plazas: v.plazas || 0,
               estado: 'operativo',
-              taller_fecha_inicio: null,
-              taller_fecha_fin: null,
-              taller_motivo: null,
-            });
+              tallerFechaInicio: undefined,
+              tallerFechaFin: undefined,
+              tallerMotivo: undefined,
+            } as any);
             showToast(`Vehiculo ${v.matricula} vuelto a operativo (fin de taller)`, 'success');
           } catch { /* ignorar errores individuales */ }
         }
