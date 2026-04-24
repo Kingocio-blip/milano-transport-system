@@ -527,8 +527,14 @@ class Notificacion(Base):
     vehiculo_id = Column(Integer, ForeignKey("vehiculos.id"), nullable=True, index=True)
     servicio_id = Column(Integer, ForeignKey("servicios.id"), nullable=True, index=True)
     
-    # Usuario que recibe la notificacion (null = todos los de flota)
+    # === SISTEMA DE DESTINATARIOS ===
+    # 1. Individual: user_id set → solo ese usuario la ve
+    # 2. Por rol: rol_destino set → usuarios con ese rol la ven
+    # 3. Por permiso: permiso_requerido set → usuarios con ese permiso la ven
+    # 4. Global: todos null → visible para todos
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    rol_destino = Column(String(50), nullable=True, index=True)
+    permiso_requerido = Column(String(50), nullable=True, index=True)
     
     leida = Column(Boolean, default=False)
     fecha_leida = Column(DateTime, nullable=True)
@@ -537,6 +543,9 @@ class Notificacion(Base):
     fecha_referencia = Column(DateTime, nullable=True)
     dias_antelacion = Column(Integer, nullable=True)
     
+    # Quien creo la notificacion (null = sistema)
+    creado_por = Column(Integer, ForeignKey("users.id"), nullable=True)
+    
     fecha_creacion = Column(DateTime, default=datetime.datetime.utcnow)
     
     __table_args__ = (
@@ -544,6 +553,8 @@ class Notificacion(Base):
         Index('idx_notificacion_tipo', 'tipo'),
         Index('idx_notificacion_vehiculo', 'vehiculo_id'),
         Index('idx_notificacion_fecha', 'fecha_creacion'),
+        Index('idx_notificacion_rol', 'rol_destino'),
+        Index('idx_notificacion_permiso', 'permiso_requerido'),
     )
 
 # ============================================

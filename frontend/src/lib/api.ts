@@ -437,6 +437,8 @@ export const notificacionesApi = {
   },
   getResumen: () => api.get('/notificaciones/resumen'),
   marcarLeida: (id: number) => api.patch(`/notificaciones/${id}/leida`, {}),
+  create: (data: any) => api.post('/notificaciones', data),
+  revisarDocumentacion: () => api.post('/cron/revisar-documentacion', {}),
 };
 
 export const userTasksApi = {

@@ -77,6 +77,12 @@ export default function Comunicacion() {
     titulo: '', descripcion: '', prioridad: 'media', fecha_limite: '', categoria: 'general'
   });
 
+  // Modal nueva notificacion manual (broadcast)
+  const [isNuevaNotifOpen, setIsNuevaNotifOpen] = useState(false);
+  const [nuevaNotif, setNuevaNotif] = useState({
+    titulo: '', mensaje: '', tipo: 'sistema', rol_destino: '', permiso_requerido: ''
+  });
+
   // Modal ver tarea
   const [tareaSeleccionada, setTareaSeleccionada] = useState<any>(null);
   const [isVerTareaOpen, setIsVerTareaOpen] = useState(false);
@@ -181,6 +187,33 @@ export default function Comunicacion() {
     catch { showToast('Error al eliminar', 'error'); }
   };
 
+  const crearNotificacionManual = async () => {
+    if (!nuevaNotif.titulo.trim() || !nuevaNotif.mensaje.trim()) { showToast('Titulo y mensaje son obligatorios', 'error'); return; }
+    setIsSubmitting(true);
+    try {
+      await notificacionesApi.create({
+        tipo: nuevaNotif.tipo,
+        titulo: nuevaNotif.titulo,
+        mensaje: nuevaNotif.mensaje,
+        rol_destino: nuevaNotif.rol_destino || null,
+        permiso_requerido: nuevaNotif.permiso_requerido || null,
+      });
+      showToast('Notificacion enviada', 'success');
+      setIsNuevaNotifOpen(false);
+      setNuevaNotif({ titulo: '', mensaje: '', tipo: 'sistema', rol_destino: '', permiso_requerido: '' });
+      cargarNotificaciones();
+    } catch (err: any) { showToast(`Error: ${err.message}`, 'error'); }
+    finally { setIsSubmitting(false); }
+  };
+
+  const revisarDocumentacion = async () => {
+    try {
+      const res = await notificacionesApi.revisarDocumentacion();
+      showToast(res.message || 'Revision completada', 'success');
+      cargarNotificaciones();
+    } catch (err: any) { showToast(`Error: ${err.message}`, 'error'); }
+  };
+
   // Tareas agrupadas por estado para Kanban
   const tareasPorEstado = useMemo(() => {
     const grupos: Record<string, any[]> = { pendiente: [], en_progreso: [], completada: [], cancelada: [] };
@@ -247,14 +280,24 @@ export default function Comunicacion() {
             ))}
           </div>
 
-          {/* Filtros */}
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant={notifFiltro === 'todas' ? 'default' : 'outline'} onClick={() => setNotifFiltro('todas')} className="h-8 text-xs dark:border-slate-600">
-              Todas
-            </Button>
-            <Button size="sm" variant={notifFiltro === 'no_leidas' ? 'default' : 'outline'} onClick={() => setNotifFiltro('no_leidas')} className="h-8 text-xs dark:border-slate-600">
-              No leidas
-            </Button>
+          {/* Filtros y acciones */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant={notifFiltro === 'todas' ? 'default' : 'outline'} onClick={() => setNotifFiltro('todas')} className="h-8 text-xs dark:border-slate-600">
+                Todas
+              </Button>
+              <Button size="sm" variant={notifFiltro === 'no_leidas' ? 'default' : 'outline'} onClick={() => setNotifFiltro('no_leidas')} className="h-8 text-xs dark:border-slate-600">
+                No leidas
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={revisarDocumentacion} className="h-8 text-xs dark:border-slate-600">
+                <Shield className="h-3.5 w-3.5 mr-1" />Revisar doc.
+              </Button>
+              <Button size="sm" onClick={() => setIsNuevaNotifOpen(true)} className="h-8 text-xs bg-[#1e3a5f] dark:bg-blue-600">
+                <Plus className="h-3.5 w-3.5 mr-1" />Nueva alerta
+              </Button>
+            </div>
           </div>
 
           {/* Lista */}
@@ -269,19 +312,26 @@ export default function Comunicacion() {
             </div>
           ) : (
             <div className="space-y-2">
-              {notificaciones.map(n => (
+              {notificaciones.map(n => {
+                // Determinar destinatario
+                let destino = 'Todos';
+                if (n.user_id) destino = `Usuario #${n.user_id}`;
+                else if (n.rol_destino) destino = `Rol: ${n.rol_destino}`;
+                else if (n.permiso_requerido) destino = `Permiso: ${n.permiso_requerido}`;
+                return (
                 <div key={n.id} className={`rounded-lg border p-3 transition-all ${
                   n.leida ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 opacity-70' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
                 }`}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
                           n.tipo === 'taller' ? 'bg-amber-100 text-amber-700' :
                           n.tipo === 'averia' ? 'bg-red-100 text-red-700' :
                           n.tipo === 'documentacion' ? 'bg-blue-100 text-blue-700' :
                           'bg-slate-100 text-slate-700'
                         }`}>{n.tipo}</span>
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500">Para: {destino}</span>
                         {!n.leida && <span className="h-2 w-2 bg-blue-500 rounded-full" />}
                       </div>
                       <h4 className="text-sm font-medium dark:text-slate-200">{n.titulo}</h4>
@@ -295,7 +345,8 @@ export default function Comunicacion() {
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </TabsContent>
@@ -519,6 +570,66 @@ export default function Comunicacion() {
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ============== DIALOG: NUEVA NOTIFICACION MANUAL ============== */}
+      <Dialog open={isNuevaNotifOpen} onOpenChange={setIsNuevaNotifOpen}>
+        <DialogContent className="max-w-lg dark:border-slate-700 dark:bg-slate-800">
+          <DialogHeader><DialogTitle className="dark:text-slate-100">Nueva alerta / notificacion</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-2"><Label>Titulo *</Label><Input value={nuevaNotif.titulo} onChange={e => setNuevaNotif(p => ({ ...p, titulo: e.target.value }))} placeholder="Ej: Reunion de equipo" className="dark:bg-slate-900 dark:border-slate-600" /></div>
+            <div className="space-y-2"><Label>Mensaje *</Label><Textarea value={nuevaNotif.mensaje} onChange={e => setNuevaNotif(p => ({ ...p, mensaje: e.target.value }))} rows={2} placeholder="Describe la alerta..." className="dark:bg-slate-900 dark:border-slate-600" /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Tipo</Label>
+                <Select value={nuevaNotif.tipo} onValueChange={v => setNuevaNotif(p => ({ ...p, tipo: v }))}>
+                  <SelectTrigger className="dark:bg-slate-900 dark:border-slate-600"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sistema">Sistema</SelectItem>
+                    <SelectItem value="taller">Taller</SelectItem>
+                    <SelectItem value="documentacion">Documentacion</SelectItem>
+                    <SelectItem value="servicio">Servicio</SelectItem>
+                    <SelectItem value="averia">Averia</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Rol destino</Label>
+                <Select value={nuevaNotif.rol_destino || 'todos'} onValueChange={v => setNuevaNotif(p => ({ ...p, rol_destino: v === 'todos' ? '' : v }))}>
+                  <SelectTrigger className="dark:bg-slate-900 dark:border-slate-600"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos los usuarios</SelectItem>
+                    <SelectItem value="admin">Administradores</SelectItem>
+                    <SelectItem value="coordinador">Coordinadores</SelectItem>
+                    <SelectItem value="operario">Operarios</SelectItem>
+                    <SelectItem value="conductor">Conductores</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Permiso requerido (alternativa a rol)</Label>
+              <Select value={nuevaNotif.permiso_requerido || 'ninguno'} onValueChange={v => setNuevaNotif(p => ({ ...p, permiso_requerido: v === 'ninguno' ? '' : v }))}>
+                <SelectTrigger className="dark:bg-slate-900 dark:border-slate-600"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ninguno">Ninguno (usar rol)</SelectItem>
+                  <SelectItem value="vehiculos.ver">Flota</SelectItem>
+                  <SelectItem value="servicios.ver">Servicios</SelectItem>
+                  <SelectItem value="conductores.ver">Conductores</SelectItem>
+                  <SelectItem value="clientes.ver">Clientes</SelectItem>
+                  <SelectItem value="facturacion.ver">Facturacion</SelectItem>
+                  <SelectItem value="configuracion.ver">Configuracion</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setIsNuevaNotifOpen(false)} className="dark:border-slate-600">Cancelar</Button>
+              <Button size="sm" onClick={crearNotificacionManual} disabled={isSubmitting} className="bg-[#1e3a5f] dark:bg-blue-600">
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Enviar alerta'}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

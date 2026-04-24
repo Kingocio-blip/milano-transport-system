@@ -609,8 +609,11 @@ class NotificacionBase(BaseModel):
     vehiculo_id: Optional[int] = None
     servicio_id: Optional[int] = None
     user_id: Optional[int] = None
+    rol_destino: Optional[str] = None
+    permiso_requerido: Optional[str] = None
     fecha_referencia: Optional[datetime] = None
     dias_antelacion: Optional[int] = None
+    creado_por: Optional[int] = None
 
 class NotificacionCreate(NotificacionBase):
     pass

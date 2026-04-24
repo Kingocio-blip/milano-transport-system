@@ -192,26 +192,124 @@ def verificar_servicios_reservados(db: Session, vehiculo_id: int):
     ).all()
     return servicios
 
-def crear_notificacion_flota(db: Session, tipo: models.TipoNotificacion, titulo: str, mensaje: str, 
-                             vehiculo_id: Optional[int] = None, servicio_id: Optional[int] = None,
-                             fecha_referencia: Optional[datetime] = None, dias_antelacion: Optional[int] = None):
-    """Crea notificación para todos los usuarios con permiso de flota"""
-    # Buscar usuarios con permiso vehiculos.ver
-    from permissions import has_permission
-    
-    # Crear notificación global (user_id = null = todos ven)
+def crear_notificacion_flota(
+    db: Session,
+    tipo: models.TipoNotificacion,
+    titulo: str,
+    mensaje: str,
+    vehiculo_id: Optional[int] = None,
+    servicio_id: Optional[int] = None,
+    permiso_requerido: str = "vehiculos.ver",
+    rol_destino: Optional[str] = None,
+    user_id: Optional[int] = None,
+    fecha_referencia: Optional[datetime] = None,
+    dias_antelacion: Optional[int] = None,
+    creado_por: Optional[int] = None,
+):
+    """Crear notificacion dirigida a rol, permiso o usuario especifico."""
     notif = models.Notificacion(
         tipo=tipo,
         titulo=titulo,
         mensaje=mensaje,
         vehiculo_id=vehiculo_id,
         servicio_id=servicio_id,
-        user_id=None,  # null = visible para todos
+        user_id=user_id,
+        rol_destino=rol_destino,
+        permiso_requerido=permiso_requerido,
         fecha_referencia=fecha_referencia,
-        dias_antelacion=dias_antelacion
+        dias_antelacion=dias_antelacion,
+        creado_por=creado_por,
     )
     db.add(notif)
+    db.commit()
     return notif
+
+
+def crear_notificacion_individual(
+    db: Session,
+    tipo: models.TipoNotificacion,
+    titulo: str,
+    mensaje: str,
+    user_id: int,
+    servicio_id: Optional[int] = None,
+    vehiculo_id: Optional[int] = None,
+    creado_por: Optional[int] = None,
+):
+    """Notificacion dirigida a un usuario especifico (ej: conductor asignado)."""
+    notif = models.Notificacion(
+        tipo=tipo,
+        titulo=titulo,
+        mensaje=mensaje,
+        user_id=user_id,
+        servicio_id=servicio_id,
+        vehiculo_id=vehiculo_id,
+        creado_por=creado_por,
+    )
+    db.add(notif)
+    db.commit()
+    return notif
+
+
+def crear_notificacion_broadcast(
+    db: Session,
+    tipo: models.TipoNotificacion,
+    titulo: str,
+    mensaje: str,
+    rol_destino: Optional[str] = None,
+    permiso_requerido: Optional[str] = None,
+    servicio_id: Optional[int] = None,
+    creado_por: Optional[int] = None,
+):
+    """Notificacion broadcast (manual) para un rol o permiso especifico."""
+    notif = models.Notificacion(
+        tipo=tipo,
+        titulo=titulo,
+        mensaje=mensaje,
+        rol_destino=rol_destino,
+        permiso_requerido=permiso_requerido,
+        servicio_id=servicio_id,
+        creado_por=creado_por,
+    )
+    db.add(notif)
+    db.commit()
+    return notif
+
+
+def generar_notificaciones_documentacion_vehiculo(db: Session, vehiculo: models.Vehiculo):
+    """Generar notificaciones de documentacion proxima a vencer para un vehiculo."""
+    ahora = datetime.utcnow()
+    alertas = [
+        (vehiculo.tarjeta_transportes_fecha_renovacion, 'Tarjeta de transportes', 30),
+        (vehiculo.itv_fecha_proxima, 'ITV', 20),
+        (vehiculo.seguro_fecha_vencimiento, 'Seguro', 20),
+        (vehiculo.tacografo_fecha_calibracion, 'Tacografo', 10),
+        (vehiculo.extintores_fecha_vencimiento, 'Extintores', 10),
+    ]
+    for fecha, nombre, dias_alerta in alertas:
+        if not fecha:
+            continue
+        try:
+            fecha_date = fecha.date() if hasattr(fecha, 'date') else fecha
+            dias_restantes = (fecha_date - ahora.date()).days
+            if dias_restantes <= dias_alerta:
+                if dias_restantes < 0:
+                    titulo = f"{nombre} vencido - {vehiculo.matricula}"
+                    mensaje = f"El documento '{nombre}' del vehiculo {vehiculo.matricula} vencio hace {abs(dias_restantes)} dias."
+                else:
+                    titulo = f"{nombre} proximo a vencer - {vehiculo.matricula}"
+                    mensaje = f"El documento '{nombre}' del vehiculo {vehiculo.matricula} vence en {dias_restantes} dias."
+                crear_notificacion_flota(
+                    db=db,
+                    tipo=models.TipoNotificacion.DOCUMENTACION,
+                    titulo=titulo,
+                    mensaje=mensaje,
+                    vehiculo_id=vehiculo.id,
+                    permiso_requerido="vehiculos.ver",
+                    fecha_referencia=fecha if hasattr(fecha, 'hour') else datetime.combine(fecha, datetime.min.time()),
+                    dias_antelacion=dias_restantes,
+                )
+        except Exception:
+            continue
 
 # ============================================
 # STARTUP
@@ -833,9 +931,10 @@ def update_vehiculo(
     db.commit()
     db.refresh(db_vehiculo)
     
-    # Re-generar tareas si cambiaron fechas de documentación
+    # Re-generar tareas y notificaciones si cambiaron fechas de documentación
     if doc_updated:
         auto_generar_tareas_documentacion(db, db_vehiculo)
+        generar_notificaciones_documentacion_vehiculo(db, db_vehiculo)
         db.commit()
     
     return db_vehiculo
@@ -853,6 +952,36 @@ def delete_vehiculo(
     db.delete(db_vehiculo)
     db.commit()
     return {"message": "Vehiculo deleted successfully"}
+
+# ============================================
+# REVISION MANUAL DE DOCUMENTACION
+# ============================================
+
+@app.post("/cron/revisar-documentacion")
+def revisar_documentacion(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission("vehiculos.ver"))
+):
+    """Revisar documentacion de todos los vehiculos y generar notificaciones. Puede llamarse manualmente o desde cron."""
+    vehiculos = db.query(models.Vehiculo).all()
+    notificaciones_generadas = 0
+    for v in vehiculos:
+        count_before = db.query(models.Notificacion).filter(
+            models.Notificacion.vehiculo_id == v.id,
+            models.Notificacion.tipo == models.TipoNotificacion.DOCUMENTACION
+        ).count()
+        generar_notificaciones_documentacion_vehiculo(db, v)
+        count_after = db.query(models.Notificacion).filter(
+            models.Notificacion.vehiculo_id == v.id,
+            models.Notificacion.tipo == models.TipoNotificacion.DOCUMENTACION
+        ).count()
+        notificaciones_generadas += (count_after - count_before)
+    db.commit()
+    return {
+        "message": f"Revision completada. {notificaciones_generadas} notificaciones generadas.",
+        "vehiculos_revisados": len(vehiculos),
+        "notificaciones_generadas": notificaciones_generadas
+    }
 
 # ============================================
 # VEHICULO ESTADO ENDPOINT (CORREGIDO - body JSON)
@@ -1338,6 +1467,30 @@ def delete_vehiculo_tarea(
 # NOTIFICACIONES ENDPOINTS (NUEVO)
 # ============================================
 
+def _notificaciones_visibles_para_usuario(query, current_user: models.User, db: Session):
+    """Filtrar notificaciones visibles para el usuario segun rol/permiso/individual."""
+    from permissions import has_permission, get_user_permissions
+    
+    # Obtener permisos del usuario
+    user_perms = get_user_permissions(db, current_user.id)
+    user_perm_names = set(p.nombre for p in user_perms)
+    
+    # Condicion: notificacion es visible si:
+    # 1. Es individual para este usuario
+    # 2. Es para su rol
+    # 3. Requiere un permiso que el usuario tiene
+    # 4. Es global (sin user_id, rol_destino, ni permiso_requerido)
+    return query.filter(
+        (models.Notificacion.user_id == current_user.id) |
+        (models.Notificacion.rol_destino == current_user.rol.value if hasattr(current_user.rol, 'value') else models.Notificacion.rol_destino == str(current_user.rol)) |
+        (models.Notificacion.permiso_requerido.in_(list(user_perm_names))) |
+        (
+            (models.Notificacion.user_id == None) &
+            (models.Notificacion.rol_destino == None) &
+            (models.Notificacion.permiso_requerido == None)
+        )
+    )
+
 @app.get("/notificaciones", response_model=List[schemas.Notificacion])
 def get_notificaciones(
     solo_no_leidas: bool = False,
@@ -1345,10 +1498,9 @@ def get_notificaciones(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Obtener notificaciones del usuario actual (o globales)"""
-    query = db.query(models.Notificacion).filter(
-        (models.Notificacion.user_id == current_user.id) | (models.Notificacion.user_id == None)
-    )
+    """Obtener notificaciones visibles para el usuario actual segun su rol y permisos."""
+    query = db.query(models.Notificacion)
+    query = _notificaciones_visibles_para_usuario(query, current_user, db)
     
     if solo_no_leidas:
         query = query.filter(models.Notificacion.leida == False)
@@ -1362,15 +1514,13 @@ def get_notificaciones_resumen(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Resumen de notificaciones pendientes"""
-    query = db.query(models.Notificacion).filter(
-        (models.Notificacion.user_id == current_user.id) | (models.Notificacion.user_id == None)
-    )
+    """Resumen de notificaciones pendientes visibles para el usuario."""
+    query = db.query(models.Notificacion)
+    query = _notificaciones_visibles_para_usuario(query, current_user, db)
     
     total = query.count()
     no_leidas = query.filter(models.Notificacion.leida == False).count()
     
-    # Contar críticas (taller, averia, documentación vencida)
     alertas_criticas = query.filter(
         models.Notificacion.leida == False,
         models.Notificacion.tipo.in_(["taller", "averia"])
@@ -1387,6 +1537,31 @@ def get_notificaciones_resumen(
         "alertas_criticas": alertas_criticas,
         "alertas_aviso": alertas_aviso
     }
+
+@app.post("/notificaciones", response_model=schemas.Notificacion)
+def create_notificacion(
+    notif: schemas.NotificacionCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Crear notificacion manual (broadcast a rol o permiso, o individual)."""
+    db_notif = models.Notificacion(
+        tipo=models.TipoNotificacion(notif.tipo),
+        titulo=notif.titulo,
+        mensaje=notif.mensaje,
+        vehiculo_id=notif.vehiculo_id,
+        servicio_id=notif.servicio_id,
+        user_id=notif.user_id,
+        rol_destino=notif.rol_destino,
+        permiso_requerido=notif.permiso_requerido,
+        fecha_referencia=notif.fecha_referencia,
+        dias_antelacion=notif.dias_antelacion,
+        creado_por=current_user.id,
+    )
+    db.add(db_notif)
+    db.commit()
+    db.refresh(db_notif)
+    return db_notif
 
 @app.patch("/notificaciones/{notificacion_id}/leida")
 def marcar_notificacion_leida(
