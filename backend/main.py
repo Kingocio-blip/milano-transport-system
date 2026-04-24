@@ -1467,29 +1467,33 @@ def delete_vehiculo_tarea(
 # NOTIFICACIONES ENDPOINTS (NUEVO)
 # ============================================
 
-def _notificaciones_visibles_para_usuario(query, current_user: models.User, db: Session):
-    """Filtrar notificaciones visibles para el usuario segun rol/permiso/individual."""
-    from permissions import has_permission, get_user_permissions
+def _notificaciones_visibles_para_usuario(query, current_user: models.User):
+    """Filtrar notificaciones visibles para el usuario.
+    Una notificacion es visible si:
+      1. Es individual para este usuario (user_id)
+      2. Es para su rol (rol_destino)
+      3. Es global (sin destinatario especifico)
+      4. Admin ve tambien las que tienen permiso_requerido
+    """
+    user_rol = current_user.rol.value if hasattr(current_user.rol, 'value') else str(current_user.rol)
+    es_admin = user_rol == 'admin'
     
-    # Obtener permisos del usuario
-    user_perms = get_user_permissions(db, current_user.id)
-    user_perm_names = set(p.nombre for p in user_perms)
-    
-    # Condicion: notificacion es visible si:
-    # 1. Es individual para este usuario
-    # 2. Es para su rol
-    # 3. Requiere un permiso que el usuario tiene
-    # 4. Es global (sin user_id, rol_destino, ni permiso_requerido)
-    return query.filter(
+    # Base: notificaciones individuales, por rol, o globales
+    base_filter = (
         (models.Notificacion.user_id == current_user.id) |
-        (models.Notificacion.rol_destino == current_user.rol.value if hasattr(current_user.rol, 'value') else models.Notificacion.rol_destino == str(current_user.rol)) |
-        (models.Notificacion.permiso_requerido.in_(list(user_perm_names))) |
+        (models.Notificacion.rol_destino == user_rol) |
         (
             (models.Notificacion.user_id == None) &
             (models.Notificacion.rol_destino == None) &
             (models.Notificacion.permiso_requerido == None)
         )
     )
+    
+    # Admin tambien ve notificaciones con permiso_requerido
+    if es_admin:
+        base_filter = base_filter | (models.Notificacion.permiso_requerido != None)
+    
+    return query.filter(base_filter)
 
 @app.get("/notificaciones", response_model=List[schemas.Notificacion])
 def get_notificaciones(
@@ -1498,9 +1502,9 @@ def get_notificaciones(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Obtener notificaciones visibles para el usuario actual segun su rol y permisos."""
+    """Obtener notificaciones visibles para el usuario actual segun su rol."""
     query = db.query(models.Notificacion)
-    query = _notificaciones_visibles_para_usuario(query, current_user, db)
+    query = _notificaciones_visibles_para_usuario(query, current_user)
     
     if solo_no_leidas:
         query = query.filter(models.Notificacion.leida == False)
@@ -1516,7 +1520,7 @@ def get_notificaciones_resumen(
 ):
     """Resumen de notificaciones pendientes visibles para el usuario."""
     query = db.query(models.Notificacion)
-    query = _notificaciones_visibles_para_usuario(query, current_user, db)
+    query = _notificaciones_visibles_para_usuario(query, current_user)
     
     total = query.count()
     no_leidas = query.filter(models.Notificacion.leida == False).count()
