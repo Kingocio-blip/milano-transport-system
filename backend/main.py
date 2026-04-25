@@ -1584,8 +1584,25 @@ def marcar_notificacion_leida(
     return {"message": "Notificación marcada como leída"}
 
 # ============================================
-# USER TASKS ENDPOINTS
+# USER TASKS ENDPOINTS (con etiquetas, asignados, dependencias, chatter)
 # ============================================
+
+def _crear_relaciones_tarea(db: Session, db_task: models.UserTask, task: schemas.UserTaskCreate):
+    """Crear etiquetas, asignados y dependencias de una tarea."""
+    # Etiquetas
+    if task.etiquetas:
+        for tag in task.etiquetas:
+            color = "#ef4444" if tag.lower() in ["urgente", "critico", "bloqueo"] else "#6b7280"
+            db.add(models.UserTaskTag(tarea_id=db_task.id, etiqueta=tag, color=color))
+    # Asignados
+    if task.asignados:
+        for idx, uid in enumerate(task.asignados):
+            db.add(models.UserTaskAssignee(tarea_id=db_task.id, user_id=uid, es_responsable=(idx == 0)))
+    # Dependencias
+    if task.dependencias:
+        for dep_id in task.dependencias:
+            db.add(models.UserTaskDependency(tarea_id=db_task.id, depende_de_id=dep_id))
+    db.commit()
 
 @app.post("/user-tasks", response_model=schemas.UserTask)
 def create_user_task(
@@ -1608,6 +1625,11 @@ def create_user_task(
     db.add(db_task)
     db.commit()
     db.refresh(db_task)
+    _crear_relaciones_tarea(db, db_task, task)
+    # Chatter de creacion
+    db.add(models.UserTaskChatter(tarea_id=db_task.id, user_id=current_user.id, tipo="actividad", contenido=f"Tarea creada por {current_user.username}"))
+    db.commit()
+    db.refresh(db_task)
     return db_task
 
 @app.get("/user-tasks", response_model=List[schemas.UserTask])
@@ -1615,24 +1637,41 @@ def get_user_tasks(
     estado: Optional[str] = None,
     prioridad: Optional[str] = None,
     categoria: Optional[str] = None,
+    asignado_a_mi: bool = False,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    query = db.query(models.UserTask).filter(models.UserTask.user_id == current_user.id)
+    query = db.query(models.UserTask)
+    if asignado_a_mi:
+        # Tareas donde el usuario es asignado o es el creador
+        query = query.join(models.UserTaskAssignee, models.UserTask.id == models.UserTaskAssignee.tarea_id, isouter=True).filter(
+            (models.UserTaskAssignee.user_id == current_user.id) | (models.UserTask.user_id == current_user.id)
+        ).distinct()
+    else:
+        query = query.filter(models.UserTask.user_id == current_user.id)
     if estado:
         query = query.filter(models.UserTask.estado == estado)
     if prioridad:
         query = query.filter(models.UserTask.prioridad == prioridad)
     if categoria:
         query = query.filter(models.UserTask.categoria == categoria)
-    return query.order_by(models.UserTask.fecha_limite.asc().nullslast(), models.UserTask.fecha_creacion.desc()).all()
+    return query.options(
+        joinedload(models.UserTask.etiquetas_rel),
+        joinedload(models.UserTask.asignados_rel),
+        joinedload(models.UserTask.dependencias_rel),
+    ).order_by(models.UserTask.fecha_limite.asc().nullslast(), models.UserTask.fecha_creacion.desc()).all()
 
 @app.get("/user-tasks/resumen", response_model=schemas.UserTaskResumen)
 def get_user_tasks_resumen(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    query = db.query(models.UserTask).filter(models.UserTask.user_id == current_user.id)
+    # Incluir tareas asignadas al usuario
+    query = db.query(models.UserTask).join(
+        models.UserTaskAssignee, models.UserTask.id == models.UserTaskAssignee.tarea_id, isouter=True
+    ).filter(
+        (models.UserTaskAssignee.user_id == current_user.id) | (models.UserTask.user_id == current_user.id)
+    ).distinct()
     total = query.count()
     pendientes = query.filter(models.UserTask.estado == models.EstadoUserTask.PENDIENTE).count()
     en_progreso = query.filter(models.UserTask.estado == models.EstadoUserTask.EN_PROGRESO).count()
@@ -1663,11 +1702,23 @@ def get_user_task(
 ):
     task = db.query(models.UserTask).filter(
         models.UserTask.id == task_id,
-        models.UserTask.user_id == current_user.id
     ).first()
     if not task:
         raise HTTPException(status_code=404, detail="Tarea no encontrada")
-    return task
+    # Verificar que el usuario puede verla
+    es_asignado = db.query(models.UserTaskAssignee).filter(
+        models.UserTaskAssignee.tarea_id == task_id,
+        models.UserTaskAssignee.user_id == current_user.id
+    ).first()
+    if task.user_id != current_user.id and not es_asignado:
+        raise HTTPException(status_code=403, detail="No tienes acceso a esta tarea")
+    return db.query(models.UserTask).options(
+        joinedload(models.UserTask.etiquetas_rel),
+        joinedload(models.UserTask.asignados_rel),
+        joinedload(models.UserTask.seguidores_rel),
+        joinedload(models.UserTask.dependencias_rel),
+        joinedload(models.UserTask.chatter_rel),
+    ).filter(models.UserTask.id == task_id).first()
 
 @app.patch("/user-tasks/{task_id}", response_model=schemas.UserTask)
 def update_user_task(
@@ -1676,15 +1727,16 @@ def update_user_task(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    task = db.query(models.UserTask).filter(
-        models.UserTask.id == task_id,
-        models.UserTask.user_id == current_user.id
-    ).first()
+    task = db.query(models.UserTask).filter(models.UserTask.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Tarea no encontrada")
     
     update_data = task_update.model_dump(exclude_unset=True)
+    estado_anterior = task.estado.value if hasattr(task.estado, 'value') else str(task.estado)
+    
     for field, value in update_data.items():
+        if field in ["etiquetas", "asignados"]:
+            continue
         if field == "estado" and value:
             setattr(task, field, models.EstadoUserTask(value))
         elif field == "prioridad" and value:
@@ -1692,8 +1744,27 @@ def update_user_task(
         else:
             setattr(task, field, value)
     
+    # Auto-completar fecha
     if update_data.get("estado") == "completada" and not task.fecha_completada:
         task.fecha_completada = datetime.utcnow()
+        db.add(models.UserTaskChatter(tarea_id=task.id, user_id=current_user.id, tipo="cambio_estado", contenido=f"Tarea completada por {current_user.username}"))
+    
+    # Actualizar etiquetas
+    if "etiquetas" in update_data and update_data["etiquetas"] is not None:
+        db.query(models.UserTaskTag).filter(models.UserTaskTag.tarea_id == task_id).delete()
+        for tag in update_data["etiquetas"]:
+            color = "#ef4444" if tag.lower() in ["urgente", "critico", "bloqueo"] else "#6b7280"
+            db.add(models.UserTaskTag(tarea_id=task_id, etiqueta=tag, color=color))
+    
+    # Actualizar asignados
+    if "asignados" in update_data and update_data["asignados"] is not None:
+        db.query(models.UserTaskAssignee).filter(models.UserTaskAssignee.tarea_id == task_id).delete()
+        for idx, uid in enumerate(update_data["asignados"]):
+            db.add(models.UserTaskAssignee(tarea_id=task_id, user_id=uid, es_responsable=(idx == 0)))
+    
+    # Chatter de cambio de estado
+    if "estado" in update_data and update_data["estado"] != estado_anterior:
+        db.add(models.UserTaskChatter(tarea_id=task.id, user_id=current_user.id, tipo="cambio_estado", contenido=f"Estado cambiado de '{estado_anterior}' a '{update_data['estado']}'"))
     
     db.commit()
     db.refresh(task)
@@ -1705,6 +1776,76 @@ def delete_user_task(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
+    task = db.query(models.UserTask).filter(models.UserTask.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Tarea no encontrada")
+    if task.user_id != current_user.id and task.creado_por != current_user.id:
+        raise HTTPException(status_code=403, detail="No tienes permiso para eliminar esta tarea")
+    db.delete(task)
+    db.commit()
+    return {"message": "Tarea eliminada"}
+
+# ============================================
+# USER TASK CHATTER ENDPOINTS
+# ============================================
+
+@app.post("/user-tasks/{task_id}/chatter", response_model=schemas.UserTaskChatter)
+def create_chatter(
+    task_id: int,
+    contenido: str = Body(..., embed=True),
+    tipo: str = Body("mensaje", embed=True),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    task = db.query(models.UserTask).filter(models.UserTask.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Tarea no encontrada")
+    chatter = models.UserTaskChatter(tarea_id=task_id, user_id=current_user.id, tipo=tipo, contenido=contenido)
+    db.add(chatter)
+    db.commit()
+    db.refresh(chatter)
+    return chatter
+
+@app.get("/user-tasks/{task_id}/chatter", response_model=List[schemas.UserTaskChatter])
+def get_chatter(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    return db.query(models.UserTaskChatter).filter(models.UserTaskChatter.tarea_id == task_id).order_by(models.UserTaskChatter.fecha_creacion.desc()).all()
+
+# ============================================
+# USER TASK FOLLOWERS
+# ============================================
+
+@app.post("/user-tasks/{task_id}/seguir")
+def seguir_tarea(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    existing = db.query(models.UserTaskFollower).filter(
+        models.UserTaskFollower.tarea_id == task_id,
+        models.UserTaskFollower.user_id == current_user.id
+    ).first()
+    if existing:
+        return {"message": "Ya sigues esta tarea"}
+    db.add(models.UserTaskFollower(tarea_id=task_id, user_id=current_user.id))
+    db.commit()
+    return {"message": "Ahora sigues esta tarea"}
+
+@app.delete("/user-tasks/{task_id}/seguir")
+def dejar_seguir_tarea(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    db.query(models.UserTaskFollower).filter(
+        models.UserTaskFollower.tarea_id == task_id,
+        models.UserTaskFollower.user_id == current_user.id
+    ).delete()
+    db.commit()
+    return {"message": "Dejaste de seguir esta tarea"}
     task = db.query(models.UserTask).filter(
         models.UserTask.id == task_id,
         models.UserTask.user_id == current_user.id

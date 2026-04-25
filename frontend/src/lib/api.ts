@@ -442,11 +442,12 @@ export const notificacionesApi = {
 };
 
 export const userTasksApi = {
-  getAll: (params?: { estado?: string; prioridad?: string; categoria?: string }) => {
+  getAll: (params?: { estado?: string; prioridad?: string; categoria?: string; asignado_a_mi?: boolean }) => {
     const qs = new URLSearchParams();
     if (params?.estado) qs.append('estado', params.estado);
     if (params?.prioridad) qs.append('prioridad', params.prioridad);
     if (params?.categoria) qs.append('categoria', params.categoria);
+    if (params?.asignado_a_mi) qs.append('asignado_a_mi', 'true');
     return api.get(`/user-tasks${qs.toString() ? '?' + qs.toString() : ''}`);
   },
   getResumen: () => api.get('/user-tasks/resumen'),
@@ -454,4 +455,8 @@ export const userTasksApi = {
   create: (data: any) => api.post('/user-tasks', data),
   update: (id: string, data: any) => api.patch(`/user-tasks/${id}`, data),
   delete: (id: string) => api.delete(`/user-tasks/${id}`),
+  getChatter: (id: string) => api.get(`/user-tasks/${id}/chatter`),
+  addChatter: (id: string, data: { contenido: string; tipo?: string }) => api.post(`/user-tasks/${id}/chatter`, data),
+  seguir: (id: string) => api.post(`/user-tasks/${id}/seguir`, {}),
+  dejarSeguir: (id: string) => api.delete(`/user-tasks/${id}/seguir`),
 };

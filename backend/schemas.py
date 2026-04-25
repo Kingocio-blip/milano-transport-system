@@ -639,6 +639,36 @@ class NotificacionResumen(BaseModel):
 # USER TASK SCHEMAS
 # ============================================
 
+class UserTaskTag(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    etiqueta: str
+    color: Optional[str] = None
+
+class UserTaskAssignee(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    user_id: int
+    es_responsable: bool = False
+
+class UserTaskFollower(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    user_id: int
+
+class UserTaskDependency(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    depende_de_id: int
+
+class UserTaskChatter(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    user_id: int
+    tipo: str = "mensaje"
+    contenido: str
+    fecha_creacion: datetime
+
 class UserTaskBase(BaseModel):
     titulo: str
     descripcion: Optional[str] = None
@@ -650,7 +680,9 @@ class UserTaskBase(BaseModel):
     referencia_tipo: Optional[str] = None
 
 class UserTaskCreate(UserTaskBase):
-    pass
+    etiquetas: Optional[List[str]] = None
+    asignados: Optional[List[int]] = None  # user_ids
+    dependencias: Optional[List[int]] = None  # depende_de_ids
 
 class UserTaskUpdate(BaseModel):
     titulo: Optional[str] = None
@@ -661,6 +693,8 @@ class UserTaskUpdate(BaseModel):
     categoria: Optional[str] = None
     referencia_id: Optional[int] = None
     referencia_tipo: Optional[str] = None
+    etiquetas: Optional[List[str]] = None
+    asignados: Optional[List[int]] = None
 
 class UserTask(UserTaskBase):
     model_config = ConfigDict(from_attributes=True)
@@ -670,6 +704,13 @@ class UserTask(UserTaskBase):
     creado_por: Optional[int] = None
     fecha_completada: Optional[datetime] = None
     fecha_creacion: datetime
+    
+    # Relaciones
+    etiquetas_rel: Optional[List[UserTaskTag]] = None
+    asignados_rel: Optional[List[UserTaskAssignee]] = None
+    seguidores_rel: Optional[List[UserTaskFollower]] = None
+    dependencias_rel: Optional[List[UserTaskDependency]] = None
+    chatter_rel: Optional[List[UserTaskChatter]] = None
 
 class UserTaskResumen(BaseModel):
     total: int

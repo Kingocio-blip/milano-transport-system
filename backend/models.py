@@ -592,6 +592,83 @@ class UserTask(Base):
         Index('idx_usertask_categoria', 'categoria'),
     )
 
+    # Relaciones
+    etiquetas_rel = relationship("UserTaskTag", back_populates="tarea", cascade="all, delete-orphan")
+    asignados_rel = relationship("UserTaskAssignee", back_populates="tarea", cascade="all, delete-orphan")
+    seguidores_rel = relationship("UserTaskFollower", back_populates="tarea", cascade="all, delete-orphan")
+    dependencias_rel = relationship("UserTaskDependency", back_populates="tarea", cascade="all, delete-orphan", foreign_keys="UserTaskDependency.tarea_id")
+    chatter_rel = relationship("UserTaskChatter", back_populates="tarea", cascade="all, delete-orphan", order_by="UserTaskChatter.fecha_creacion.desc()")
+
+# ============================================
+# USER TASK - ETIQUETAS
+# ============================================
+
+class UserTaskTag(Base):
+    __tablename__ = "user_task_tags"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    tarea_id = Column(Integer, ForeignKey("user_tasks.id"), nullable=False, index=True)
+    etiqueta = Column(String(30), nullable=False)
+    color = Column(String(7), nullable=True, default="#6b7280")
+    
+    tarea = relationship("UserTask", back_populates="etiquetas_rel")
+
+# ============================================
+# USER TASK - ASIGNADOS (múltiples)
+# ============================================
+
+class UserTaskAssignee(Base):
+    __tablename__ = "user_task_assignees"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    tarea_id = Column(Integer, ForeignKey("user_tasks.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    es_responsable = Column(Boolean, default=False)
+    
+    tarea = relationship("UserTask", back_populates="asignados_rel")
+
+# ============================================
+# USER TASK - SEGUIDORES
+# ============================================
+
+class UserTaskFollower(Base):
+    __tablename__ = "user_task_followers"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    tarea_id = Column(Integer, ForeignKey("user_tasks.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    
+    tarea = relationship("UserTask", back_populates="seguidores_rel")
+
+# ============================================
+# USER TASK - DEPENDENCIAS
+# ============================================
+
+class UserTaskDependency(Base):
+    __tablename__ = "user_task_dependencies"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    tarea_id = Column(Integer, ForeignKey("user_tasks.id"), nullable=False, index=True)
+    depende_de_id = Column(Integer, ForeignKey("user_tasks.id"), nullable=False, index=True)
+    
+    tarea = relationship("UserTask", back_populates="dependencias_rel", foreign_keys=[tarea_id])
+
+# ============================================
+# USER TASK - CHATTER (mensajes/historial)
+# ============================================
+
+class UserTaskChatter(Base):
+    __tablename__ = "user_task_chatter"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    tarea_id = Column(Integer, ForeignKey("user_tasks.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    tipo = Column(String(20), nullable=False, default="mensaje")
+    contenido = Column(Text, nullable=False)
+    fecha_creacion = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    tarea = relationship("UserTask", back_populates="chatter_rel")
+
 # ============================================
 # SERVICIO MODEL
 # ============================================
