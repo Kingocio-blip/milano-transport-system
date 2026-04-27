@@ -585,11 +585,15 @@ class UserTask(Base):
     referencia_id = Column(Integer, nullable=True)  # ID del vehiculo/servicio/conductor relacionado
     referencia_tipo = Column(String(30), nullable=True)  # vehiculo, servicio, conductor
     
+    # Subtareas (auto-relación)
+    parent_id = Column(Integer, ForeignKey("user_tasks.id"), nullable=True, index=True)
+    
     __table_args__ = (
         Index('idx_usertask_user_estado', 'user_id', 'estado'),
         Index('idx_usertask_prioridad', 'prioridad'),
         Index('idx_usertask_fecha_limite', 'fecha_limite'),
         Index('idx_usertask_categoria', 'categoria'),
+        Index('idx_usertask_parent', 'parent_id'),
     )
 
     # Relaciones

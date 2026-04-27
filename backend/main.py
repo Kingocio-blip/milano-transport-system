@@ -1619,6 +1619,7 @@ def create_user_task(
         categoria=task.categoria,
         referencia_id=task.referencia_id,
         referencia_tipo=task.referencia_tipo,
+        parent_id=task.parent_id,
         user_id=current_user.id,
         creado_por=current_user.id,
     )
@@ -1846,19 +1847,6 @@ def dejar_seguir_tarea(
     ).delete()
     db.commit()
     return {"message": "Dejaste de seguir esta tarea"}
-    task = db.query(models.UserTask).filter(
-        models.UserTask.id == task_id,
-        models.UserTask.user_id == current_user.id
-    ).first()
-    if not task:
-        raise HTTPException(status_code=404, detail="Tarea no encontrada")
-    db.delete(task)
-    db.commit()
-    return {"message": "Tarea eliminada"}
-
-# ============================================
-# SERVICIO ENDPOINTS
-# ============================================
 
 @app.get("/servicios", response_model=List[schemas.Servicio])
 def get_servicios(

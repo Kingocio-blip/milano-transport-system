@@ -460,3 +460,8 @@ export const userTasksApi = {
   seguir: (id: string) => api.post(`/user-tasks/${id}/seguir`, {}),
   dejarSeguir: (id: string) => api.delete(`/user-tasks/${id}/seguir`),
 };
+
+export const usersApi = {
+  getAll: () => api.get('/users'),
+  getById: (id: string) => api.get(`/users/${id}`),
+};

@@ -683,6 +683,7 @@ class UserTaskCreate(UserTaskBase):
     etiquetas: Optional[List[str]] = None
     asignados: Optional[List[int]] = None  # user_ids
     dependencias: Optional[List[int]] = None  # depende_de_ids
+    parent_id: Optional[int] = None
 
 class UserTaskUpdate(BaseModel):
     titulo: Optional[str] = None
@@ -695,6 +696,7 @@ class UserTaskUpdate(BaseModel):
     referencia_tipo: Optional[str] = None
     etiquetas: Optional[List[str]] = None
     asignados: Optional[List[int]] = None
+    parent_id: Optional[int] = None
 
 class UserTask(UserTaskBase):
     model_config = ConfigDict(from_attributes=True)
@@ -704,6 +706,7 @@ class UserTask(UserTaskBase):
     creado_por: Optional[int] = None
     fecha_completada: Optional[datetime] = None
     fecha_creacion: datetime
+    parent_id: Optional[int] = None
     
     # Relaciones
     etiquetas_rel: Optional[List[UserTaskTag]] = None

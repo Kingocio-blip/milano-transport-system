@@ -1,13 +1,14 @@
 // ============================================
-// MILANO - Comunicacion v2.0
+// MILANO - Comunicacion v3.0
 // Notificaciones, Gestor de Tareas (Kanban avanzado), Chat, Mailing
-// Features: Drag&drop, etiquetas, asignados, dependencias, chatter, creacion rapida inline
+// Features: Drag&drop, etiquetas, asignados, dependencias, chatter persistente,
+//           edicion completa, subtareas, asignacion a usuarios, timeline moderno
 // ============================================
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useUIStore, useAuthStore } from '../store';
-import { notificacionesApi, userTasksApi } from '../lib/api';
+import { notificacionesApi, userTasksApi, usersApi } from '../lib/api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
@@ -16,33 +17,37 @@ import { Textarea } from '../components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Checkbox } from '../components/ui/checkbox';
 import {
   Bell, CheckCircle2, Trash2, Plus, Loader2, AlertTriangle, Clock,
   MessageSquare, Mail, ListTodo, Filter, Inbox, Send, X,
-  Calendar, ChevronDown, ArrowRight, Wrench, FileText, Shield,
-  Tag, UserPlus, Users, Link2, Paperclip, GripVertical, Eye
+  Calendar, ArrowRight, FileText, Shield,
+  Users, Link2, GripVertical, Eye,
+  Pencil, Check
 } from 'lucide-react';
-import { SkeletonPage } from '../components/LoadingScreen';
-import { format, parseISO, isValid, isPast, differenceInDays, isFuture } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { format, parseISO, isValid, differenceInDays } from 'date-fns';
 
 const fmtDate = (d: string | Date | undefined): string => {
   if (!d) return '-';
   try { const p = typeof d === 'string' ? parseISO(d) : d; return isValid(p) ? format(p, 'dd/MM/yyyy HH:mm') : '-'; } catch { return '-'; }
 };
+const fmtDateShort = (d: string | Date | undefined): string => {
+  if (!d) return '-';
+  try { const p = typeof d === 'string' ? parseISO(d) : d; return isValid(p) ? format(p, 'dd/MM') : '-'; } catch { return '-'; }
+};
 
 const ESTADOS_TAREA = [
-  { value: 'pendiente', label: 'Pendiente', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' },
-  { value: 'en_progreso', label: 'En progreso', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
-  { value: 'completada', label: 'Completada', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' },
-  { value: 'cancelada', label: 'Cancelada', color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400' },
+  { value: 'pendiente', label: 'Pendiente', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300', dot: 'bg-amber-400' },
+  { value: 'en_progreso', label: 'En progreso', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', dot: 'bg-blue-400' },
+  { value: 'completada', label: 'Completada', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', dot: 'bg-green-400' },
+  { value: 'cancelada', label: 'Cancelada', color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400', dot: 'bg-slate-400' },
 ];
 
 const PRIORIDADES_TAREA = [
-  { value: 'baja', label: 'Baja', color: 'text-slate-500' },
-  { value: 'media', label: 'Media', color: 'text-blue-500' },
-  { value: 'alta', label: 'Alta', color: 'text-orange-500' },
-  { value: 'urgente', label: 'Urgente', color: 'text-red-500' },
+  { value: 'baja', label: 'Baja', color: 'text-slate-500', bg: 'bg-slate-100' },
+  { value: 'media', label: 'Media', color: 'text-blue-500', bg: 'bg-blue-100' },
+  { value: 'alta', label: 'Alta', color: 'text-orange-500', bg: 'bg-orange-100' },
+  { value: 'urgente', label: 'Urgente', color: 'text-red-500', bg: 'bg-red-100' },
 ];
 
 const COLORES_ETIQUETA = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899', '#6b7280'];
@@ -56,9 +61,9 @@ const CATEGORIAS_TAREA = [
 ];
 
 const TIPOS_CHATTER = [
-  { value: 'mensaje', label: 'Mensaje', icon: MessageSquare },
-  { value: 'actividad', label: 'Actividad', icon: FileText },
-  { value: 'cambio_estado', label: 'Cambio', icon: ArrowRight },
+  { value: 'mensaje', label: 'Mensaje', icon: MessageSquare, color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
+  { value: 'actividad', label: 'Actividad', icon: FileText, color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' },
+  { value: 'cambio_estado', label: 'Cambio', icon: ArrowRight, color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' },
 ];
 
 export default function Comunicacion() {
@@ -81,6 +86,9 @@ export default function Comunicacion() {
   const [tareaLoading, setTareaLoading] = useState(false);
   const [tareaEstadoFiltro, setTareaEstadoFiltro] = useState<string>('todos');
 
+  // USUARIOS (para asignacion)
+  const [usuarios, setUsuarios] = useState<any[]>([]);
+
   // Creacion rapida inline
   const [creandoRapidoEn, setCreandoRapidoEn] = useState<string>('');
   const [tituloRapido, setTituloRapido] = useState('');
@@ -92,19 +100,26 @@ export default function Comunicacion() {
   const [isNuevaTareaOpen, setIsNuevaTareaOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [nuevaTarea, setNuevaTarea] = useState<Record<string, any>>({
-    titulo: '', descripcion: '', prioridad: 'media', fecha_limite: '', categoria: 'general', etiquetas: [] as string[]
+    titulo: '', descripcion: '', prioridad: 'media', fecha_limite: '', categoria: 'general', etiquetas: [] as string[], asignados: [] as number[]
   });
   const [etiquetaInput, setEtiquetaInput] = useState('');
 
-  // Modal ver tarea (expandido con chatter, asignados, etc.)
+  // Modal ver/editar tarea
   const [tareaSeleccionada, setTareaSeleccionada] = useState<any>(null);
   const [isVerTareaOpen, setIsVerTareaOpen] = useState(false);
   const [tareaTab, setTareaTab] = useState('detalle');
+  const [modoEdicion, setModoEdicion] = useState(false);
+  const [tareaEditando, setTareaEditando] = useState<Record<string, any>>({});
+  const [editSubmitting, setEditSubmitting] = useState(false);
 
   // Chatter
   const [chatterMsgs, setChatterMsgs] = useState<any[]>([]);
   const [chatterInput, setChatterInput] = useState('');
   const [chatterTipo, setChatterTipo] = useState('mensaje');
+  const [chatterLoading, setChatterLoading] = useState(false);
+
+  // Subtareas creacion rapida
+  const [subtareaInput, setSubtareaInput] = useState('');
 
   // Modal nueva notificacion manual
   const [isNuevaNotifOpen, setIsNuevaNotifOpen] = useState(false);
@@ -118,6 +133,15 @@ export default function Comunicacion() {
     const tab = params.get('tab');
     if (tab) setActiveTab(tab);
   }, [location.search]);
+
+  // Cargar usuarios
+  const cargarUsuarios = async () => {
+    try {
+      const res = await usersApi.getAll();
+      const arr = Array.isArray(res) ? res : (res.data || []);
+      setUsuarios(arr);
+    } catch { /* ignorar */ }
+  };
 
   // Cargar notificaciones
   const cargarNotificaciones = async () => {
@@ -138,7 +162,10 @@ export default function Comunicacion() {
     setTareaLoading(true);
     try {
       const [lista, resumen] = await Promise.all([
-        userTasksApi.getAll(tareaEstadoFiltro !== 'todos' ? { estado: tareaEstadoFiltro } : undefined),
+        userTasksApi.getAll({ 
+          estado: tareaEstadoFiltro !== 'todos' ? tareaEstadoFiltro : undefined,
+          asignado_a_mi: true,
+        }),
         userTasksApi.getResumen(),
       ]);
       const arr = Array.isArray(lista) ? lista : (lista.data || []);
@@ -162,6 +189,7 @@ export default function Comunicacion() {
     referenciaTipo: t.referencia_tipo || t.referenciaTipo,
     userId: t.user_id || t.userId,
     creadoPor: t.creado_por || t.creadoPor,
+    parentId: t.parent_id || t.parentId,
     etiquetas: (t.etiquetas_rel || t.etiquetas || []).map((e: any) => ({
       id: e.id, etiqueta: e.etiqueta, color: e.color
     })),
@@ -181,7 +209,7 @@ export default function Comunicacion() {
   }));
 
   useEffect(() => { cargarNotificaciones(); }, [notifFiltro]);
-  useEffect(() => { cargarTareas(); }, [tareaEstadoFiltro]);
+  useEffect(() => { cargarTareas(); cargarUsuarios(); }, [tareaEstadoFiltro]);
 
   // Prioridad auto-detectada por ! al final del titulo
   const detectarPrioridad = (titulo: string): string => {
@@ -229,10 +257,11 @@ export default function Comunicacion() {
         fecha_limite: nuevaTarea.fecha_limite ? nuevaTarea.fecha_limite + 'T00:00:00' : null,
         categoria: nuevaTarea.categoria || 'general',
         etiquetas: nuevaTarea.etiquetas || [],
+        asignados: nuevaTarea.asignados?.length > 0 ? nuevaTarea.asignados : undefined,
       });
       showToast('Tarea creada', 'success');
       setIsNuevaTareaOpen(false);
-      setNuevaTarea({ titulo: '', descripcion: '', prioridad: 'media', fecha_limite: '', categoria: 'general', etiquetas: [] });
+      setNuevaTarea({ titulo: '', descripcion: '', prioridad: 'media', fecha_limite: '', categoria: 'general', etiquetas: [], asignados: [] });
       cargarTareas();
     } catch (err: any) { showToast(`Error: ${err.message}`, 'error'); }
     finally { setIsSubmitting(false); }
@@ -244,7 +273,6 @@ export default function Comunicacion() {
   const handleDrop = async (e: React.DragEvent, estadoDestino: string) => {
     e.preventDefault();
     if (!draggingTarea || draggingTarea.estado === estadoDestino) { setDraggingTarea(null); return; }
-    // Verificar dependencias
     const depsPendientes = draggingTarea.dependencias?.filter((d: any) => {
       const tDep = tareas.find(t => t.id === d.dependeDeId);
       return tDep && tDep.estado !== 'completada';
@@ -276,58 +304,158 @@ export default function Comunicacion() {
     catch { showToast('Error', 'error'); }
   };
 
-  // CHATTER
+  // CHATTER (persistente via API)
   const cargarChatter = async (taskId: string) => {
+    setChatterLoading(true);
     try {
-      const res = await fetch(`/user-tasks/${taskId}/chatter`);
-      // Usar api.get a traves de una funcion custom
-      // Por ahora usamos fetch directo
+      const res = await userTasksApi.getChatter(taskId);
+      const arr = Array.isArray(res) ? res : (res.data || []);
+      setChatterMsgs(arr.map((c: any) => ({
+        id: c.id,
+        userId: c.user_id || c.userId,
+        tipo: c.tipo,
+        contenido: c.contenido,
+        fechaCreacion: c.fecha_creacion || c.fechaCreacion,
+      })));
     } catch { /* ignorar */ }
+    finally { setChatterLoading(false); }
   };
 
   const enviarChatter = async () => {
     if (!chatterInput.trim() || !tareaSeleccionada) return;
+    setChatterLoading(true);
     try {
-      // Simular chatter localmente hasta tener endpoint
-      const nuevoMsg = {
-        id: Date.now(),
-        userId: usuario?.id || 0,
-        tipo: chatterTipo,
+      await userTasksApi.addChatter(String(tareaSeleccionada.id), {
         contenido: chatterInput,
-        fechaCreacion: new Date().toISOString(),
-      };
-      setChatterMsgs(prev => [nuevoMsg, ...prev]);
+        tipo: chatterTipo,
+      });
       setChatterInput('');
-      // Actualizar tarea local
-      setTareaSeleccionada((prev: any) => prev ? { ...prev, chatter: [nuevoMsg, ...(prev.chatter || [])] } : null);
-    } catch { showToast('Error', 'error'); }
+      await cargarChatter(String(tareaSeleccionada.id));
+      // Refrescar tarea para que aparezca el nuevo chatter en la lista
+      await refrescarTareaSeleccionada();
+    } catch (err: any) { showToast(`Error al enviar mensaje: ${err.message}`, 'error'); }
+    finally { setChatterLoading(false); }
   };
 
-  // SEGUIDORES
+  // SEGUIDORES (persistente via API)
   const toggleSeguir = async (tarea: any) => {
+    if (!tarea) return;
     const siguiendo = tarea.seguidores?.some((s: any) => s.userId === usuario?.id);
-    // Simular localmente
-    if (siguiendo) {
-      setTareaSeleccionada((prev: any) => prev ? { ...prev, seguidores: prev.seguidores.filter((s: any) => s.userId !== usuario?.id) } : null);
-      showToast('Dejaste de seguir', 'success');
-    } else {
-      setTareaSeleccionada((prev: any) => prev ? { ...prev, seguidores: [...(prev.seguidores || []), { id: Date.now(), userId: usuario?.id }] } : null);
-      showToast('Ahora sigues esta tarea', 'success');
-    }
+    try {
+      if (siguiendo) {
+        await userTasksApi.dejarSeguir(String(tarea.id));
+        showToast('Dejaste de seguir', 'success');
+      } else {
+        await userTasksApi.seguir(String(tarea.id));
+        showToast('Ahora sigues esta tarea', 'success');
+      }
+      await refrescarTareaSeleccionada();
+      cargarTareas();
+    } catch (err: any) { showToast(`Error: ${err.message}`, 'error'); }
   };
 
-  // VER TAREA
+  // REFRESCAR TAREA SELECCIONADA
+  const refrescarTareaSeleccionada = async () => {
+    if (!tareaSeleccionada) return;
+    try {
+      const res = await userTasksApi.getById(String(tareaSeleccionada.id));
+      const t = res.data || res;
+      if (t) {
+        const normalizada = normalizarTareas([t])[0];
+        setTareaSeleccionada(normalizada);
+        setChatterMsgs(normalizada.chatter || []);
+      }
+    } catch { /* ignorar */ }
+  };
+
+  // VER / EDITAR TAREA
   const abrirTarea = (t: any) => {
     setTareaSeleccionada(t);
     setChatterMsgs(t.chatter || []);
     setTareaTab('detalle');
+    setModoEdicion(false);
     setIsVerTareaOpen(true);
+    cargarChatter(String(t.id));
+  };
+
+  const iniciarEdicion = () => {
+    if (!tareaSeleccionada) return;
+    setTareaEditando({
+      titulo: tareaSeleccionada.titulo || '',
+      descripcion: tareaSeleccionada.descripcion || '',
+      prioridad: tareaSeleccionada.prioridad || 'media',
+      estado: tareaSeleccionada.estado || 'pendiente',
+      fecha_limite: tareaSeleccionada.fechaLimite ? tareaSeleccionada.fechaLimite.slice(0, 10) : '',
+      categoria: tareaSeleccionada.categoria || 'general',
+      etiquetas: tareaSeleccionada.etiquetas?.map((e: any) => e.etiqueta) || [],
+      asignados: tareaSeleccionada.asignados?.map((a: any) => a.userId) || [],
+    });
+    setModoEdicion(true);
+  };
+
+  const guardarEdicion = async () => {
+    if (!tareaSeleccionada || !tareaEditando.titulo?.trim()) return;
+    setEditSubmitting(true);
+    try {
+      await userTasksApi.update(String(tareaSeleccionada.id), {
+        titulo: tareaEditando.titulo,
+        descripcion: tareaEditando.descripcion || null,
+        prioridad: tareaEditando.prioridad,
+        estado: tareaEditando.estado,
+        fecha_limite: tareaEditando.fecha_limite ? tareaEditando.fecha_limite + 'T00:00:00' : null,
+        categoria: tareaEditando.categoria || 'general',
+        etiquetas: tareaEditando.etiquetas || [],
+        asignados: tareaEditando.asignados?.length > 0 ? tareaEditando.asignados : [],
+      });
+      showToast('Tarea actualizada', 'success');
+      setModoEdicion(false);
+      await refrescarTareaSeleccionada();
+      cargarTareas();
+    } catch (err: any) { showToast(`Error: ${err.message}`, 'error'); }
+    finally { setEditSubmitting(false); }
+  };
+
+  // SUBTAREAS
+  const subtareasDeTarea = useMemo(() => {
+    if (!tareaSeleccionada) return [];
+    return tareas.filter(t => t.parentId === tareaSeleccionada.id);
+  }, [tareas, tareaSeleccionada]);
+
+  const crearSubtarea = async () => {
+    if (!subtareaInput.trim() || !tareaSeleccionada) return;
+    const prioridad = detectarPrioridad(subtareaInput);
+    const tituloLimpio = limpiarTitulo(subtareaInput);
+    try {
+      await userTasksApi.create({
+        titulo: tituloLimpio,
+        estado: 'pendiente',
+        prioridad,
+        categoria: tareaSeleccionada.categoria || 'general',
+        parent_id: tareaSeleccionada.id,
+      });
+      showToast('Subtarea creada', 'success');
+      setSubtareaInput('');
+      cargarTareas();
+    } catch (err: any) { showToast(`Error: ${err.message}`, 'error'); }
+  };
+
+  const completarSubtarea = async (subId: string, completada: boolean) => {
+    try {
+      await userTasksApi.update(subId, { estado: completada ? 'completada' : 'pendiente' });
+      cargarTareas();
+    } catch { showToast('Error', 'error'); }
+  };
+
+  // Helpers usuarios
+  const nombreUsuario = (uid: number) => {
+    const u = usuarios.find(u => u.id === uid);
+    return u ? (u.nombre_completo || u.username) : `Usuario #${uid}`;
   };
 
   // Tareas agrupadas
   const tareasPorEstado = useMemo(() => {
     const grupos: Record<string, any[]> = { pendiente: [], en_progreso: [], completada: [], cancelada: [] };
-    tareas.forEach(t => { const e = t.estado || 'pendiente'; if (grupos[e]) grupos[e].push(t); });
+    tareas.forEach(t => { if (!t.parentId) { const e = t.estado || 'pendiente'; if (grupos[e]) grupos[e].push(t); } });
     return grupos;
   }, [tareas]);
 
@@ -478,7 +606,7 @@ export default function Comunicacion() {
 
         {/* ============== TAB: TAREAS (KANBAN AVANZADO) ============== */}
         <TabsContent value="tareas" className="space-y-4 pt-4">
-          {/* Stats */}
+          {/* Stats modernas */}
           <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
             {[
               { label: 'Total', value: tareaResumen.total },
@@ -500,7 +628,7 @@ export default function Comunicacion() {
             <div className="flex items-center gap-2">
               <Select value={tareaEstadoFiltro} onValueChange={setTareaEstadoFiltro}>
                 <SelectTrigger className="h-8 w-36 text-xs dark:bg-slate-900 dark:border-slate-600">
-                  <Filter className="h-3 w-3 mr-1" />{tareaEstadoFiltro === 'todos' ? 'Todos' : tareaEstadoFiltro}
+                  <Filter className="h-3 w-3 mr-1" />{tareaEstadoFiltro === 'todos' ? 'Todos' : ESTADOS_TAREA.find(e => e.value === tareaEstadoFiltro)?.label}
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todos</SelectItem>
@@ -530,13 +658,13 @@ export default function Comunicacion() {
                   {/* Column header */}
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-semibold dark:text-slate-200 flex items-center gap-1.5">
-                      <span className={`h-2 w-2 rounded-full ${estado.value === 'pendiente' ? 'bg-amber-400' : estado.value === 'en_progreso' ? 'bg-blue-400' : estado.value === 'completada' ? 'bg-green-400' : 'bg-slate-400'}`} />
+                      <span className={`h-2 w-2 rounded-full ${estado.dot}`} />
                       {estado.label}
                     </h3>
                     <div className="flex items-center gap-1">
-                      <span className="text-xs text-slate-400">{tareasPorEstado[estado.value].length}</span>
+                      <span className="text-xs text-slate-400 font-medium bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">{tareasPorEstado[estado.value].length}</span>
                       <button
-                        className="h-6 w-6 rounded flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400"
+                        className="h-6 w-6 rounded flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 transition-colors"
                         onClick={() => setCreandoRapidoEn(estado.value)}
                         title="Crear tarea rapida"
                       >
@@ -547,7 +675,7 @@ export default function Comunicacion() {
 
                   {/* Creacion rapida inline */}
                   {creandoRapidoEn === estado.value && (
-                    <div className="mb-2 p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    <div className="mb-2 p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
                       <Input
                         autoFocus
                         placeholder="Titulo (! para prioridad)..."
@@ -578,6 +706,7 @@ export default function Comunicacion() {
                         const dep = tareas.find(x => x.id === d.dependeDeId);
                         return dep && dep.estado !== 'completada';
                       });
+                      const subtareasCount = tareas.filter(st => st.parentId === t.id).length;
                       return (
                         <div
                           key={t.id}
@@ -588,9 +717,8 @@ export default function Comunicacion() {
                             bloqueada ? 'border-red-200 dark:border-red-700 bg-red-50/30 dark:bg-red-900/10' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
                           } ${vencida ? 'ring-1 ring-red-200' : ''}`}
                         >
-                          {/* Drag handle */}
                           <div className="flex items-start gap-1.5">
-                            <GripVertical className="h-3.5 w-3.5 text-slate-300 shrink-0 mt-0.5 opacity-0 group-hover:opacity-100" />
+                            <GripVertical className="h-3.5 w-3.5 text-slate-300 shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                             <div className="flex-1 min-w-0">
                               {/* Etiquetas */}
                               {t.etiquetas?.length > 0 && (
@@ -612,8 +740,13 @@ export default function Comunicacion() {
                               {t.descripcion && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{t.descripcion}</p>}
                               {/* Meta info */}
                               <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                <span className={`text-[10px] ${PRIORIDADES_TAREA.find(p => p.value === t.prioridad)?.color || ''}`}>{t.prioridad}</span>
+                                <span className={`text-[10px] font-medium ${PRIORIDADES_TAREA.find(p => p.value === t.prioridad)?.color || ''}`}>{t.prioridad}</span>
                                 {t.categoria && <Badge className="text-[9px] bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400">{t.categoria}</Badge>}
+                                {subtareasCount > 0 && (
+                                  <span className="text-[9px] text-slate-400 flex items-center gap-0.5">
+                                    <CheckCircle2 className="h-3 w-3" />{subtareasCount}
+                                  </span>
+                                )}
                               </div>
                               {/* Asignados + fecha */}
                               <div className="flex items-center justify-between mt-2">
@@ -628,7 +761,7 @@ export default function Comunicacion() {
                                 {t.fechaLimite && (
                                   <p className={`text-[10px] flex items-center gap-1 ${vencida ? 'text-red-500 font-medium' : dias !== null && dias <= 2 ? 'text-amber-500' : 'text-slate-400'}`}>
                                     <Calendar className="h-3 w-3" />
-                                    {vencida ? `Vencida (${Math.abs(dias)}d)` : dias !== null ? `${dias}d` : fmtDate(t.fechaLimite)}
+                                    {vencida ? `Vencida (${Math.abs(dias)}d)` : dias !== null ? `${dias}d` : fmtDateShort(t.fechaLimite)}
                                   </p>
                                 )}
                               </div>
@@ -670,7 +803,7 @@ export default function Comunicacion() {
 
       {/* ============== DIALOG: NUEVA TAREA ============== */}
       <Dialog open={isNuevaTareaOpen} onOpenChange={setIsNuevaTareaOpen}>
-        <DialogContent className="max-w-lg dark:border-slate-700 dark:bg-slate-800">
+        <DialogContent className="max-w-lg dark:border-slate-700 dark:bg-slate-800" style={{ maxWidth: '520px' }}>
           <DialogHeader><DialogTitle className="dark:text-slate-100">Nueva tarea</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-2">
@@ -687,6 +820,31 @@ export default function Comunicacion() {
                 </Select>
               </div>
               <div className="space-y-2"><Label>Fecha limite</Label><Input type="date" value={nuevaTarea.fecha_limite} onChange={e => setNuevaTarea(p => ({ ...p, fecha_limite: e.target.value }))} className="dark:bg-slate-900 dark:border-slate-600" /></div>
+            </div>
+            {/* Asignados */}
+            <div className="space-y-2">
+              <Label>Asignar a</Label>
+              <div className="flex flex-wrap gap-1">
+                {usuarios.filter(u => u.activo !== false).map(u => {
+                  const selected = nuevaTarea.asignados?.includes(u.id);
+                  return (
+                    <button
+                      key={u.id}
+                      onClick={() => {
+                        setNuevaTarea(prev => ({
+                          ...prev,
+                          asignados: selected
+                            ? (prev.asignados || []).filter((id: number) => id !== u.id)
+                            : [...(prev.asignados || []), u.id]
+                        }));
+                      }}
+                      className={`text-[10px] px-2 py-1 rounded-full border transition-colors ${selected ? 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700' : 'bg-white text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-600'}`}
+                    >
+                      {u.nombre_completo || u.username}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             {/* Etiquetas */}
             <div className="space-y-2">
@@ -724,136 +882,290 @@ export default function Comunicacion() {
         </DialogContent>
       </Dialog>
 
-      {/* ============== DIALOG: VER TAREA EXPANDIDO ============== */}
-      <Dialog open={isVerTareaOpen} onOpenChange={setIsVerTareaOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800">
+      {/* ============== DIALOG: VER / EDITAR TAREA ============== */}
+      <Dialog open={isVerTareaOpen} onOpenChange={(open) => {
+        if (!open) { setIsVerTareaOpen(false); setModoEdicion(false); }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-800" style={{ maxWidth: '700px' }}>
           {tareaSeleccionada && (
             <>
               <DialogHeader>
-                <DialogTitle className="flex items-center gap-2 dark:text-slate-100">
-                  {tareaSeleccionada.prioridad === 'urgente' && <AlertTriangle className="h-5 w-5 text-red-500" />}
-                  {tareaSeleccionada.titulo}
-                </DialogTitle>
+                <div className="flex items-center justify-between">
+                  <DialogTitle className="flex items-center gap-2 dark:text-slate-100 flex-1 min-w-0">
+                    {tareaSeleccionada.prioridad === 'urgente' && <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />}
+                    <span className="truncate">{tareaSeleccionada.titulo}</span>
+                  </DialogTitle>
+                  {!modoEdicion && (
+                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 shrink-0" onClick={iniciarEdicion} title="Editar tarea">
+                      <Pencil className="h-4 w-4 text-slate-500" />
+                    </Button>
+                  )}
+                </div>
               </DialogHeader>
 
-              <Tabs value={tareaTab} onValueChange={setTareaTab}>
-                <TabsList className="dark:bg-slate-900">
-                  <TabsTrigger value="detalle">Detalle</TabsTrigger>
-                  <TabsTrigger value="chatter">Chatter ({chatterMsgs.length})</TabsTrigger>
-                  <TabsTrigger value="asignacion">Asignacion</TabsTrigger>
-                </TabsList>
-
-                {/* Detalle */}
-                <TabsContent value="detalle" className="pt-4 space-y-4">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge className={ESTADOS_TAREA.find(e => e.value === tareaSeleccionada.estado)?.color}>{ESTADOS_TAREA.find(e => e.value === tareaSeleccionada.estado)?.label}</Badge>
-                    <span className={`text-xs font-medium ${PRIORIDADES_TAREA.find(p => p.value === tareaSeleccionada.prioridad)?.color}`}>{tareaSeleccionada.prioridad}</span>
-                    {tareaSeleccionada.categoria && <Badge className="text-[10px] bg-slate-100 text-slate-600 dark:bg-slate-700">{tareaSeleccionada.categoria}</Badge>}
+              {modoEdicion ? (
+                /* ===== MODO EDICION ===== */
+                <div className="space-y-3 py-2">
+                  <div className="space-y-2">
+                    <Label>Titulo *</Label>
+                    <Input value={tareaEditando.titulo} onChange={e => setTareaEditando(p => ({ ...p, titulo: e.target.value }))} className="dark:bg-slate-900 dark:border-slate-600" />
                   </div>
-                  {tareaSeleccionada.etiquetas?.length > 0 && (
-                    <div className="flex gap-1 flex-wrap">
-                      {tareaSeleccionada.etiquetas.map((e: any) => (
-                        <span key={e.id} className="text-[10px] px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: e.color }}>{e.etiqueta}</span>
-                      ))}
+                  <div className="space-y-2">
+                    <Label>Descripcion</Label>
+                    <Textarea value={tareaEditando.descripcion} onChange={e => setTareaEditando(p => ({ ...p, descripcion: e.target.value }))} rows={2} className="dark:bg-slate-900 dark:border-slate-600" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Prioridad</Label>
+                      <Select value={tareaEditando.prioridad} onValueChange={v => setTareaEditando(p => ({ ...p, prioridad: v }))}>
+                        <SelectTrigger className="dark:bg-slate-900 dark:border-slate-600"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {PRIORIDADES_TAREA.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
                     </div>
-                  )}
-                  {tareaSeleccionada.descripcion && <p className="text-sm text-slate-600 dark:text-slate-400">{tareaSeleccionada.descripcion}</p>}
-                  <div className="grid grid-cols-2 gap-2 text-xs text-slate-500 dark:text-slate-400">
-                    <div><span className="text-slate-400">Creada:</span> {fmtDate(tareaSeleccionada.fechaCreacion)}</div>
-                    {tareaSeleccionada.fechaLimite && <div><span className="text-slate-400">Limite:</span> {fmtDate(tareaSeleccionada.fechaLimite)}</div>}
-                    {tareaSeleccionada.fechaCompletada && <div><span className="text-slate-400">Completada:</span> {fmtDate(tareaSeleccionada.fechaCompletada)}</div>}
+                    <div className="space-y-2">
+                      <Label>Estado</Label>
+                      <Select value={tareaEditando.estado} onValueChange={v => setTareaEditando(p => ({ ...p, estado: v }))}>
+                        <SelectTrigger className="dark:bg-slate-900 dark:border-slate-600"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {ESTADOS_TAREA.map(e => <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  {/* Dependencias */}
-                  {tareaSeleccionada.dependencias?.length > 0 && (
-                    <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
-                      <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1"><Link2 className="h-3.5 w-3.5" />Dependencias</p>
-                      {tareaSeleccionada.dependencias.map((d: any) => {
-                        const depTarea = tareas.find(t => t.id === d.dependeDeId);
-                        const completada = depTarea?.estado === 'completada';
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Categoria</Label>
+                      <Select value={tareaEditando.categoria} onValueChange={v => setTareaEditando(p => ({ ...p, categoria: v }))}>
+                        <SelectTrigger className="dark:bg-slate-900 dark:border-slate-600"><SelectValue /></SelectTrigger>
+                        <SelectContent>{CATEGORIAS_TAREA.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Fecha limite</Label>
+                      <Input type="date" value={tareaEditando.fecha_limite} onChange={e => setTareaEditando(p => ({ ...p, fecha_limite: e.target.value }))} className="dark:bg-slate-900 dark:border-slate-600" />
+                    </div>
+                  </div>
+                  {/* Asignados edicion */}
+                  <div className="space-y-2">
+                    <Label>Asignados</Label>
+                    <div className="flex flex-wrap gap-1">
+                      {usuarios.filter(u => u.activo !== false).map(u => {
+                        const selected = tareaEditando.asignados?.includes(u.id);
                         return (
-                          <div key={d.id} className={`text-xs flex items-center gap-2 py-1 ${completada ? 'text-green-600 line-through' : 'text-red-600'}`}>
-                            <span className={`h-2 w-2 rounded-full ${completada ? 'bg-green-400' : 'bg-red-400'}`} />
-                            {depTarea ? depTarea.titulo : `Tarea #${d.dependeDeId}`}
-                            {completada && <CheckCircle2 className="h-3 w-3" />}
+                          <button
+                            key={u.id}
+                            onClick={() => {
+                              setTareaEditando((prev: any) => ({
+                                ...prev,
+                                asignados: selected
+                                  ? (prev.asignados || []).filter((id: number) => id !== u.id)
+                                  : [...(prev.asignados || []), u.id]
+                              }));
+                            }}
+                            className={`text-[10px] px-2 py-1 rounded-full border transition-colors ${selected ? 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700' : 'bg-white text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-600'}`}
+                          >
+                            {u.nombre_completo || u.username}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button variant="outline" size="sm" onClick={() => setModoEdicion(false)} className="dark:border-slate-600">Cancelar</Button>
+                    <Button size="sm" onClick={guardarEdicion} disabled={editSubmitting} className="bg-[#1e3a5f] dark:bg-blue-600">
+                      {editSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Check className="h-3.5 w-3.5 mr-1" />Guardar</>}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                /* ===== MODO VISUALIZACION ===== */
+                <Tabs value={tareaTab} onValueChange={setTareaTab}>
+                  <TabsList className="dark:bg-slate-900">
+                    <TabsTrigger value="detalle">Detalle</TabsTrigger>
+                    <TabsTrigger value="chatter">Chatter ({chatterMsgs.length})</TabsTrigger>
+                    <TabsTrigger value="subtareas">Subtareas ({subtareasDeTarea.length})</TabsTrigger>
+                  </TabsList>
+
+                  {/* Detalle */}
+                  <TabsContent value="detalle" className="pt-4 space-y-4">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge className={ESTADOS_TAREA.find(e => e.value === tareaSeleccionada.estado)?.color}>{ESTADOS_TAREA.find(e => e.value === tareaSeleccionada.estado)?.label}</Badge>
+                      <span className={`text-xs font-medium ${PRIORIDADES_TAREA.find(p => p.value === tareaSeleccionada.prioridad)?.color}`}>{tareaSeleccionada.prioridad}</span>
+                      {tareaSeleccionada.categoria && <Badge className="text-[10px] bg-slate-100 text-slate-600 dark:bg-slate-700">{tareaSeleccionada.categoria}</Badge>}
+                    </div>
+                    {tareaSeleccionada.etiquetas?.length > 0 && (
+                      <div className="flex gap-1 flex-wrap">
+                        {tareaSeleccionada.etiquetas.map((e: any) => (
+                          <span key={e.id} className="text-[10px] px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: e.color }}>{e.etiqueta}</span>
+                        ))}
+                      </div>
+                    )}
+                    {tareaSeleccionada.descripcion && <p className="text-sm text-slate-600 dark:text-slate-400">{tareaSeleccionada.descripcion}</p>}
+                    <div className="grid grid-cols-2 gap-2 text-xs text-slate-500 dark:text-slate-400">
+                      <div><span className="text-slate-400">Creada:</span> {fmtDate(tareaSeleccionada.fechaCreacion)}</div>
+                      {tareaSeleccionada.fechaLimite && <div><span className="text-slate-400">Limite:</span> {fmtDate(tareaSeleccionada.fechaLimite)}</div>}
+                      {tareaSeleccionada.fechaCompletada && <div><span className="text-slate-400">Completada:</span> {fmtDate(tareaSeleccionada.fechaCompletada)}</div>}
+                      {tareaSeleccionada.creadoPor && <div><span className="text-slate-400">Creado por:</span> {nombreUsuario(tareaSeleccionada.creadoPor)}</div>}
+                    </div>
+
+                    {/* Asignados */}
+                    {tareaSeleccionada.asignados?.length > 0 && (
+                      <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                        <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1"><Users className="h-3.5 w-3.5" />Asignados</p>
+                        <div className="flex flex-wrap gap-2">
+                          {tareaSeleccionada.asignados.map((a: any) => (
+                            <div key={a.id} className="flex items-center gap-1.5 text-xs">
+                              <div className="h-6 w-6 rounded-full bg-blue-100 text-blue-700 text-[10px] flex items-center justify-center">{a.userId}</div>
+                              <span className="text-slate-600 dark:text-slate-400">{nombreUsuario(a.userId)}</span>
+                              {a.esResponsable && <Badge className="text-[9px] bg-amber-100 text-amber-700">Responsable</Badge>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Seguidores */}
+                    {tareaSeleccionada.seguidores?.length > 0 && (
+                      <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                        <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1"><Eye className="h-3.5 w-3.5" />Seguidores ({tareaSeleccionada.seguidores.length})</p>
+                        <div className="flex flex-wrap gap-2">
+                          {tareaSeleccionada.seguidores.map((s: any) => (
+                            <div key={s.id} className="flex items-center gap-1.5 text-xs">
+                              <div className="h-6 w-6 rounded-full bg-slate-100 text-slate-600 text-[10px] flex items-center justify-center">{s.userId}</div>
+                              <span className="text-slate-600 dark:text-slate-400">{nombreUsuario(s.userId)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Dependencias */}
+                    {tareaSeleccionada.dependencias?.length > 0 && (
+                      <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                        <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1"><Link2 className="h-3.5 w-3.5" />Dependencias</p>
+                        {tareaSeleccionada.dependencias.map((d: any) => {
+                          const depTarea = tareas.find(t => t.id === d.dependeDeId);
+                          const completada = depTarea?.estado === 'completada';
+                          return (
+                            <div key={d.id} className={`text-xs flex items-center gap-2 py-1 ${completada ? 'text-green-600 line-through' : 'text-red-600'}`}>
+                              <span className={`h-2 w-2 rounded-full ${completada ? 'bg-green-400' : 'bg-red-400'}`} />
+                              {depTarea ? depTarea.titulo : `Tarea #${d.dependeDeId}`}
+                              {completada && <CheckCircle2 className="h-3 w-3" />}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Cambiar estado */}
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                      <p className="text-xs text-slate-500 mb-2">Cambiar estado:</p>
+                      <div className="flex gap-1 flex-wrap">
+                        {ESTADOS_TAREA.filter(e => e.value !== tareaSeleccionada.estado).map(e => (
+                          <Button key={e.value} size="sm" variant="outline" className="h-7 text-xs dark:border-slate-600" onClick={() => { cambiarEstadoTarea(String(tareaSeleccionada.id), e.value); setIsVerTareaOpen(false); }}>{e.label}</Button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex justify-between pt-2">
+                      <Button size="sm" variant="outline" className="h-7 text-xs dark:border-slate-600" onClick={() => toggleSeguir(tareaSeleccionada)}>
+                        <Eye className="h-3 w-3 mr-1" />
+                        {tareaSeleccionada.seguidores?.some((s: any) => s.userId === usuario?.id) ? 'Dejar de seguir' : 'Seguir'}
+                      </Button>
+                      <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => { eliminarTarea(String(tareaSeleccionada.id)); setIsVerTareaOpen(false); }}>
+                        <Trash2 className="h-3 w-3 mr-1" />Eliminar
+                      </Button>
+                    </div>
+                  </TabsContent>
+
+                  {/* Chatter (Timeline moderno) */}
+                  <TabsContent value="chatter" className="pt-4 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Select value={chatterTipo} onValueChange={setChatterTipo}>
+                        <SelectTrigger className="h-8 w-32 text-xs dark:bg-slate-900 dark:border-slate-600">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TIPOS_CHATTER.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <Input value={chatterInput} onChange={e => setChatterInput(e.target.value)} placeholder="Escribe un mensaje..." className="h-8 text-xs dark:bg-slate-900 dark:border-slate-600" onKeyDown={e => { if (e.key === 'Enter') enviarChatter(); }} />
+                      <Button size="sm" className="h-8 px-2 bg-[#1e3a5f]" onClick={enviarChatter} disabled={chatterLoading}>
+                        {chatterLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                      </Button>
+                    </div>
+                    <div className="space-y-3 max-h-80 overflow-y-auto">
+                      {chatterMsgs.length === 0 && <p className="text-xs text-slate-400 text-center py-4">Sin mensajes</p>}
+                      {chatterMsgs.map((m: any, idx: number) => {
+                        const tipoConfig = TIPOS_CHATTER.find(t => t.value === m.tipo) || TIPOS_CHATTER[0];
+                        const TipoIcon = tipoConfig.icon;
+                        const isMe = m.userId === usuario?.id;
+                        return (
+                          <div key={m.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}>
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[10px] font-medium ${isMe ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                              {isMe ? 'Yo' : (m.userId || '?')}
+                            </div>
+                            <div className={`max-w-[80%] rounded-lg p-2.5 text-xs ${isMe ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800' : 'bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700'}`}>
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded-full flex items-center gap-0.5 ${tipoConfig.color}`}>
+                                  <TipoIcon className="h-3 w-3" />{m.tipo}
+                                </span>
+                                <span className="text-[9px] text-slate-400">{nombreUsuario(m.userId)}</span>
+                                <span className="text-[9px] text-slate-400 ml-auto">{fmtDate(m.fechaCreacion)}</span>
+                              </div>
+                              <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{m.contenido}</p>
+                            </div>
                           </div>
                         );
                       })}
                     </div>
-                  )}
-                  {/* Cambiar estado */}
-                  <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
-                    <p className="text-xs text-slate-500 mb-2">Cambiar estado:</p>
-                    <div className="flex gap-1 flex-wrap">
-                      {ESTADOS_TAREA.filter(e => e.value !== tareaSeleccionada.estado).map(e => (
-                        <Button key={e.value} size="sm" variant="outline" className="h-7 text-xs dark:border-slate-600" onClick={() => { cambiarEstadoTarea(String(tareaSeleccionada.id), e.value); setIsVerTareaOpen(false); }}>{e.label}</Button>
+                  </TabsContent>
+
+                  {/* Subtareas */}
+                  <TabsContent value="subtareas" className="pt-4 space-y-4">
+                    {/* Crear subtarea */}
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={subtareaInput}
+                        onChange={e => setSubtareaInput(e.target.value)}
+                        placeholder="Nueva subtarea..."
+                        className="h-8 text-xs dark:bg-slate-900 dark:border-slate-600"
+                        onKeyDown={e => { if (e.key === 'Enter') crearSubtarea(); }}
+                      />
+                      <Button size="sm" className="h-8 px-2 bg-[#1e3a5f]" onClick={crearSubtarea} disabled={!subtareaInput.trim()}>
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+
+                    {/* Lista subtareas */}
+                    <div className="space-y-1">
+                      {subtareasDeTarea.length === 0 && (
+                        <p className="text-xs text-slate-400 text-center py-4">Sin subtareas</p>
+                      )}
+                      {subtareasDeTarea.map((sub: any) => (
+                        <div key={sub.id} className="flex items-center gap-2 p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:shadow-sm transition-shadow">
+                          <Checkbox
+                            checked={sub.estado === 'completada'}
+                            onCheckedChange={(v) => completarSubtarea(String(sub.id), !!v)}
+                            className="h-4 w-4"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-xs font-medium dark:text-slate-200 ${sub.estado === 'completada' ? 'line-through text-slate-400' : ''}`}>{sub.titulo}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className={`text-[9px] ${PRIORIDADES_TAREA.find(p => p.value === sub.prioridad)?.color || ''}`}>{sub.prioridad}</span>
+                              <span className="text-[9px] text-slate-400">{fmtDateShort(sub.fechaCreacion)}</span>
+                            </div>
+                          </div>
+                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => eliminarTarea(String(sub.id))}>
+                            <X className="h-3 w-3 text-slate-400" />
+                          </Button>
+                        </div>
                       ))}
                     </div>
-                  </div>
-                  <div className="flex justify-between pt-2">
-                    <Button size="sm" variant="outline" className="h-7 text-xs dark:border-slate-600" onClick={() => toggleSeguir(tareaSeleccionada)}>
-                      <Eye className="h-3 w-3 mr-1" />
-                      {tareaSeleccionada.seguidores?.some((s: any) => s.userId === usuario?.id) ? 'Dejar de seguir' : 'Seguir'}
-                    </Button>
-                    <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => { eliminarTarea(String(tareaSeleccionada.id)); setIsVerTareaOpen(false); }}>
-                      <Trash2 className="h-3 w-3 mr-1" />Eliminar
-                    </Button>
-                  </div>
-                </TabsContent>
-
-                {/* Chatter */}
-                <TabsContent value="chatter" className="pt-4 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <Select value={chatterTipo} onValueChange={setChatterTipo}>
-                      <SelectTrigger className="h-8 w-32 text-xs dark:bg-slate-900 dark:border-slate-600">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TIPOS_CHATTER.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Input value={chatterInput} onChange={e => setChatterInput(e.target.value)} placeholder="Escribe un mensaje..." className="h-8 text-xs dark:bg-slate-900 dark:border-slate-600" onKeyDown={e => { if (e.key === 'Enter') enviarChatter(); }} />
-                    <Button size="sm" className="h-8 px-2 bg-[#1e3a5f]" onClick={enviarChatter}><Send className="h-3.5 w-3.5" /></Button>
-                  </div>
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {chatterMsgs.length === 0 && <p className="text-xs text-slate-400 text-center py-4">Sin mensajes</p>}
-                    {chatterMsgs.map((m: any) => (
-                      <div key={m.id} className="rounded-lg border border-slate-100 dark:border-slate-700 p-2">
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${m.tipo === 'mensaje' ? 'bg-blue-100 text-blue-700' : m.tipo === 'actividad' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>{m.tipo}</span>
-                          <span className="text-[9px] text-slate-400">Usuario #{m.userId}</span>
-                          <span className="text-[9px] text-slate-400 ml-auto">{fmtDate(m.fechaCreacion)}</span>
-                        </div>
-                        <p className="text-xs text-slate-700 dark:text-slate-300">{m.contenido}</p>
-                      </div>
-                    ))}
-                  </div>
-                </TabsContent>
-
-                {/* Asignacion */}
-                <TabsContent value="asignacion" className="pt-4 space-y-4">
-                  <div>
-                    <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">Asignados</p>
-                    {tareaSeleccionada.asignados?.length === 0 && <p className="text-xs text-slate-400">Sin asignados</p>}
-                    {tareaSeleccionada.asignados?.map((a: any) => (
-                      <div key={a.id} className="flex items-center gap-2 py-1">
-                        <div className="h-6 w-6 rounded-full bg-blue-100 text-blue-700 text-[10px] flex items-center justify-center">{a.userId}</div>
-                        <span className="text-xs text-slate-600 dark:text-slate-400">Usuario #{a.userId}</span>
-                        {a.esResponsable && <Badge className="text-[9px] bg-amber-100 text-amber-700">Responsable</Badge>}
-                      </div>
-                    ))}
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">Seguidores</p>
-                    {tareaSeleccionada.seguidores?.length === 0 && <p className="text-xs text-slate-400">Sin seguidores</p>}
-                    {tareaSeleccionada.seguidores?.map((s: any) => (
-                      <div key={s.id} className="flex items-center gap-2 py-1">
-                        <div className="h-6 w-6 rounded-full bg-slate-100 text-slate-600 text-[10px] flex items-center justify-center">{s.userId}</div>
-                        <span className="text-xs text-slate-600 dark:text-slate-400">Usuario #{s.userId}</span>
-                      </div>
-                    ))}
-                  </div>
-                </TabsContent>
-              </Tabs>
+                  </TabsContent>
+                </Tabs>
+              )}
             </>
           )}
         </DialogContent>
